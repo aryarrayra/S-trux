@@ -1,31 +1,21 @@
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
-
-export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
-  },
-  dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
-  },
-  brand: {
-    primary: '#FDCB41',
-    secondary: '#F39F29',
-    dark: '#0F0E0E',
-    dark2: '#141212',
-    dark3: '#1E1E1E',
-    textMuted: '#978D8D',
-  },
+export const COLORS = {
+  white: '#FFFFFF',
+  black: '#000000',
+  darkGray: '#0F0E0E',
+  lightGray: '#978D8D',
+  primary: '#F39F29',
+  primaryLight: '#FDCB41',
+  primaryTransparent: 'rgba(243, 159, 41, 0.2)',
+  cardBackground: '#141212',
+  cardGradientStart: '#0F0E0E',
+  cardGradientEnd: '#1D1D1D',
+  footerText: 'rgba(30, 30, 30, 0.59)',
+  darkBrown: '#262011',
+  // New Admin Dashboard Colors
+  dashboardBg: '#ECECEC',
+  sidebarBg: '#1D1D1D',
+  cardBgLight: 'rgba(253, 203, 65, 0.15)',
+  historyText: '#5C4300',
+  maintenanceCardBg: 'rgba(243, 159, 41, 0.35)',
+  textMuted: '#323232',
 };
-
-export type ColorScheme = keyof typeof Colors;

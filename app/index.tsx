@@ -1,43 +1,65 @@
-import React from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
-import { Stack } from 'expo-router'; // ✅ Import Stack
-import Header from '@/components/Header';
-import Hero from '@/components/Hero';
-import Fleet from '@/components/Fleet';
-import WhyChooseUs from '@/components/WhyChooseUs';
-import Footer from '@/components/Footer';
+import React, { useState, useEffect } from 'react';
+import {
+  StyleSheet,
+  View,
+  useWindowDimensions,
+  ScrollView,
+  Platform,
+} from 'react-native';
+import Constants from 'expo-constants';
+import { COLORS } from '@/constants/Colors';
+import Loading from '@/components/common/Loading';
+import Hero from '@/components/landing/Hero';
+import Fleet from '@/components/landing/Fleet';
+import WhyChooseUs from '@/components/landing/WhyChooseUs';
+import Milestones from '@/components/landing/Milestones';
+import CTA from '@/components/landing/CTA';
+import Footer from '@/components/landing/Footer';
+import BlurryGlow from '@/components/common/BlurryGlow';
 
-export default function HomeScreen() {
+export default function LandingScreen() {
+  const { width } = useWindowDimensions();
+  const isDesktop = width > 992;
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate asset loading
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <Loading />;
+  }
+
   return (
-    <>
-      {/* ✅ Tambahkan Stack.Screen untuk mengatur header */}
-      <Stack.Screen 
-        options={{ 
-          headerShown: false // ✅ Sembunyikan header default
-        }} 
-      />
-      
-      <ScrollView 
-        style={styles.container}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <Header />
-        <Hero />
+    <View style={styles.mainWrapper}>
+      <BlurryGlow style={{ top: 800, left: -400 }} />
+      <BlurryGlow style={{ top: 1700, right: -400 }} />
+      <BlurryGlow style={{ top: 2500, left: -300 }} />
+
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <Hero isDesktop={isDesktop} />
         <Fleet />
         <WhyChooseUs />
+        <Milestones />
+        <CTA />
         <Footer />
       </ScrollView>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  mainWrapper: {
     flex: 1,
-    backgroundColor: '#0F0E0E',
+    backgroundColor: COLORS.darkGray,
+    paddingTop: Platform.OS === 'android' ? Constants.statusBarHeight : 0,
   },
-  scrollContent: {
-    flexGrow: 1,
+  scrollContainer: {
+    backgroundColor: 'transparent',
   },
 });
