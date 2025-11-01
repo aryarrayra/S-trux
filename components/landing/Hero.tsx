@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowUp, ClipboardList } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import { STATS } from '@/constants/data';
-import Header from './Header';
+// HAPUS import Header from './Header'; ❌
 
 interface HeroProps {
   isDesktop: boolean;
@@ -17,7 +17,7 @@ const Hero = ({ isDesktop }: HeroProps) => (
     resizeMode="cover"
   >
     <LinearGradient colors={['rgba(15,14,14,0.8)', 'rgba(15,14,14,1)']} style={StyleSheet.absoluteFill} />
-    <Header isDesktop={isDesktop} />
+    {/* HAPUS <Header isDesktop={isDesktop} /> ❌ */}
     <View style={[styles.heroContent, !isDesktop && styles.mobileHeroContent]}>
       <Text style={[styles.heroTitle, !isDesktop && styles.mobileHeroTitle]}>
         SOLUSI PENYEWAAN{'\n'}
@@ -51,20 +51,20 @@ const Hero = ({ isDesktop }: HeroProps) => (
 
 const styles = StyleSheet.create({
   heroBackground: {
-  flex: 1,
-  width: '100%',
-  height: '100%',
-  justifyContent: 'center',
-  overflow: 'hidden',
-  display: 'flex',
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    display: 'flex',
   },
   heroContent: {
-    alignSelf: 'center', // **Perubahan: Membuat container ini berada di tengah parent-nya**
-    maxWidth: 1200, // **Perubahan: Naikkan maxWidth agar lebih banyak ruang**
-     width: '100%', // **Tambahan: Pastikan menggunakan lebar penuh container**
-    marginTop: 100,
-    paddingHorizontal: 10, // **Tambahan: Beri padding di sisi agar tidak menempel di tepi**
-  },
+    alignSelf: 'center',
+    maxWidth: 1200,
+    width: '100%',
+    marginTop: 100,
+    paddingHorizontal: 10,
+  },
   mobileHeroContent: {
     alignItems: 'center',
   },
@@ -138,8 +138,6 @@ const styles = StyleSheet.create({
   mobileStatsContainer: {
     justifyContent: 'center',
   },
-
-  
   statItem: {
     alignItems: 'center',
   },
