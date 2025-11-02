@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
-import { ExternalLink, Search, X } from 'lucide-react-native';
+import { ExternalLink, Search, X, Check, X as CloseIcon } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
 
 // Mock data
-const LOAN_REQUESTS = [
+const INITIAL_LOAN_REQUESTS = [
   {
     id: 'ST000-29022025-1812',
     description: 'surat pinjaman excavator excavator cat 320DD',
@@ -61,7 +61,10 @@ const LOAN_REQUESTS = [
 
 export default function PersetujuanPinjaman() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [loanRequests, setLoanRequests] = useState(INITIAL_LOAN_REQUESTS);
   const [modalVisible, setModalVisible] = useState(false);
+  const [verifyModalVisible, setVerifyModalVisible] = useState(false);
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
   const getCurrentDate = () => {
@@ -83,7 +86,7 @@ export default function PersetujuanPinjaman() {
 
   const currentDate = getCurrentDate();
 
-  const filteredRequests = LOAN_REQUESTS.filter(request =>
+  const filteredRequests = loanRequests.filter(request =>
     request.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
     request.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -107,15 +110,34 @@ export default function PersetujuanPinjaman() {
   };
 
   const handleVerifikasi = () => {
-    // Logic untuk verifikasi dokumen
-    console.log('Dokumen diverifikasi:', selectedRequest?.id);
     setModalVisible(false);
+    setVerifyModalVisible(true);
   };
 
   const handleTolak = () => {
-    // Logic untuk menolak dokumen
-    console.log('Dokumen ditolak:', selectedRequest?.id);
     setModalVisible(false);
+    setRejectModalVisible(true);
+  };
+
+  const handleConfirmVerify = () => {
+    setLoanRequests(prev => prev.map(req =>
+      req.id === selectedRequest.id ? { ...req, status: 'Disetujui' } : req
+    ));
+    console.log('Dokumen diverifikasi:', selectedRequest?.id);
+    setVerifyModalVisible(false);
+  };
+
+  const handleConfirmReject = () => {
+    setLoanRequests(prev => prev.map(req =>
+      req.id === selectedRequest.id ? { ...req, status: 'Ditolak' } : req
+    ));
+    console.log('Dokumen ditolak:', selectedRequest?.id);
+    setRejectModalVisible(false);
+  };
+
+  const handleCloseConfirm = () => {
+    setVerifyModalVisible(false);
+    setRejectModalVisible(false);
   };
 
   return (
@@ -196,7 +218,7 @@ export default function PersetujuanPinjaman() {
           </ScrollView>
         </View>
 
-        {/* Modal Popup */}
+        {/* Document Modal Popup */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -260,6 +282,66 @@ export default function PersetujuanPinjaman() {
                   <Text style={styles.tolakButtonText}>Tolak</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Verify Confirmation Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={verifyModalVisible}
+          onRequestClose={handleCloseConfirm}
+        >
+          <View style={styles.confirmOverlay}>
+            <View style={[styles.confirmContent, { backgroundColor: '#F0FFF4' }]}>
+              <View style={styles.confirmHeader}>
+                <Text style={styles.confirmTitle}>Verifikasi</Text>
+              </View>
+              <View style={styles.confirmIconContainer}>
+                <View style={[styles.confirmIcon, { backgroundColor: '#10B981' }]}>
+                  <Check color="white" size={40} />
+                </View>
+              </View>
+              <View style={styles.confirmBody}>
+                <Text style={[styles.confirmSubtitle, { color: '#10B981' }]}>Anda Menyetujui Dokumen Ini</Text>
+                <Text style={styles.confirmText}>
+                  Dengan ini anda menyetujui surat peminjaman alat berat kepala unit yang telah diberikan terawat dan dalam kondisi prima
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.okButton} onPress={handleConfirmVerify}>
+                <Text style={styles.okButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Reject Confirmation Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={rejectModalVisible}
+          onRequestClose={handleCloseConfirm}
+        >
+          <View style={styles.confirmOverlay}>
+            <View style={[styles.confirmContent, { backgroundColor: '#FFF5F5' }]}>
+              <View style={styles.confirmHeader}>
+                <Text style={styles.confirmTitle}>Reject</Text>
+              </View>
+              <View style={styles.confirmIconContainer}>
+                <View style={[styles.confirmIcon, { backgroundColor: '#EF4444' }]}>
+                  <CloseIcon color="white" size={40} />
+                </View>
+              </View>
+              <View style={styles.confirmBody}>
+                <Text style={[styles.confirmSubtitle, { color: '#EF4444' }]}>Anda Menolak Dokumen</Text>
+                <Text style={styles.confirmText}>
+                  Atas penolakan ini anda mengetahui bahwa ada kesalahan dalam pengisian dokumen baik yang relevan sampai jaminan
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.okButton} onPress={handleConfirmReject}>
+                <Text style={styles.okButtonText}>OK</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -483,6 +565,74 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tolakButtonText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+    color: COLORS.white,
+  },
+  // Confirmation Modal Styles
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  confirmContent: {
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 350,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  confirmHeader: {
+    marginBottom: 16,
+  },
+  confirmTitle: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 18,
+    color: '#333',
+  },
+  confirmIconContainer: {
+    marginBottom: 20,
+  },
+  confirmIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  confirmBody: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  confirmSubtitle: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 16,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  confirmText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  okButton: {
+    backgroundColor: '#FDB022',
+    paddingHorizontal: 40,
+    paddingVertical: 12,
+    borderRadius: 25,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  okButtonText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 14,
     color: COLORS.white,
