@@ -1,11 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Link } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { LogOut } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import { ADMIN_NAV_LINKS } from '@/constants/adminData';
+import type { Href } from 'expo-router';
 
 const SideBar = () => {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const handleNavigation = (route: Href) => {
+    router.push(route);
+  };
+
+  const isActive = (route: string) => {
+    return pathname === route;
+  };
+
   return (
     <View style={styles.sidebar}>
       <View>
@@ -13,26 +25,42 @@ const SideBar = () => {
           <View style={styles.logoBox}>
             <Text style={styles.logoText}>ST</Text>
           </View>
-          <Text style={styles.logoBrand}>S`Trux</Text>
+          <Text style={styles.logoBrand}>S'Trux</Text>
         </View>
         <View style={styles.separator} />
         <View style={styles.navContainer}>
           {ADMIN_NAV_LINKS.map((link, index) => (
-            <TouchableOpacity key={index} style={styles.navLink}>
-              <link.icon color={COLORS.white} size={24} />
-              <Text style={styles.navLinkText}>{link.text}</Text>
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.navLink,
+                isActive(link.route) && styles.navLinkActive
+              ]}
+              onPress={() => handleNavigation(link.route as Href)}
+            >
+              <link.icon
+                color={isActive(link.route) ? COLORS.darkGray : COLORS.white}
+                size={24}
+              />
+              <Text style={[
+                styles.navLinkText,
+                isActive(link.route) && styles.navLinkTextActive
+              ]}>
+                {link.text}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
       <View>
         <View style={styles.separator} />
-        <Link href="/login" asChild>
-          <TouchableOpacity style={styles.logoutButton}>
-            <Text style={styles.logoutText}>Logout</Text>
-            <LogOut color={COLORS.primary} size={22} />
-          </TouchableOpacity>
-        </Link>
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={() => router.push('/login' as Href)}
+        >
+          <Text style={styles.logoutText}>Logout</Text>
+          <LogOut color={COLORS.primary} size={22} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -84,11 +112,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 20,
     paddingLeft: 10,
+    paddingVertical: 10,
+    paddingRight: 10,
+    borderRadius: 8,
+  },
+  navLinkActive: {
+    backgroundColor: COLORS.primary,
   },
   navLinkText: {
     fontFamily: 'Poppins_500Medium',
     fontSize: 14,
     color: COLORS.white,
+  },
+  navLinkTextActive: {
+    color: COLORS.darkGray,
+    fontWeight: '600',
   },
   logoutButton: {
     flexDirection: 'row',
