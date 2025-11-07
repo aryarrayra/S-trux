@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,33 @@ import MaintenanceCard from '@/components/admin/MaintenanceCard';
 export default function AdminDashboardScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
+  const [currentDate, setCurrentDate] = useState({ full: '', time: '' });
+
+  useEffect(() => {
+    const getCurrentDate = () => {
+      const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+      const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      const now = new Date();
+      const dayName = days[now.getDay()];
+      const date = now.getDate();
+      const month = months[now.getMonth()];
+      const year = now.getFullYear();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+
+      return {
+        full: `${dayName}, ${date} ${month} ${year}`,
+        time: `${hours}:${minutes} WIB`
+      };
+    };
+
+    setCurrentDate(getCurrentDate());
+    const interval = setInterval(() => {
+      setCurrentDate(getCurrentDate());
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   const Header = () => (
     <View style={styles.header}>
@@ -27,7 +54,7 @@ export default function AdminDashboardScreen() {
         </Text>
       </View>
       <Text style={styles.dateText}>
-        Rabu, 29 Oktober 2025{'\n'}18.08 WIB
+        {currentDate.full}{'\n'}{currentDate.time}
       </Text>
     </View>
   );

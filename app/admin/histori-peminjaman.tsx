@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity } from "react-native";
-import { Clock4, History, X } from "lucide-react-native";
+import { Clock4, History, X, Phone, FileText } from "lucide-react-native";
 import SideBar from "@/components/admin/SideBar";
 import { Stack } from "expo-router";
 
 const HISTORY_DATA = [
     {
         alat: "Excavator CAT 3200D",
-        perusahaan: "PT. Sumber Makmur",
+        perusahaan: "PT. Maulana Raya",
         penyewa: "Santoso Merogo",
         tanggal: "17/10/2025",
         berakhir: "30/10/2025",
@@ -16,6 +16,9 @@ const HISTORY_DATA = [
         dokumen: "yTd097232932732893",
         kondisi: "baik/rusak",
         status: "Disewa",
+        statusTime: "2h menit yang lalu",
+        kategori: "Excavator",
+        series: "Caterpillar CAT 3200D",
     },
     {
         alat: "Dump Truck R900",
@@ -28,10 +31,13 @@ const HISTORY_DATA = [
         dokumen: "xAb908123981273",
         kondisi: "baik",
         status: "Disewa",
+        statusTime: "5 jam yang lalu",
+        kategori: "Dump Truck",
+        series: "Hino R900",
     },
     {
         alat: "Bulldozer X390 CTX",
-        perusahaan: "PT. Surya Kencana",
+        perusahaan: "PT. Sinarjayalita",
         penyewa: "Rendi Kusuma",
         tanggal: "02/11/2025",
         berakhir: "10/11/2025",
@@ -40,10 +46,72 @@ const HISTORY_DATA = [
         dokumen: "dEw1239812739182",
         kondisi: "baik",
         status: "Selesai",
+        statusTime: "6 jam yang lalu",
+        kategori: "Bulldozer",
+        series: "Komatsu X390 CTX",
+    },
+    {
+        alat: "Dump Truck R991",
+        perusahaan: "PT. Berkah Nusara",
+        penyewa: "Ahmad Yani",
+        tanggal: "01/11/2025",
+        berakhir: "15/11/2025",
+        lokasi: "Bandung",
+        telp: "081298765432",
+        dokumen: "aXz123456789012",
+        kondisi: "baik",
+        status: "Disewa",
+        statusTime: "8 jam yang lalu",
+        kategori: "Dump Truck",
+        series: "Hino R991",
+    },
+    {
+        alat: "Excavator CAT 3500D",
+        perusahaan: "PT. Sejahtera Abadi",
+        penyewa: "Bambang Sutrisno",
+        tanggal: "28/10/2025",
+        berakhir: "12/11/2025",
+        lokasi: "Semarang",
+        telp: "085612345678",
+        dokumen: "bCd987654321098",
+        kondisi: "baik",
+        status: "Disewa",
+        statusTime: "1d menit yang lalu",
+        kategori: "Excavator",
+        series: "Caterpillar CAT 3500D",
+    },
+    {
+        alat: "Dump Truck R900",
+        perusahaan: "PT. Maulana Raya",
+        penyewa: "Susilo Wibowo",
+        tanggal: "25/10/2025",
+        berakhir: "08/11/2025",
+        lokasi: "Yogyakarta",
+        telp: "082187654321",
+        dokumen: "cDe456789012345",
+        kondisi: "baik",
+        status: "Disewa",
+        statusTime: "2 jam yang lalu",
+        kategori: "Dump Truck",
+        series: "Hino R900",
+    },
+    {
+        alat: "Bulldozer X380 CTX",
+        perusahaan: "PT. Sinarjayalita",
+        penyewa: "Hendra Gunawan",
+        tanggal: "20/10/2025",
+        berakhir: "05/11/2025",
+        lokasi: "Malang",
+        telp: "081234876543",
+        dokumen: "dEf789012345678",
+        kondisi: "baik",
+        status: "Selesai",
+        statusTime: "3 jam yang lalu",
+        kategori: "Bulldozer",
+        series: "Komatsu X380 CTX",
     },
 ];
 
-// ✅ Tambahkan tipe data untuk selectedItem
 type HistoryItem = {
     alat: string;
     perusahaan: string;
@@ -55,6 +123,9 @@ type HistoryItem = {
     dokumen: string;
     kondisi: string;
     status: string;
+    statusTime: string;
+    kategori: string;
+    series: string;
 };
 
 export default function HistoriPeminjaman() {
@@ -108,7 +179,7 @@ export default function HistoriPeminjaman() {
                             <Text style={styles.historyTitle}>Histori Aktivitas</Text>
                         </View>
 
-                        <ScrollView style={styles.historyList}>
+                        <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
                             {HISTORY_DATA.map((item, index) => (
                                 <TouchableOpacity
                                     key={index}
@@ -120,8 +191,8 @@ export default function HistoriPeminjaman() {
                                         <Text style={styles.alatText}>{item.alat}</Text>
                                         <Text style={styles.companyText}>{item.perusahaan}</Text>
                                         <View style={styles.timeContainer}>
-                                            <Clock4 size={14} color="#F59E0B" />
-                                            <Text style={styles.timeAgo}>{item.status}</Text>
+                                            <Clock4 size={12} color="#F59E0B" />
+                                            <Text style={styles.timeAgo}>{item.statusTime}</Text>
                                         </View>
                                     </View>
                                 </TouchableOpacity>
@@ -130,7 +201,7 @@ export default function HistoriPeminjaman() {
                     </View>
                 </View>
 
-                {/* ✅ Modal Detail Dinamis */}
+                {/* Modal Detail */}
                 <Modal
                     visible={selectedItem !== null}
                     transparent
@@ -138,28 +209,105 @@ export default function HistoriPeminjaman() {
                     onRequestClose={() => setSelectedItem(null)}
                 >
                     <View style={styles.modalOverlay}>
-                        <View style={styles.modalContent}>
-                            <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedItem(null)}>
-                                <X size={24} color="#F59E0B" />
-                            </TouchableOpacity>
-                            <Text style={styles.modalTitle}>{selectedItem?.alat}</Text>
+                        <View style={styles.modalWrapper}>
+                            <View style={styles.gradientBottom} />
+                            <View style={styles.modalContent}>
+                                <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedItem(null)}>
+                                    <X size={24} color="#EF4444" />
+                                </TouchableOpacity>
 
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Informasi Sewa</Text>
-                                <Text>Tanggal Sewa: {selectedItem?.tanggal}</Text>
-                                <Text>Sewa Berakhir: {selectedItem?.berakhir}</Text>
-                                <Text>Nama Penyewa: {selectedItem?.penyewa}</Text>
-                                <Text>Nama Perusahaan: {selectedItem?.perusahaan}</Text>
-                                <Text>Lokasi: {selectedItem?.lokasi}</Text>
-                                <Text>Nomor Telepon: {selectedItem?.telp}</Text>
-                                <Text>Dokumen: {selectedItem?.dokumen}</Text>
-                            </View>
+                                <Text style={styles.modalTitle}>{selectedItem?.alat}</Text>
 
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Informasi Unit</Text>
-                                <Text>Kategori Unit: Excavator</Text>
-                                <Text>Kondisi: {selectedItem?.kondisi}</Text>
-                                <Text>Status Unit: {selectedItem?.status}</Text>
+                                <View style={styles.divider} />
+
+                                <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>
+                                    <Text style={styles.sectionTitle}>Informasi Sewa</Text>
+
+                                    <View style={styles.twoColumnRow}>
+                                        <View style={styles.leftColumn}>
+                                            <Text style={styles.label}>Tanggal Sewa</Text>
+                                            <View style={styles.input}>
+                                                <Text style={styles.inputText}>{selectedItem?.tanggal}</Text>
+                                            </View>
+                                        </View>
+                                        <View style={styles.rightColumn}>
+                                            <Text style={styles.label}>Nama Penyewa</Text>
+                                            <View style={styles.input}>
+                                                <Text style={styles.inputText}>{selectedItem?.penyewa}</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.twoColumnRow}>
+                                        <View style={styles.leftColumn}>
+                                            <Text style={styles.label}>Sewa Berakhir</Text>
+                                            <View style={styles.input}>
+                                                <Text style={styles.inputText}>{selectedItem?.berakhir}</Text>
+                                            </View>
+                                        </View>
+                                        <View style={styles.rightColumn}>
+                                            <Text style={styles.label}>Nama Perusahaan</Text>
+                                            <View style={styles.input}>
+                                                <Text style={styles.inputText}>{selectedItem?.perusahaan}</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.twoColumnRow}>
+                                        <View style={styles.leftColumn}>
+                                            <Text style={styles.label}>Lokasi</Text>
+                                            <View style={styles.input}>
+                                                <Text style={styles.inputText}>{selectedItem?.lokasi}</Text>
+                                            </View>
+                                        </View>
+                                        <View style={styles.rightColumn}>
+                                            <Text style={styles.label}>Nomor Telepon</Text>
+                                            <View style={[styles.input, styles.inputWithIcon]}>
+                                                <Text style={styles.inputText}>{selectedItem?.telp}</Text>
+                                                <Phone size={18} color="#F59E0B" strokeWidth={2.5} />
+                                            </View>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.rightColumnOnly}>
+                                        <Text style={styles.label}>Dokumen Persetujuan Pinjaman</Text>
+                                        <View style={[styles.input, styles.inputWithIcon]}>
+                                            <Text style={styles.inputText}>{selectedItem?.dokumen}</Text>
+                                            <FileText size={18} color="#F59E0B" strokeWidth={2.5} />
+                                        </View>
+                                    </View>
+
+                                    <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Informasi Unit</Text>
+
+                                    <View style={styles.twoColumnRow}>
+                                        <View style={styles.leftColumn}>
+                                            <Text style={styles.label}>Kategori Unit</Text>
+                                            <View style={styles.input}>
+                                                <Text style={styles.inputText}>{selectedItem?.kategori}</Text>
+                                            </View>
+                                        </View>
+                                        <View style={styles.rightColumn}>
+                                            <Text style={styles.label}>Status Unit</Text>
+                                            <View style={styles.input}>
+                                                <Text style={styles.inputText}>{selectedItem?.status}</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.leftColumnOnly}>
+                                        <Text style={styles.label}>Series</Text>
+                                        <View style={styles.input}>
+                                            <Text style={styles.inputText}>{selectedItem?.series}</Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.leftColumnOnly}>
+                                        <Text style={styles.label}>Kondisi</Text>
+                                        <View style={styles.input}>
+                                            <Text style={styles.inputText}>{selectedItem?.kondisi}</Text>
+                                        </View>
+                                    </View>
+                                </ScrollView>
                             </View>
                         </View>
                     </View>
@@ -170,20 +318,44 @@ export default function HistoriPeminjaman() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, flexDirection: "row", backgroundColor: "#F9F9F9" },
-    mainContent: { flex: 1, padding: 40 },
+    container: {
+        flex: 1,
+        flexDirection: "row",
+        backgroundColor: "#F9F9F9"
+    },
+    mainContent: {
+        flex: 1,
+        padding: 40
+    },
     header: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "flex-start",
         marginBottom: 30,
     },
-    title: { fontSize: 32, fontFamily: "Poppins_600SemiBold", color: "#F59E0B" },
-    subtitle: { fontSize: 14, color: "#555", fontFamily: "Poppins_400Regular" },
-    dateContainer: { alignItems: "flex-end" },
-    dateText: { fontSize: 14, fontFamily: "Poppins_500Medium", color: "#F59E0B" },
-    timeText: { fontSize: 16, fontFamily: "Poppins_500Medium", color: "#333" },
-
+    title: {
+        fontSize: 32,
+        fontFamily: "Poppins_600SemiBold",
+        color: "#F59E0B"
+    },
+    subtitle: {
+        fontSize: 14,
+        color: "#555",
+        fontFamily: "Poppins_400Regular"
+    },
+    dateContainer: {
+        alignItems: "flex-end"
+    },
+    dateText: {
+        fontSize: 14,
+        fontFamily: "Poppins_500Medium",
+        color: "#F59E0B"
+    },
+    timeText: {
+        fontSize: 16,
+        fontFamily: "Poppins_500Medium",
+        color: "#333"
+    },
     historyBox: {
         backgroundColor: "#FFF6E5",
         borderWidth: 1.5,
@@ -206,42 +378,90 @@ const styles = StyleSheet.create({
         color: "#F59E0B",
         marginLeft: 8,
     },
-    historyList: { marginTop: 10 },
+    historyList: {
+        marginTop: 10
+    },
     historyItem: {
         flexDirection: "row",
         alignItems: "flex-start",
         borderBottomWidth: 1,
         borderBottomColor: "#F6C76F",
-        paddingVertical: 10,
+        paddingVertical: 12,
     },
     bullet: {
         width: 6,
         height: 6,
         borderRadius: 3,
         backgroundColor: "#F59E0B",
-        marginTop: 8,
+        marginTop: 6,
         marginRight: 10,
     },
-    historyContent: { flex: 1 },
-    alatText: { fontSize: 14, fontFamily: "Poppins_500Medium", color: "#333" },
-    companyText: { fontSize: 13, fontFamily: "Poppins_400Regular", color: "#F59E0B" },
-    timeContainer: { flexDirection: "row", alignItems: "center", marginTop: 4 },
-    timeAgo: { fontSize: 12, color: "#666", marginLeft: 5 },
-
-    // Modal
+    historyContent: {
+        flex: 1
+    },
+    alatText: {
+        fontSize: 14,
+        fontFamily: "Poppins_500Medium",
+        color: "#333"
+    },
+    companyText: {
+        fontSize: 12,
+        fontFamily: "Poppins_400Regular",
+        color: "#F59E0B",
+        marginTop: 2,
+    },
+    timeContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginTop: 4
+    },
+    timeAgo: {
+        fontSize: 11,
+        color: "#666",
+        marginLeft: 4
+    },
     modalOverlay: {
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "rgba(0,0,0,0.4)",
+        backgroundColor: "rgba(0,0,0,0.5)",
+    },
+    modalWrapper: {
+        width: "48%",
+        maxWidth: 580,
+        maxHeight: "88%",
+        borderRadius: 16,
+        overflow: "hidden",
+        position: "relative",
+    },
+    gradientBottom: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: "35%",
+        backgroundColor: "#FFE8B3",
+        zIndex: 0,
     },
     modalContent: {
-        width: "90%",
-        backgroundColor: "#FFF",
-        borderRadius: 12,
-        padding: 20,
+        flex: 1,
+        backgroundColor: "#FFFEF8",
+        borderRadius: 16,
+        padding: 24,
+        paddingTop: 18,
+        paddingBottom: 26,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 10,
     },
-    closeButton: { alignSelf: "flex-end" },
+    closeButton: {
+        alignSelf: "flex-end",
+        padding: 4,
+        marginBottom: 4,
+        zIndex: 10,
+    },
     modalTitle: {
         fontSize: 20,
         fontFamily: "Poppins_600SemiBold",
@@ -249,11 +469,69 @@ const styles = StyleSheet.create({
         textAlign: "center",
         marginBottom: 10,
     },
-    section: { marginTop: 10 },
+    divider: {
+        height: 2,
+        backgroundColor: "#F59E0B",
+        marginBottom: 16,
+    },
+    scrollContent: {
+        flex: 1,
+    },
     sectionTitle: {
-        fontSize: 16,
+        fontSize: 14,
         fontFamily: "Poppins_600SemiBold",
         color: "#F59E0B",
-        marginBottom: 4,
+        marginBottom: 14,
+    },
+    twoColumnRow: {
+        flexDirection: "row",
+        marginBottom: 14,
+    },
+    leftColumn: {
+        flex: 1,
+        paddingRight: 28,
+    },
+    rightColumn: {
+        flex: 1,
+        paddingLeft: 28,
+    },
+    leftColumnOnly: {
+        width: "50%",
+        paddingRight: 28,
+        marginBottom: 14,
+    },
+    rightColumnOnly: {
+        width: "50%",
+        paddingLeft: 28,
+        marginBottom: 14,
+        alignSelf: "flex-end",
+    },
+    label: {
+        fontSize: 12,
+        fontFamily: "Poppins_500Medium",
+        color: "#000",
+        marginBottom: 6,
+    },
+    input: {
+        backgroundColor: "#FFF",
+        borderWidth: 1.5,
+        borderColor: "#F59E0B",
+        borderRadius: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+        minHeight: 40,
+        justifyContent: "center",
+    },
+    inputWithIcon: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingRight: 10,
+    },
+    inputText: {
+        fontSize: 12,
+        fontFamily: "Poppins_400Regular",
+        color: "#000",
+        flex: 1,
     },
 });

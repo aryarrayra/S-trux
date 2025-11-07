@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import { LogOut } from 'lucide-react-native';
+import { LogOut, LayoutDashboard } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import { ADMIN_NAV_LINKS } from '@/constants/adminData';
 import type { Href } from 'expo-router';
@@ -21,14 +21,40 @@ const SideBar = () => {
   return (
     <View style={styles.sidebar}>
       <View>
-        <View style={styles.logoContainer}>
+        <TouchableOpacity
+          style={styles.logoContainer}
+          onPress={() => handleNavigation('/admin/dashboard' as Href)}
+          activeOpacity={0.7}
+        >
           <View style={styles.logoBox}>
             <Text style={styles.logoText}>ST</Text>
           </View>
           <Text style={styles.logoBrand}>S'Trux</Text>
-        </View>
+        </TouchableOpacity>
         <View style={styles.separator} />
+
+        {/* All Menu Items */}
         <View style={styles.navContainer}>
+          <TouchableOpacity
+            style={[
+              styles.navLink,
+              isActive('/admin/dashboard') && styles.navLinkActive
+            ]}
+            onPress={() => handleNavigation('/admin/dashboard' as Href)}
+          >
+            <LayoutDashboard
+              color={isActive('/admin/dashboard') ? COLORS.darkGray : COLORS.white}
+              size={24}
+            />
+            <Text style={[
+              styles.navLinkText,
+              isActive('/admin/dashboard') && styles.navLinkTextActive
+            ]}>
+              Dashboard Admin
+            </Text>
+          </TouchableOpacity>
+
+          {/* Menu Lainnya */}
           {ADMIN_NAV_LINKS.map((link, index) => (
             <TouchableOpacity
               key={index}

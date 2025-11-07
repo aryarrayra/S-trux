@@ -94,13 +94,13 @@ export default function PersetujuanPinjaman() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Disetujui':
-        return '#B8956A';
+        return '#10B981'; // Green for approved (ijo)
       case 'Ditolak':
-        return '#B8A496';
+        return '#EF4444'; // Red for rejected (merah)
       case 'Belum diverifikasi':
-        return '#F59E0B';
+        return '#F59E0B'; // Orange for pending
       default:
-        return '#B8956A';
+        return '#10B981';
     }
   };
 
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#F5EFE7',
+    backgroundColor: '#E8D5C4',
     borderBottomWidth: 2,
     borderBottomColor: '#D4A574',
   },
@@ -434,9 +434,10 @@ const styles = StyleSheet.create({
     borderLeftColor: '#D4A574',
   },
   tableHeaderText: {
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: 'Poppins_600SemiBold',
     fontSize: 14,
-    color: COLORS.darkGray,
+    color: '#000000',
+    fontWeight: '700',
   },
   tableRow: {
     flexDirection: 'row',
