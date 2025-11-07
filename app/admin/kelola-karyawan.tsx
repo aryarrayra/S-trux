@@ -915,6 +915,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: COLORS.darkGray,
     },
+    
     confirmOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -978,4 +979,5 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: COLORS.white,
     },
+    
 });

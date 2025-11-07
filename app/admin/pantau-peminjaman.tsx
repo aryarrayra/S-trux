@@ -1,9 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform } from 'react-native';
 import { MapPin, Search, X, Clock, User, Calendar } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
+
+// Declare global for Leaflet
+declare global {
+    interface Window {
+        L: any;
+        openLoanDetail: (loanId: string) => void;
+    }
+}
 
 // Load maps ONLY on mobile (no import at top)
 let MapView: any = null;
@@ -72,6 +80,116 @@ const INITIAL_ACTIVE_LOANS = [
         condition: 'rusak',
     },
 ];
+
+// Web Map Component
+const WebMapView = ({ loans, onMarkerClick }: any) => {
+    const mapRef = useRef<any>(null);
+    const markersRef = useRef<any[]>([]);
+    const mapContainerRef = useRef<any>(null);
+
+    const getPinColor = (type: string) => {
+        switch (type) {
+            case 'Excavator':
+                return '#F59E0B';
+            case 'Bulldozer':
+                return '#FDB022';
+            case 'Dump Truck':
+                return '#000000';
+            default:
+                return '#F59E0B';
+        }
+    };
+
+    useEffect(() => {
+        if (Platform.OS !== 'web') return;
+
+        // Load Leaflet CSS
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';
+        document.head.appendChild(link);
+
+        // Load Leaflet JS
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';
+        script.async = true;
+        script.onload = () => {
+            if (window.L && mapContainerRef.current && !mapRef.current) {
+                const map = window.L.map(mapContainerRef.current).setView([-6.2088, 106.8456], 11);
+
+                window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19,
+                }).addTo(map);
+
+                mapRef.current = map;
+            }
+        };
+        document.head.appendChild(script);
+
+        return () => {
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (Platform.OS !== 'web') return;
+        if (!mapRef.current || !window.L) return;
+
+        // Clear markers
+        markersRef.current.forEach(marker => marker.remove());
+        markersRef.current = [];
+
+        // Set window function
+        window.openLoanDetail = (loanId: string) => {
+            const loan = loans.find((l: any) => l.id === loanId);
+            if (loan) {
+                onMarkerClick(loan);
+            }
+        };
+
+        // Add markers
+        loans.forEach((loan: any) => {
+            const color = getPinColor(loan.type);
+            
+            const icon = window.L.divIcon({
+                html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+                className: 'custom-marker',
+                iconSize: [24, 24],
+                iconAnchor: [12, 24],
+            });
+
+            const marker = window.L.marker(
+                [loan.location.latitude, loan.location.longitude],
+                { icon }
+            ).addTo(mapRef.current);
+
+            marker.bindPopup(`
+                <div style="font-family: sans-serif;">
+                    <strong style="font-size: 14px; color: #333;">${loan.equipment}</strong><br/>
+                    <span style="font-size: 12px; color: #666;">${loan.borrower}</span><br/>
+                    <button 
+                        onclick="window.openLoanDetail('${loan.id}')" 
+                        style="margin-top: 8px; padding: 4px 12px; background-color: #F59E0B; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;"
+                    >
+                        Detail
+                    </button>
+                </div>
+            `);
+
+            markersRef.current.push(marker);
+        });
+    }, [loans, onMarkerClick]);
+
+    return (
+        <View style={styles.map}>
+            <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+        </View>
+    );
+};
 
 export default function PantauPeminjaman() {
     const [searchQuery, setSearchQuery] = useState('');
@@ -161,9 +279,10 @@ export default function PantauPeminjaman() {
 
                     <View style={styles.mapContainer}>
                         {Platform.OS === 'web' ? (
-                            <View style={styles.map}>
-                                <Text style={styles.mapPlaceholder}>Maps only on mobile app</Text>
-                            </View>
+                            <WebMapView 
+                                loans={filteredLoans} 
+                                onMarkerClick={handleOpenDetail}
+                            />
                         ) : (
                             MapView ? (
                                 <MapView

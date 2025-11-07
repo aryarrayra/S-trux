@@ -29,7 +29,7 @@ const SideBar = () => {
           <View style={styles.logoBox}>
             <Text style={styles.logoText}>ST</Text>
           </View>
-          <Text style={styles.logoBrand}>S'Trux</Text>
+          <Text style={styles.logoBrand}>S`Trux</Text>
         </TouchableOpacity>
         <View style={styles.separator} />
 
