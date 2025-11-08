@@ -210,7 +210,10 @@ export default function HistoriPeminjaman() {
                 >
                     <View style={styles.modalOverlay}>
                         <View style={styles.modalWrapper}>
-                            <View style={styles.gradientBottom} />
+                            <View style={styles.gradientLayer1} />
+                            <View style={styles.gradientLayer2} />
+                            <View style={styles.gradientLayer3} />
+                            <View style={styles.gradientLayer4} />
                             <View style={styles.modalContent}>
                                 <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedItem(null)}>
                                     <X size={24} color="#EF4444" />
@@ -223,88 +226,92 @@ export default function HistoriPeminjaman() {
                                 <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>
                                     <Text style={styles.sectionTitle}>Informasi Sewa</Text>
 
-                                    <View style={styles.twoColumnRow}>
-                                        <View style={styles.leftColumn}>
-                                            <Text style={styles.label}>Tanggal Sewa</Text>
-                                            <View style={styles.input}>
-                                                <Text style={styles.inputText}>{selectedItem?.tanggal}</Text>
+                                    <View style={styles.fieldContainer}>
+                                        <View style={styles.twoColumnRow}>
+                                            <View style={styles.leftColumn}>
+                                                <Text style={styles.label}>Tanggal Sewa</Text>
+                                                <View style={styles.input}>
+                                                    <Text style={styles.inputText}>{selectedItem?.tanggal}</Text>
+                                                </View>
+                                            </View>
+                                            <View style={styles.rightColumn}>
+                                                <Text style={styles.label}>Nama Penyewa</Text>
+                                                <View style={styles.input}>
+                                                    <Text style={styles.inputText}>{selectedItem?.penyewa}</Text>
+                                                </View>
                                             </View>
                                         </View>
-                                        <View style={styles.rightColumn}>
-                                            <Text style={styles.label}>Nama Penyewa</Text>
-                                            <View style={styles.input}>
-                                                <Text style={styles.inputText}>{selectedItem?.penyewa}</Text>
-                                            </View>
-                                        </View>
-                                    </View>
 
-                                    <View style={styles.twoColumnRow}>
-                                        <View style={styles.leftColumn}>
-                                            <Text style={styles.label}>Sewa Berakhir</Text>
-                                            <View style={styles.input}>
-                                                <Text style={styles.inputText}>{selectedItem?.berakhir}</Text>
+                                        <View style={styles.twoColumnRow}>
+                                            <View style={styles.leftColumn}>
+                                                <Text style={styles.label}>Sewa Berakhir</Text>
+                                                <View style={styles.input}>
+                                                    <Text style={styles.inputText}>{selectedItem?.berakhir}</Text>
+                                                </View>
+                                            </View>
+                                            <View style={styles.rightColumn}>
+                                                <Text style={styles.label}>Nama Perusahaan</Text>
+                                                <View style={styles.input}>
+                                                    <Text style={styles.inputText}>{selectedItem?.perusahaan}</Text>
+                                                </View>
                                             </View>
                                         </View>
-                                        <View style={styles.rightColumn}>
-                                            <Text style={styles.label}>Nama Perusahaan</Text>
-                                            <View style={styles.input}>
-                                                <Text style={styles.inputText}>{selectedItem?.perusahaan}</Text>
-                                            </View>
-                                        </View>
-                                    </View>
 
-                                    <View style={styles.twoColumnRow}>
-                                        <View style={styles.leftColumn}>
-                                            <Text style={styles.label}>Lokasi</Text>
-                                            <View style={styles.input}>
-                                                <Text style={styles.inputText}>{selectedItem?.lokasi}</Text>
+                                        <View style={styles.twoColumnRow}>
+                                            <View style={styles.leftColumn}>
+                                                <Text style={styles.label}>Lokasi</Text>
+                                                <View style={styles.input}>
+                                                    <Text style={styles.inputText}>{selectedItem?.lokasi}</Text>
+                                                </View>
+                                            </View>
+                                            <View style={styles.rightColumn}>
+                                                <Text style={styles.label}>Nomor Telepon</Text>
+                                                <View style={[styles.input, styles.inputWithIcon]}>
+                                                    <Text style={styles.inputText}>{selectedItem?.telp}</Text>
+                                                    <Phone size={18} color="#F59E0B" strokeWidth={2.5} />
+                                                </View>
                                             </View>
                                         </View>
-                                        <View style={styles.rightColumn}>
-                                            <Text style={styles.label}>Nomor Telepon</Text>
+
+                                        <View style={styles.rightColumnOnly}>
+                                            <Text style={styles.label}>Dokumen Persetujuan Pinjaman</Text>
                                             <View style={[styles.input, styles.inputWithIcon]}>
-                                                <Text style={styles.inputText}>{selectedItem?.telp}</Text>
-                                                <Phone size={18} color="#F59E0B" strokeWidth={2.5} />
+                                                <Text style={styles.inputText}>{selectedItem?.dokumen}</Text>
+                                                <FileText size={18} color="#F59E0B" strokeWidth={2.5} />
                                             </View>
                                         </View>
                                     </View>
 
-                                    <View style={styles.rightColumnOnly}>
-                                        <Text style={styles.label}>Dokumen Persetujuan Pinjaman</Text>
-                                        <View style={[styles.input, styles.inputWithIcon]}>
-                                            <Text style={styles.inputText}>{selectedItem?.dokumen}</Text>
-                                            <FileText size={18} color="#F59E0B" strokeWidth={2.5} />
+                                    <Text style={styles.sectionTitle}>Informasi Unit</Text>
+
+                                    <View style={styles.fieldContainer}>
+                                        <View style={styles.twoColumnRow}>
+                                            <View style={styles.leftColumn}>
+                                                <Text style={styles.label}>Kategori Unit</Text>
+                                                <View style={styles.input}>
+                                                    <Text style={styles.inputText}>{selectedItem?.kategori}</Text>
+                                                </View>
+                                            </View>
+                                            <View style={styles.rightColumn}>
+                                                <Text style={styles.label}>Status Unit</Text>
+                                                <View style={styles.input}>
+                                                    <Text style={styles.inputText}>{selectedItem?.status}</Text>
+                                                </View>
+                                            </View>
                                         </View>
-                                    </View>
 
-                                    <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Informasi Unit</Text>
-
-                                    <View style={styles.twoColumnRow}>
-                                        <View style={styles.leftColumn}>
-                                            <Text style={styles.label}>Kategori Unit</Text>
+                                        <View style={styles.leftColumnOnly}>
+                                            <Text style={styles.label}>Series</Text>
                                             <View style={styles.input}>
-                                                <Text style={styles.inputText}>{selectedItem?.kategori}</Text>
+                                                <Text style={styles.inputText}>{selectedItem?.series}</Text>
                                             </View>
                                         </View>
-                                        <View style={styles.rightColumn}>
-                                            <Text style={styles.label}>Status Unit</Text>
+
+                                        <View style={styles.leftColumnOnly}>
+                                            <Text style={styles.label}>Kondisi</Text>
                                             <View style={styles.input}>
-                                                <Text style={styles.inputText}>{selectedItem?.status}</Text>
+                                                <Text style={styles.inputText}>{selectedItem?.kondisi}</Text>
                                             </View>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.leftColumnOnly}>
-                                        <Text style={styles.label}>Series</Text>
-                                        <View style={styles.input}>
-                                            <Text style={styles.inputText}>{selectedItem?.series}</Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.leftColumnOnly}>
-                                        <Text style={styles.label}>Kondisi</Text>
-                                        <View style={styles.input}>
-                                            <Text style={styles.inputText}>{selectedItem?.kondisi}</Text>
                                         </View>
                                     </View>
                                 </ScrollView>
@@ -427,9 +434,9 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(0,0,0,0.5)",
     },
     modalWrapper: {
-        width: "48%",
-        maxWidth: 580,
-        maxHeight: "88%",
+        width: "50%",
+        maxWidth: 600,
+        maxHeight: "90%",
         borderRadius: 16,
         overflow: "hidden",
         position: "relative",
@@ -439,27 +446,77 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        height: "35%",
-        backgroundColor: "#FFE8B3",
+        height: "60%",
         zIndex: 0,
+        borderBottomLeftRadius: 16,
+        borderBottomRightRadius: 16,
+    },
+    gradientLayer1: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: "60%",
+        backgroundColor: "#EA580C",
+        opacity: 0.15,
+        zIndex: 0,
+        borderBottomLeftRadius: 16,
+        borderBottomRightRadius: 16,
+    },
+    gradientLayer2: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: "45%",
+        backgroundColor: "#EA580C",
+        opacity: 0.25,
+        zIndex: 0,
+        borderBottomLeftRadius: 16,
+        borderBottomRightRadius: 16,
+    },
+    gradientLayer3: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: "30%",
+        backgroundColor: "#EA580C",
+        opacity: 0.4,
+        zIndex: 0,
+        borderBottomLeftRadius: 16,
+        borderBottomRightRadius: 16,
+    },
+    gradientLayer4: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: "15%",
+        backgroundColor: "#EA580C",
+        opacity: 0.6,
+        zIndex: 0,
+        borderBottomLeftRadius: 16,
+        borderBottomRightRadius: 16,
     },
     modalContent: {
         flex: 1,
         backgroundColor: "#FFFEF8",
         borderRadius: 16,
-        padding: 24,
-        paddingTop: 18,
-        paddingBottom: 26,
+        padding: 28,
+        paddingTop: 20,
+        paddingBottom: 30,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.25,
         shadowRadius: 8,
         elevation: 10,
+        zIndex: 1,
     },
     closeButton: {
         alignSelf: "flex-end",
         padding: 4,
-        marginBottom: 4,
+        marginBottom: 6,
         zIndex: 10,
     },
     modalTitle: {
@@ -467,12 +524,12 @@ const styles = StyleSheet.create({
         fontFamily: "Poppins_600SemiBold",
         color: "#F59E0B",
         textAlign: "center",
-        marginBottom: 10,
+        marginBottom: 12,
     },
     divider: {
         height: 2,
         backgroundColor: "#F59E0B",
-        marginBottom: 16,
+        marginBottom: 20,
     },
     scrollContent: {
         flex: 1,
@@ -482,32 +539,39 @@ const styles = StyleSheet.create({
         fontFamily: "Poppins_600SemiBold",
         color: "#F59E0B",
         marginBottom: 14,
+        marginTop: 4,
+        marginLeft: 0,
+    },
+    fieldContainer: {
+        paddingLeft: 30,
+        paddingRight: 30,
+        marginBottom: 8,
     },
     twoColumnRow: {
         flexDirection: "row",
-        marginBottom: 14,
+        marginBottom: 16,
     },
     leftColumn: {
         flex: 1,
-        paddingRight: 28,
+        paddingRight: 16,
     },
     rightColumn: {
         flex: 1,
-        paddingLeft: 28,
+        paddingLeft: 16,
     },
     leftColumnOnly: {
         width: "50%",
-        paddingRight: 28,
-        marginBottom: 14,
+        paddingRight: 16,
+        marginBottom: 16,
     },
     rightColumnOnly: {
         width: "50%",
-        paddingLeft: 28,
-        marginBottom: 14,
+        paddingLeft: 16,
+        marginBottom: 16,
         alignSelf: "flex-end",
     },
     label: {
-        fontSize: 12,
+        fontSize: 11,
         fontFamily: "Poppins_500Medium",
         color: "#000",
         marginBottom: 6,
@@ -518,8 +582,8 @@ const styles = StyleSheet.create({
         borderColor: "#F59E0B",
         borderRadius: 6,
         paddingHorizontal: 12,
-        paddingVertical: 9,
-        minHeight: 40,
+        paddingVertical: 10,
+        minHeight: 42,
         justifyContent: "center",
     },
     inputWithIcon: {
@@ -529,7 +593,7 @@ const styles = StyleSheet.create({
         paddingRight: 10,
     },
     inputText: {
-        fontSize: 12,
+        fontSize: 11,
         fontFamily: "Poppins_400Regular",
         color: "#000",
         flex: 1,

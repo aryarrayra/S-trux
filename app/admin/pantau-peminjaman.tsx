@@ -154,7 +154,7 @@ const WebMapView = ({ loans, onMarkerClick }: any) => {
         // Add markers
         loans.forEach((loan: any) => {
             const color = getPinColor(loan.type);
-            
+
             const icon = window.L.divIcon({
                 html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
                 className: 'custom-marker',
@@ -279,8 +279,8 @@ export default function PantauPeminjaman() {
 
                     <View style={styles.mapContainer}>
                         {Platform.OS === 'web' ? (
-                            <WebMapView 
-                                loans={filteredLoans} 
+                            <WebMapView
+                                loans={filteredLoans}
                                 onMarkerClick={handleOpenDetail}
                             />
                         ) : (
@@ -372,52 +372,80 @@ export default function PantauPeminjaman() {
                             <View style={styles.modalHeader}>
                                 <Text style={styles.modalTitle}>{selectedLoan?.equipment}</Text>
                                 <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
-                                    <X color="#666" size={24} />
+                                    <X color="#FF0000" size={28} />
                                 </TouchableOpacity>
                             </View>
 
                             <ScrollView style={styles.modalBody}>
                                 <View style={styles.infoSection}>
                                     <Text style={styles.sectionTitleModal}>Informasi Sewa</Text>
-                                    <View style={styles.rowContainer}>
-                                        <View style={styles.fieldContainer}>
-                                            <Text style={styles.fieldLabel}>Tanggal Sewa</Text>
-                                            <Text style={styles.fieldValue}>{selectedLoan?.startDate}</Text>
+
+                                    <View style={styles.fieldsContainer}>
+                                        <View style={styles.rowFields}>
+                                            <View style={styles.fieldWrapper}>
+                                                <Text style={styles.fieldLabel}>Tanggal Sewa</Text>
+                                                <View style={styles.fieldInputBox}>
+                                                    <Text style={styles.fieldValue}>{selectedLoan?.startDate}</Text>
+                                                </View>
+                                            </View>
+
+                                            <View style={styles.fieldWrapper}>
+                                                <Text style={styles.fieldLabel}>Nama Penyewa</Text>
+                                                <View style={styles.fieldInputBox}>
+                                                    <Text style={styles.fieldValue}>{selectedLoan?.borrower}</Text>
+                                                </View>
+                                            </View>
                                         </View>
-                                        <View style={styles.fieldContainer}>
-                                            <Text style={styles.fieldLabel}>Nama Peminjam</Text>
-                                            <Text style={styles.fieldValue}>{selectedLoan?.borrower}</Text>
+
+                                        <View style={styles.rowFields}>
+                                            <View style={styles.fieldWrapper}>
+                                                <Text style={styles.fieldLabel}>Sewa Berakhir</Text>
+                                                <View style={styles.fieldInputBox}>
+                                                    <Text style={styles.fieldValue}>{selectedLoan?.endDate}</Text>
+                                                </View>
+                                            </View>
+
+                                            <View style={styles.fieldWrapper}>
+                                                <Text style={styles.fieldLabel}>Nama Perusahaan</Text>
+                                                <View style={styles.fieldInputBox}>
+                                                    <Text style={styles.fieldValue}>{selectedLoan?.unit}</Text>
+                                                </View>
+                                            </View>
                                         </View>
-                                    </View>
-                                    <View style={styles.rowContainer}>
-                                        <View style={styles.fieldContainer}>
-                                            <Text style={styles.fieldLabel}>Sewa Berakhir</Text>
-                                            <Text style={styles.fieldValue}>{selectedLoan?.endDate}</Text>
+
+                                        <View style={styles.fieldWrapper}>
+                                            <Text style={styles.fieldLabel}>Lokasi</Text>
+                                            <View style={styles.fieldInputBox}>
+                                                <Text style={styles.fieldValue}>{selectedLoan?.location?.title}</Text>
+                                            </View>
                                         </View>
-                                        <View style={styles.fieldContainer}>
-                                            <Text style={styles.fieldLabel}>Nama Perusahaan</Text>
-                                            <Text style={styles.fieldValue}>{selectedLoan?.unit}</Text>
-                                        </View>
-                                    </View>
-                                    <View style={styles.singleFieldContainer}>
-                                        <Text style={styles.fieldLabel}>Lokasi</Text>
-                                        <Text style={styles.fieldValue}>{selectedLoan?.location?.title}</Text>
                                     </View>
                                 </View>
 
                                 <View style={styles.infoSection}>
                                     <Text style={styles.sectionTitleModal}>Informasi Unit</Text>
-                                    <View style={styles.singleFieldContainer}>
-                                        <Text style={styles.fieldLabel}>Kategori Unit</Text>
-                                        <Text style={styles.fieldValue}>{selectedLoan?.type}</Text>
-                                    </View>
-                                    <View style={styles.singleFieldContainer}>
-                                        <Text style={styles.fieldLabel}>Series</Text>
-                                        <Text style={styles.fieldValue}>{selectedLoan?.equipment}</Text>
-                                    </View>
-                                    <View style={styles.singleFieldContainer}>
-                                        <Text style={styles.fieldLabel}>Kondisi</Text>
-                                        <Text style={styles.fieldValue}>{selectedLoan?.condition}</Text>
+
+                                    <View style={styles.fieldsContainer}>
+                                        <View style={styles.fieldWrapper}>
+                                            <Text style={styles.fieldLabel}>Kategori Unit</Text>
+                                            <View style={styles.fieldInputBox}>
+                                                <Text style={styles.fieldValue}>{selectedLoan?.type}</Text>
+                                            </View>
+                                        </View>
+
+                                        <View style={[styles.fieldWrapper, { marginTop: 20 }]}>
+                                            <Text style={styles.fieldLabel}>Series</Text>
+                                            <View style={styles.fieldInputBox}>
+                                                <Text style={styles.fieldValue}>{selectedLoan?.equipment}</Text>
+                                            </View>
+                                        </View>
+
+                                        <View style={[styles.fieldWrapper, { marginTop: 20 }]}>
+                                            <Text style={styles.fieldLabel}>Kondisi</Text>
+                                            <View style={styles.fieldInputBox}>
+                                                <Text style={styles.fieldValue}>{selectedLoan?.condition}</Text>
+                                            </View>
+                                        </View>
                                     </View>
                                 </View>
                             </ScrollView>
@@ -607,8 +635,8 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.white,
         borderRadius: 16,
         width: '95%',
-        maxWidth: 500,
-        maxHeight: '60%',
+        maxWidth: 900,
+        maxHeight: '80%',
         shadowColor: '#000',
         shadowOffset: {
             width: 0,
@@ -620,71 +648,70 @@ const styles = StyleSheet.create({
     },
     modalHeader: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
         alignItems: 'center',
-        padding: 20,
-        paddingBottom: 10,
+        paddingHorizontal: 30,
+        paddingTop: 25,
+        paddingBottom: 20,
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
-        backgroundColor: '#FFF8E1',
+        borderBottomColor: '#F59E0B',
+        backgroundColor: COLORS.white,
         borderTopLeftRadius: 16,
         borderTopRightRadius: 16,
+        position: 'relative',
     },
     modalTitle: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 18,
-        color: '#333',
+        fontFamily: 'Poppins_600SemiBold',
+        fontSize: 22,
+        color: '#F59E0B',
     },
     closeButton: {
         padding: 5,
+        position: 'absolute',
+        right: 20,
+        top: 20,
     },
     modalBody: {
-        padding: 20,
-        paddingTop: 10,
+        padding: 30,
+        paddingTop: 20,
     },
     infoSection: {
-        marginBottom: 20,
+        marginBottom: 30,
     },
     sectionTitleModal: {
-        fontFamily: 'Poppins_600SemiBold',
+        fontFamily: 'Poppins_500Medium',
         fontSize: 16,
         color: '#F59E0B',
-        marginBottom: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F59E0B',
-        paddingBottom: 5,
+        marginBottom: 20,
     },
-    rowContainer: {
+    fieldsContainer: {
+        marginLeft: 50,
+    },
+    rowFields: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 10,
+        gap: 30,
+        marginBottom: 20,
     },
-    fieldContainer: {
+    fieldWrapper: {
         flex: 1,
-        marginHorizontal: 5,
-        backgroundColor: '#FFF8E1',
-        borderWidth: 1,
-        borderColor: '#F59E0B',
-        padding: 10,
-        borderRadius: 8,
-    },
-    singleFieldContainer: {
-        backgroundColor: '#FFF8E1',
-        borderWidth: 1,
-        borderColor: '#F59E0B',
-        padding: 10,
-        borderRadius: 8,
-        marginBottom: 10,
+        maxWidth: 320,
     },
     fieldLabel: {
         fontFamily: 'Poppins_400Regular',
         fontSize: 14,
-        color: '#666',
-        marginBottom: 5,
+        color: '#000',
+        marginBottom: 8,
+    },
+    fieldInputBox: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#F59E0B',
+        borderRadius: 8,
+        padding: 12,
     },
     fieldValue: {
-        fontFamily: 'Poppins_500Medium',
+        fontFamily: 'Poppins_400Regular',
         fontSize: 14,
-        color: '#333',
+        color: '#000',
     },
 });
