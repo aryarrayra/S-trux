@@ -1,219 +1,90 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Search, Edit2, Trash2, X, Check, Calendar } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform } from 'react-native';
+import { TrendingUp, TrendingDown, Download } from 'lucide-react-native';
+import Svg, { Path, G } from 'react-native-svg';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
-import { Stack } from 'expo-router';
 
 // Mock data
-const INITIAL_TRANSACTIONS = [
-    {
-        id: '1',
-        tanggal: '15/10/2024',
-        kategori: 'Pemasukan',
-        keterangan: 'Penjualan produk',
-        jumlah: 'Rp 5.000.000',
-    },
-    {
-        id: '2',
-        tanggal: '16/10/2024',
-        kategori: 'Pengeluaran',
-        keterangan: 'Pembelian bahan baku',
-        jumlah: 'Rp 2.500.000',
-    },
-    {
-        id: '3',
-        tanggal: '17/10/2024',
-        kategori: 'Pemasukan',
-        keterangan: 'Penjualan jasa',
-        jumlah: 'Rp 3.000.000',
-    },
-    {
-        id: '4',
-        tanggal: '18/10/2024',
-        kategori: 'Pengeluaran',
-        keterangan: 'Gaji karyawan',
-        jumlah: 'Rp 4.000.000',
-    },
-    {
-        id: '5',
-        tanggal: '19/10/2024',
-        kategori: 'Pemasukan',
-        keterangan: 'Penjualan produk',
-        jumlah: 'Rp 6.500.000',
-    },
-];
-
-type Transaction = {
-    id: string;
-    tanggal: string;
-    kategori: string;
-    keterangan: string;
-    jumlah: string;
-    deskripsi?: string;
+const FINANCIAL_DATA = {
+    totalPendapatan: 330000000,
+    totalPengeluaran: 330000000,
+    percentageChange: 2.5,
+    categories: [
+        { name: 'Excavator', percentage: 35, color: '#F4E5C2' },
+        { name: 'Crane', percentage: 10, color: '#F5D7A1' },
+        { name: 'Dump truck', percentage: 25, color: '#F5C771' },
+        { name: 'Lainnya', percentage: 5, color: '#E8A855' },
+        { name: 'Bulldozer', percentage: 25, color: '#F0B952' },
+    ],
 };
 
 export default function LaporanKeuangan() {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
-    const [modalVisible, setModalVisible] = useState(false);
-    const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-    const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-    const [isAddMode, setIsAddMode] = useState(false);
-    const [showKategoriDropdown, setShowKategoriDropdown] = useState(false);
-    const [showDatePicker, setShowDatePicker] = useState(false);
-
-    // Form states
-    const [tanggal, setTanggal] = useState('');
-    const [date, setDate] = useState(new Date());
-    const [kategori, setKategori] = useState('Pemasukan');
-    const [keterangan, setKeterangan] = useState('');
-    const [jumlah, setJumlah] = useState('');
-    const [deskripsi, setDeskripsi] = useState('');
+    const [selectedPeriod, setSelectedPeriod] = useState('6 bulan terakhir');
+    const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
 
     const getCurrentDate = () => {
-        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-        const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-        const now = new Date();
-        const dayName = days[now.getDay()];
-        const date = now.getDate();
-        const month = months[now.getMonth()];
-        const year = now.getFullYear();
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-
         return {
-            full: `${dayName}, ${date} ${month} ${year}`,
-            time: `${hours}:${minutes} WIB`
+            full: 'Rabu, 12 November 2025',
+            time: '06:15 WIB'
         };
     };
 
     const currentDate = getCurrentDate();
 
-    // Format date ke DD/MM/YYYY
-    const formatDate = (dateObj: Date) => {
-        return dateObj.toLocaleDateString('id-ID', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        });
+    const formatCurrency = (amount: number) => {
+        return `Rp ${amount.toLocaleString('id-ID')}`;
     };
 
-    // Update tanggal string saat date berubah
-    const onDateChange = (event: any, selectedDate?: Date) => {
-        const currentDate = selectedDate || date;
-        setShowDatePicker(Platform.OS === 'ios');
-        setDate(currentDate);
-        setTanggal(formatDate(currentDate));
+    const handleExportPDF = () => {
+        console.log('Export PDF clicked');
+        // Implement PDF export logic here
     };
 
-    const filteredTransactions = transactions.filter(transaction =>
-        transaction.keterangan.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        transaction.kategori.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        transaction.tanggal.includes(searchQuery)
-    );
-
-    const handleEdit = (transaction: Transaction) => {
-        setSelectedTransaction(transaction);
-        setIsAddMode(false);
-        setTanggal(transaction.tanggal);
-        setKategori(transaction.kategori);
-        setKeterangan(transaction.keterangan);
-        setJumlah(transaction.jumlah);
-        setDeskripsi(transaction.deskripsi || '');
-        const parsedDate = transaction.tanggal ? new Date(transaction.tanggal.split('/').reverse().join('-')) : new Date();
-        setDate(parsedDate);
-        setModalVisible(true);
+    const selectPeriod = (period: string) => {
+        setSelectedPeriod(period);
+        setShowPeriodDropdown(false);
     };
 
-    const handleAdd = () => {
-        setSelectedTransaction(null);
-        setIsAddMode(true);
-        resetForm();
-        setModalVisible(true);
-    };
-
-    const resetForm = () => {
-        setTanggal('');
-        setKategori('Pemasukan');
-        setKeterangan('');
-        setJumlah('');
-        setDeskripsi('');
-        const defaultDate = new Date();
-        setDate(defaultDate);
-    };
-
-    const handleDelete = (transaction: Transaction) => {
-        setSelectedTransaction(transaction);
-        setDeleteModalVisible(true);
-    };
-
-    const handleConfirmDelete = (confirmed: boolean) => {
-        if (confirmed && selectedTransaction) {
-            setTransactions(prev => prev.filter(trans => trans.id !== selectedTransaction.id));
-            console.log('Transaksi dihapus:', selectedTransaction.id);
-        }
-        setDeleteModalVisible(false);
-        setSelectedTransaction(null);
-    };
-
-    const validateForm = (): boolean => {
-        if (!tanggal.trim() || !kategori.trim() || !keterangan.trim() || !jumlah.trim()) {
-            Alert.alert('Error', 'Semua field harus diisi!');
-            return false;
-        }
-        return true;
-    };
-
-    const handleUpdate = () => {
-        if (!validateForm()) return;
-        if (selectedTransaction) {
-            setTransactions(prev => prev.map(trans =>
-                trans.id === selectedTransaction.id
-                    ? {
-                        ...trans,
-                        tanggal,
-                        kategori,
-                        keterangan,
-                        jumlah,
-                        deskripsi,
-                    }
-                    : trans
-            ));
-            console.log('Data diupdate:', selectedTransaction.id);
-        }
-        setModalVisible(false);
-    };
-
-    const handleSave = () => {
-        if (!validateForm()) return;
-        const newTransaction: Transaction = {
-            id: String(transactions.length + 1),
-            tanggal,
-            kategori,
-            keterangan,
-            jumlah,
-            deskripsi,
+    // Pie chart functions
+    const polarToCartesian = (cx: number, cy: number, r: number, a: number) => {
+        const radians = (a - 90) * Math.PI / 180;
+        return {
+            x: cx + r * Math.cos(radians),
+            y: cy + r * Math.sin(radians)
         };
-        setTransactions(prev => [...prev, newTransaction]);
-        console.log('Data baru ditambahkan:', newTransaction);
-        setModalVisible(false);
     };
 
-    const handleClear = () => {
-        resetForm();
+    const describeArc = (cx: number, cy: number, r: number, start: number, end: number) => {
+        const startP = polarToCartesian(cx, cy, r, start);
+        const endP = polarToCartesian(cx, cy, r, end);
+        const large = Math.abs(end - start) > 180 ? 1 : 0;
+        return [
+            `M ${startP.x.toFixed(2)} ${startP.y.toFixed(2)}`,
+            `A ${r} ${r} 0 ${large} 1 ${endP.x.toFixed(2)} ${endP.y.toFixed(2)}`,
+            `L ${cx} ${cy}`,
+            'Z'
+        ].join(' ');
     };
 
-    const handleCloseModal = () => {
-        setModalVisible(false);
-    };
-
-    // Handler untuk pilih kategori dari dropdown
-    const selectKategori = (selectedKategori: string) => {
-        setKategori(selectedKategori);
-        setShowKategoriDropdown(false);
-    };
+    // Generate segments
+    let currentAngle = 0;
+    const segments = FINANCIAL_DATA.categories.map((category) => {
+        const startAngle = currentAngle;
+        const slice = (category.percentage / 100) * 360;
+        const endAngle = startAngle + slice;
+        currentAngle = endAngle;
+        const path = describeArc(150, 150, 140, startAngle, endAngle);
+        return (
+            <Path
+                d={path}
+                fill={category.color}
+                stroke={'#FFFFFF'}
+                strokeWidth={2}
+                key={category.name}
+            />
+        );
+    });
 
     return (
         <View style={styles.container}>
@@ -225,7 +96,7 @@ export default function LaporanKeuangan() {
                 <View style={styles.header}>
                     <View>
                         <Text style={styles.pageTitle}>Laporan Keuangan</Text>
-                        <Text style={styles.pageSubtitle}>Lorem Ipsum Dolor Sit Amet Consectetur</Text>
+                        <Text style={styles.pageSubtitle}>Monitor pendapatan dan pengeluaran bisnis</Text>
                     </View>
                     <View style={styles.dateTimeContainer}>
                         <Text style={styles.dateText}>{currentDate.full}</Text>
@@ -233,289 +104,130 @@ export default function LaporanKeuangan() {
                     </View>
                 </View>
 
-                {/* Search Bar & Add Button */}
-                <View style={styles.searchRow}>
-                    <View style={styles.searchContainer}>
-                        <Search color="#999" size={20} />
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder="Cari berdasarkan keterangan, kategori, atau tanggal..."
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                            placeholderTextColor="#999"
-                        />
-                    </View>
-                    <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
-                        <Text style={styles.addButtonText}>Tambahkan</Text>
-                        <Text style={styles.addButtonIcon}>+</Text>
+                {/* Filter & Export Section */}
+                <View style={styles.controlsRow}>
+                    <TouchableOpacity
+                        style={styles.periodButton}
+                        onPress={() => setShowPeriodDropdown(true)}
+                    >
+                        <Text style={styles.periodButtonText}>{selectedPeriod}</Text>
+                        <Text style={styles.dropdownArrow}>▼</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.exportButton} onPress={handleExportPDF}>
+                        <Download color={COLORS.white} size={18} />
+                        <Text style={styles.exportButtonText}>Ekspor PDF</Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* Table */}
-                <ScrollView style={styles.tableContainer}>
-                    <View style={styles.table}>
-                        {/* Table Header */}
-                        <View style={styles.tableHeader}>
-                            <View style={[styles.tableHeaderCell, { flex: 1 }]}>
-                                <Text style={styles.tableHeaderText}>Tanggal</Text>
+                <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    {/* Summary Cards */}
+                    <View style={styles.cardsRow}>
+                        {/* Total Pendapatan Card */}
+                        <View style={styles.cardPendapatan}>
+                            <View style={styles.cardHeader}>
+                                <Text style={styles.cardTitle}>Total Pendapatan</Text>
+                                <View style={styles.iconContainer}>
+                                    <TrendingUp color="#D97706" size={24} />
+                                </View>
                             </View>
-                            <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
-                                <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Kategori</Text>
-                            </View>
-                            <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1.5 }]}>
-                                <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Keterangan</Text>
-                            </View>
-                            <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
-                                <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Jumlah</Text>
-                            </View>
-                            <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.8 }]}>
-                                <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Aksi</Text>
-                            </View>
+                            <Text style={styles.cardAmount}>{formatCurrency(FINANCIAL_DATA.totalPendapatan)}</Text>
+                            <Text style={styles.cardSubtext}>
+                                +{FINANCIAL_DATA.percentageChange}% dari periode sebelumnya
+                            </Text>
                         </View>
 
-                        {/* Table Body */}
-                        {filteredTransactions.map((transaction, index) => (
-                            <View key={index} style={styles.tableRow}>
-                                <View style={[styles.tableCell, { flex: 1, backgroundColor: '#F5EFE7', alignItems: 'flex-start' }]}>
-                                    <Text style={styles.transactionDate}>{transaction.tanggal}</Text>
-                                </View>
-
-                                <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
-                                    <Text style={styles.transactionKategori}>{transaction.kategori}</Text>
-                                </View>
-
-                                <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1.5, backgroundColor: '#F5EFE7' }]}>
-                                    <Text style={styles.transactionKeterangan}>{transaction.keterangan}</Text>
-                                </View>
-
-                                <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
-                                    <Text style={styles.transactionJumlah}>{transaction.jumlah}</Text>
-                                </View>
-
-                                <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8, backgroundColor: '#F5EFE7' }]}>
-                                    <View style={styles.actionButtons}>
-                                        <TouchableOpacity
-                                            style={styles.editButton}
-                                            onPress={() => handleEdit(transaction)}
-                                        >
-                                            <Edit2 color={COLORS.white} size={16} />
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={styles.deleteButton}
-                                            onPress={() => handleDelete(transaction)}
-                                        >
-                                            <Trash2 color={COLORS.white} size={16} />
-                                        </TouchableOpacity>
-                                    </View>
+                        {/* Total Pengeluaran Card */}
+                        <View style={styles.cardPengeluaran}>
+                            <View style={styles.cardHeader}>
+                                <Text style={[styles.cardTitle, { color: COLORS.white }]}>Total Pengeluaran</Text>
+                                <View style={[styles.iconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                                    <TrendingDown color={COLORS.white} size={24} />
                                 </View>
                             </View>
-                        ))}
+                            <Text style={[styles.cardAmount, { color: COLORS.white }]}>
+                                {formatCurrency(FINANCIAL_DATA.totalPengeluaran)}
+                            </Text>
+                            <Text style={[styles.cardSubtext, { color: 'rgba(255,255,255,0.9)' }]}>
+                                +{FINANCIAL_DATA.percentageChange}% dari periode sebelumnya
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* Pie Chart Section */}
+                    <View style={styles.chartCard}>
+                        <Text style={styles.chartTitle}>Pendapatan per kategori</Text>
+                        
+                        <View style={styles.chartContainer}>
+                            {/* Pie Chart */}
+                            <View style={styles.pieChartWrapper}>
+                                <Svg width={300} height={300} viewBox="0 0 300 300">
+                                    <G>
+                                        {segments}
+                                    </G>
+                                </Svg>
+                                
+                                {/* Category Labels */}
+                                <View style={styles.labelExcavator}>
+                                    <Text style={styles.labelText}>Excavator 35%</Text>
+                                </View>
+                                <View style={styles.labelCrane}>
+                                    <Text style={styles.labelText}>Crane 10%</Text>
+                                </View>
+                                <View style={styles.labelDumpTruck}>
+                                    <Text style={styles.labelText}>Dump truck 25%</Text>
+                                </View>
+                                <View style={styles.labelLainnya}>
+                                    <Text style={styles.labelText}>Lainnya 5%</Text>
+                                </View>
+                                <View style={styles.labelBulldozer}>
+                                    <Text style={styles.labelText}>Bulldozer 25%</Text>
+                                </View>
+                            </View>
+                        </View>
                     </View>
                 </ScrollView>
             </View>
 
-            {/* Edit/Add Modal */}
+            {/* Period Dropdown Modal */}
             <Modal
                 animationType="fade"
                 transparent={true}
-                visible={modalVisible}
-                onRequestClose={handleCloseModal}
+                visible={showPeriodDropdown}
+                onRequestClose={() => setShowPeriodDropdown(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        {/* Header Modal */}
-                        <View style={styles.modalHeader}>
-                            <TouchableOpacity onPress={handleCloseModal}>
-                                <X color="#F59E0B" size={24} />
-                            </TouchableOpacity>
-                            <Text style={styles.modalTitle}>{isAddMode ? 'Tambah Laporan Keuangan' : 'Update Laporan Keuangan'}</Text>
-                            <View style={styles.modalDateContainer}>
-                                <Text style={styles.modalDateText}>{currentDate.full}</Text>
-                                <Text style={styles.modalTimeText}>{currentDate.time}</Text>
-                            </View>
-                        </View>
-
-                        {/* Content Modal */}
-                        <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-                            <View style={styles.formContainer}>
-                                <View style={styles.formRow}>
-                                    <View style={styles.formGroup}>
-                                        <Text style={styles.label}>Tanggal</Text>
-                                        {/* Manual Input with Optional Picker */}
-                                        <View style={styles.dateInputContainer}>
-                                            <TextInput
-                                                style={[styles.input, { flex: 1, paddingRight: 10 }]}
-                                                value={tanggal}
-                                                onChangeText={setTanggal}
-                                                placeholder="17/10/2024"
-                                                placeholderTextColor="#999"
-                                                keyboardType="numeric"
-                                            />
-                                            <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-                                                <Calendar color="#F59E0B" size={20} />
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                    <View style={styles.formGroup}>
-                                        <Text style={styles.label}>Kategori</Text>
-                                        {/* Custom Dropdown untuk Kategori */}
-                                        <TouchableOpacity
-                                            style={styles.selectInput}
-                                            onPress={() => setShowKategoriDropdown(true)}
-                                        >
-                                            <Text style={styles.selectText}>{kategori}</Text>
-                                            <Text style={styles.selectArrow}>▼</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-                                <View style={styles.formRow}>
-                                    <View style={styles.formGroup}>
-                                        <Text style={styles.label}>Keterangan</Text>
-                                        <TextInput
-                                            style={styles.input}
-                                            value={keterangan}
-                                            onChangeText={setKeterangan}
-                                            placeholder="Penjualan produk"
-                                            placeholderTextColor="#999"
-                                        />
-                                    </View>
-                                    <View style={styles.formGroup}>
-                                        <Text style={styles.label}>Jumlah</Text>
-                                        <TextInput
-                                            style={styles.input}
-                                            value={jumlah}
-                                            onChangeText={setJumlah}
-                                            placeholder="Rp 5.000.000"
-                                            placeholderTextColor="#999"
-                                            keyboardType="numeric"
-                                        />
-                                    </View>
-                                </View>
-
-                                <View style={styles.formRow}>
-                                    <View style={styles.formGroup}>
-                                        <Text style={styles.label}>Deskripsi (Opsional)</Text>
-                                        <TextInput
-                                            style={[styles.input, styles.textArea]}
-                                            value={deskripsi}
-                                            onChangeText={setDeskripsi}
-                                            placeholder="Tambahkan deskripsi tambahan..."
-                                            placeholderTextColor="#999"
-                                            multiline
-                                            numberOfLines={3}
-                                        />
-                                    </View>
-                                    <View style={styles.formGroup} />
-                                </View>
-                            </View>
-                        </ScrollView>
-
-                        {/* DateTimePicker */}
-                        {showDatePicker && (
-                            <DateTimePicker
-                                testID="dateTimePicker"
-                                value={date}
-                                mode="date"
-                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                onChange={onDateChange}
-                                maximumDate={new Date()}
-                            />
-                        )}
-
-                        {/* Footer Modal - Buttons */}
-                        <View style={styles.modalFooter}>
-                            {isAddMode ? (
-                                <TouchableOpacity
-                                    style={styles.saveButton}
-                                    onPress={handleSave}
-                                >
-                                    <Text style={styles.saveButtonText}>Simpan</Text>
-                                    <Check color={COLORS.white} size={18} />
-                                </TouchableOpacity>
-                            ) : (
-                                <>
-                                    <TouchableOpacity
-                                        style={styles.updateButton}
-                                        onPress={handleUpdate}
-                                    >
-                                        <Text style={styles.updateButtonText}>Update</Text>
-                                        <Check color={COLORS.white} size={18} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={styles.clearButton}
-                                        onPress={handleClear}
-                                    >
-                                        <Text style={styles.clearButtonText}>Clear</Text>
-                                        <X color={COLORS.white} size={18} />
-                                    </TouchableOpacity>
-                                </>
-                            )}
-                        </View>
-                    </View>
-                </View>
-
-                {/* Custom Modal untuk Dropdown Kategori */}
-                <Modal
-                    animationType="fade"
-                    transparent={true}
-                    visible={showKategoriDropdown}
-                    onRequestClose={() => setShowKategoriDropdown(false)}
+                <TouchableOpacity
+                    style={styles.dropdownOverlay}
+                    activeOpacity={1}
+                    onPress={() => setShowPeriodDropdown(false)}
                 >
-                    <TouchableOpacity
-                        style={styles.dropdownOverlay}
-                        activeOpacity={1}
-                        onPress={() => setShowKategoriDropdown(false)}
-                    >
-                        <View style={styles.dropdownContent}>
-                            <TouchableOpacity
-                                style={styles.dropdownItem}
-                                onPress={() => selectKategori('Pemasukan')}
-                            >
-                                <Text style={styles.dropdownText}>Pemasukan</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.dropdownItem}
-                                onPress={() => selectKategori('Pengeluaran')}
-                            >
-                                <Text style={styles.dropdownText}>Pengeluaran</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </TouchableOpacity>
-                </Modal>
-            </Modal>
-
-            {/* Delete Confirmation Modal */}
-            <Modal
-                animationType="fade"
-                transparent={true}
-                visible={deleteModalVisible}
-                onRequestClose={() => setDeleteModalVisible(false)}
-            >
-                <View style={styles.confirmOverlay}>
-                    <View style={styles.confirmContent}>
-                        <View style={styles.confirmIconContainer}>
-                            <View style={styles.confirmIcon}>
-                                <Trash2 color="#EF4444" size={48} />
-                            </View>
-                        </View>
-                        <Text style={styles.confirmTitle}>Anda Yakin Menghapus Transaksi Ini?</Text>
-                        <View style={styles.confirmButtons}>
-                            <TouchableOpacity
-                                style={styles.confirmYesButton}
-                                onPress={() => handleConfirmDelete(true)}
-                            >
-                                <Text style={styles.confirmButtonText}>YA</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.confirmNoButton}
-                                onPress={() => handleConfirmDelete(false)}
-                            >
-                                <Text style={styles.confirmButtonText}>Tidak</Text>
-                            </TouchableOpacity>
-                        </View>
+                    <View style={styles.dropdownContent}>
+                        <TouchableOpacity
+                            style={styles.dropdownItem}
+                            onPress={() => selectPeriod('1 bulan terakhir')}
+                        >
+                            <Text style={styles.dropdownText}>1 bulan terakhir</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.dropdownItem}
+                            onPress={() => selectPeriod('3 bulan terakhir')}
+                        >
+                            <Text style={styles.dropdownText}>3 bulan terakhir</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.dropdownItem}
+                            onPress={() => selectPeriod('6 bulan terakhir')}
+                        >
+                            <Text style={styles.dropdownText}>6 bulan terakhir</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.dropdownItem, { borderBottomWidth: 0 }]}
+                            onPress={() => selectPeriod('1 tahun terakhir')}
+                        >
+                            <Text style={styles.dropdownText}>1 tahun terakhir</Text>
+                        </TouchableOpacity>
                     </View>
-                </View>
+                </TouchableOpacity>
             </Modal>
         </View>
     );
@@ -525,12 +237,12 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         flexDirection: 'row',
-        backgroundColor: COLORS.white,
+        backgroundColor: '#F5F5F5',
     },
     mainContent: {
         flex: 1,
         padding: 30,
-        backgroundColor: COLORS.white,
+        backgroundColor: '#F5F5F5',
     },
     header: {
         flexDirection: 'row',
@@ -556,308 +268,198 @@ const styles = StyleSheet.create({
     dateText: {
         fontFamily: 'Poppins_500Medium',
         fontSize: 14,
-        color: COLORS.primary,
+        color: '#F59E0B',
     },
     timeText: {
         fontFamily: 'Poppins_500Medium',
         fontSize: 18,
-        color: COLORS.darkGray,
+        color: '#333',
     },
-    searchRow: {
+    controlsRow: {
         flexDirection: 'row',
-        marginBottom: 20,
+        marginBottom: 30,
         gap: 15,
     },
-    searchContainer: {
-        flex: 1,
+    periodButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F5F5F5',
-        borderRadius: 10,
-        paddingHorizontal: 15,
-        paddingVertical: 10,
+        backgroundColor: COLORS.white,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#E5E5E5',
         gap: 10,
     },
-    searchInput: {
-        flex: 1,
+    periodButtonText: {
         fontFamily: 'Poppins_400Regular',
         fontSize: 14,
-        color: COLORS.darkGray,
+        color: '#333',
     },
-    addButton: {
+    dropdownArrow: {
+        fontSize: 10,
+        color: '#666',
+    },
+    exportButton: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#FDB022',
         paddingHorizontal: 24,
         paddingVertical: 12,
-        borderRadius: 10,
+        borderRadius: 8,
         gap: 8,
     },
-    addButtonText: {
+    exportButtonText: {
         fontFamily: 'Poppins_500Medium',
         fontSize: 14,
         color: COLORS.white,
     },
-    addButtonIcon: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 20,
-        color: COLORS.white,
-    },
-    tableContainer: {
+    scrollContent: {
         flex: 1,
     },
-    table: {
-        backgroundColor: COLORS.white,
-        borderRadius: 10,
-        overflow: 'hidden',
-        borderWidth: 2,
-        borderColor: '#D4A574',
-    },
-    tableHeader: {
+    cardsRow: {
         flexDirection: 'row',
-        backgroundColor: '#E8D5C4',
-        borderBottomWidth: 2,
-        borderBottomColor: '#D4A574',
+        gap: 20,
+        marginBottom: 30,
     },
-    tableHeaderCell: {
-        paddingVertical: 15,
-        paddingHorizontal: 20,
-        justifyContent: 'center',
-    },
-    tableHeaderCellBorder: {
-        borderLeftWidth: 2,
-        borderLeftColor: '#D4A574',
-    },
-    tableHeaderText: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 14,
-        color: COLORS.darkGray,
-    },
-    tableRow: {
-        flexDirection: 'row',
-        borderBottomWidth: 2,
-        borderBottomColor: '#D4A574',
-    },
-    tableCell: {
-        paddingVertical: 15,
-        paddingHorizontal: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    tableCellBorder: {
-        borderLeftWidth: 2,
-        borderLeftColor: '#D4A574',
-    },
-    transactionDate: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    transactionKategori: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    transactionKeterangan: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    transactionJumlah: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    actionButtons: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    editButton: {
-        backgroundColor: '#FDB022',
-        width: 36,
-        height: 36,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    deleteButton: {
-        backgroundColor: '#FDB022',
-        width: 36,
-        height: 36,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalOverlay: {
+    cardPendapatan: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
+        backgroundColor: '#FEF3C7',
+        borderRadius: 16,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
-    modalContent: {
-        backgroundColor: COLORS.white,
-        borderRadius: 10,
-        width: '85%',
-        maxWidth: 900,
-        maxHeight: '90%',
+    cardPengeluaran: {
+        flex: 1,
+        backgroundColor: '#F87171',
+        borderRadius: 16,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
-    modalHeader: {
+    cardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+        marginBottom: 16,
     },
-    modalTitle: {
+    cardTitle: {
         fontFamily: 'Poppins_500Medium',
-        fontSize: 20,
-        color: '#F59E0B',
-        flex: 1,
-        marginLeft: 15,
-        textAlign: 'center',
+        fontSize: 16,
+        color: '#78350F',
     },
-    modalDateContainer: {
-        flexDirection: 'column',
-        alignItems: 'flex-end',
+    iconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(217, 119, 6, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    modalDateText: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 12,
-        color: '#F59E0B',
-    },
-    modalTimeText: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 14,
-        color: COLORS.darkGray,
-    },
-    modalBody: {
-        padding: 30,
-        maxHeight: 500,
-    },
-    formContainer: {
-        gap: 20,
-    },
-    formRow: {
-        flexDirection: 'row',
-        gap: 20,
-    },
-    formGroup: {
-        flex: 1,
-    },
-    label: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 13,
-        color: COLORS.darkGray,
+    cardAmount: {
+        fontFamily: 'Poppins_700Bold',
+        fontSize: 28,
+        color: '#78350F',
         marginBottom: 8,
     },
-    input: {
-        backgroundColor: COLORS.white,
-        borderWidth: 1.5,
-        borderColor: '#F59E0B',
-        borderRadius: 8,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
+    cardSubtext: {
         fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    dateInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: COLORS.white,
-        borderWidth: 1.5,
-        borderColor: '#F59E0B',
-        borderRadius: 8,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
-    },
-    textArea: {
-        minHeight: 80,
-        textAlignVertical: 'top',
-    },
-    selectInput: {
-        backgroundColor: COLORS.white,
-        borderWidth: 1.5,
-        borderColor: '#F59E0B',
-        borderRadius: 8,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    selectText: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    selectArrow: {
         fontSize: 12,
+        color: '#92400E',
+    },
+    chartCard: {
+        backgroundColor: COLORS.white,
+        borderRadius: 16,
+        padding: 30,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+        marginBottom: 30,
+    },
+    chartTitle: {
+        fontFamily: 'Poppins_600SemiBold',
+        fontSize: 18,
+        color: '#333',
+        marginBottom: 30,
+    },
+    chartContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    pieChartWrapper: {
+        width: 400,
+        height: 400,
+        position: 'relative',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    labelExcavator: {
+        position: 'absolute',
+        top: 50,
+        right: 50,
+    },
+    labelCrane: {
+        position: 'absolute',
+        top: 130,
+        right: 50,
+    },
+    labelDumpTruck: {
+        position: 'absolute',
+        bottom: 130,
+        right: 50,
+    },
+    labelLainnya: {
+        position: 'absolute',
+        bottom: 50,
+        left: 50,
+    },
+    labelBulldozer: {
+        position: 'absolute',
+        top: 130,
+        left: 50,
+    },
+    labelText: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 13,
         color: '#F59E0B',
     },
-    modalFooter: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-        gap: 15,
-        borderTopWidth: 1,
-        borderTopColor: '#E5E5E5',
-    },
-    updateButton: {
+    categoryLabel: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#10B981',
-        paddingHorizontal: 35,
-        paddingVertical: 12,
-        borderRadius: 25,
-        gap: 10,
+        marginBottom: 12,
     },
-    updateButtonText: {
-        fontFamily: 'Poppins_600SemiBold',
+    colorBox: {
+        width: 20,
+        height: 20,
+        borderRadius: 4,
+        marginRight: 10,
+    },
+    categoryText: {
+        fontFamily: 'Poppins_400Regular',
         fontSize: 14,
-        color: COLORS.white,
-    },
-    clearButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#EF4444',
-        paddingHorizontal: 35,
-        paddingVertical: 12,
-        borderRadius: 25,
-        gap: 10,
-    },
-    clearButtonText: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 14,
-        color: COLORS.white,
-    },
-    saveButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FDB022',
-        paddingHorizontal: 40,
-        paddingVertical: 12,
-        borderRadius: 25,
-        gap: 10,
-    },
-    saveButtonText: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 14,
-        color: COLORS.white,
+        color: '#666',
     },
     dropdownOverlay: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-start',
+        alignItems: 'flex-start',
+        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+        paddingTop: 150,
+        paddingLeft: 220,
     },
     dropdownContent: {
         backgroundColor: COLORS.white,
         borderRadius: 8,
-        width: '80%',
-        maxWidth: 300,
+        minWidth: 200,
         elevation: 5,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
@@ -872,70 +474,7 @@ const styles = StyleSheet.create({
     },
     dropdownText: {
         fontFamily: 'Poppins_400Regular',
-        fontSize: 16,
-        color: COLORS.darkGray,
-    },
-    confirmOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    confirmContent: {
-        backgroundColor: COLORS.white,
-        borderRadius: 16,
-        width: '100%',
-        maxWidth: 300,
-        padding: 30,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 5,
-    },
-    confirmIconContainer: {
-        marginBottom: 20,
-    },
-    confirmIcon: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: '#FEE2E2',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    confirmTitle: {
-        fontFamily: 'Poppins_600SemiBold',
         fontSize: 14,
-        color: '#F59E0B',
-        textAlign: 'center',
-        marginBottom: 25,
-    },
-    confirmButtons: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    confirmYesButton: {
-        backgroundColor: '#FDB022',
-        paddingHorizontal: 30,
-        paddingVertical: 10,
-        borderRadius: 20,
-        minWidth: 80,
-        alignItems: 'center',
-    },
-    confirmNoButton: {
-        backgroundColor: '#FDB022',
-        paddingHorizontal: 30,
-        paddingVertical: 10,
-        borderRadius: 20,
-        minWidth: 80,
-        alignItems: 'center',
-    },
-    confirmButtonText: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 13,
-        color: COLORS.white,
+        color: '#333',
     },
 });
