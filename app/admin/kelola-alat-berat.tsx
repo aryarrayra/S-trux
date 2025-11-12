@@ -1,83 +1,124 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Image } from 'react-native';
 import { Search, Edit2, Trash2, X, Camera, Plus } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
 
-// Mock data untuk Alat Berat
+// Mock data untuk Alat Berat (fallback)
 const INITIAL_ALAT_BERAT = [
     {
         id: '1',
-        namaUnit: 'Excavator Caterpillar 320DD',
-        jumlahUnit: 8,
-        deskripsi: 'Your description here....\nLorem ipsum dolor sit amet consectetur',
-        harga: 800000,
-        status: 'Tersedia',
+        nama_alat: 'Excavator Caterpillar 320DD',
         jenis: 'Excavator',
+        kapasitas: '2.5 Ton',
+        deskripsi: 'Your description here....\nLorem ipsum dolor sit amet consectetur',
+        harga_sewa_per_hari: 800000,
+        status: 'Tersedia',
         foto: 'https://images.unsplash.com/photo-1523800503107-5bc3ba2a6f81?w=400',
-    },
-    {
-        id: '2',
-        namaUnit: 'Tower Crane Leibherr',
-        jumlahUnit: 5,
-        deskripsi: 'Your description here....\nLorem ipsum dolor sit amet consectetur',
-        harga: 1500000,
-        status: 'Tidak Tersedia',
-        jenis: 'Crane',
-        foto: 'https://images.unsplash.com/photo-1431219658633-5d23b4e4d9f5?w=400',
-    },
-    {
-        id: '3',
-        namaUnit: 'Bulldozer Komatsu',
-        jumlahUnit: 5,
-        deskripsi: 'Your description here....\nLorem ipsum dolor sit amet consectetur',
-        harga: 500000,
-        status: 'Tersedia',
-        jenis: 'Bulldozer',
-        foto: 'https://images.unsplash.com/photo-1675439171730-9a3d3e1f9c1d?w=400',
-    },
-    {
-        id: '4',
-        namaUnit: 'Dump Truck Hino',
-        jumlahUnit: 5,
-        deskripsi: 'Your description here....\nLorem ipsum dolor sit amet consectetur',
-        harga: 750000,
-        status: 'Tersedia',
-        jenis: 'Dump Truck',
-        foto: 'https://images.unsplash.com/photo-1517423440422-9a8c0c2f4e1a?w=400',
     },
 ];
 
 type AlatBerat = {
     id: string;
-    namaUnit: string;
-    jumlahUnit: number;
-    deskripsi: string;
-    harga: number;
-    status: string;
+    nama_alat: string;
     jenis: string;
+    kapasitas: string;
+    deskripsi: string;
+    harga_sewa_per_hari: number;
+    status: string;
     foto: string;
 };
 
 export default function KelolaAlatBerat() {
     const [searchQuery, setSearchQuery] = useState('');
-    const [alatBeratList, setAlatBeratList] = useState<AlatBerat[]>(INITIAL_ALAT_BERAT);
+    const [alatBeratList, setAlatBeratList] = useState<AlatBerat[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
     const [selectedAlatBerat, setSelectedAlatBerat] = useState<AlatBerat | null>(null);
     const [isAddMode, setIsAddMode] = useState(false);
     const [showStatusDropdown, setShowStatusDropdown] = useState(false);
     const [showJenisDropdown, setShowJenisDropdown] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     // Form states
-    const [namaUnit, setNamaUnit] = useState('');
-    const [jumlahUnit, setJumlahUnit] = useState('');
+    const [nama_alat, setNamaAlat] = useState('');
+    const [jenis, setJenis] = useState('Excavator');
+    const [kapasitas, setKapasitas] = useState('');
     const [deskripsi, setDeskripsi] = useState('');
-    const [harga, setHarga] = useState('');
-    const [status, setStatus] = useState('Tersedia/Tidak Tersedia');
-    const [jenis, setJenis] = useState('Excavator/Crane/bulldozer/....');
+    const [harga_sewa_per_hari, setHargaSewa] = useState('');
+    const [status, setStatus] = useState('Tersedia');
     const [foto, setFoto] = useState('');
+
+    // Fetch data dari API dengan field yang sesuai
+    const fetchAlatBerat = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            console.log('🔄 Fetching alat berat from API...');
+            const response = await fetch('http://127.0.0.1:8000/api/alat-berat', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            console.log('📊 Response status:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('✅ API Response data:', data);
+
+            // Handle berbagai struktur response
+            let dataArray = [];
+            
+            if (Array.isArray(data)) {
+                dataArray = data;
+            } else if (data.data && Array.isArray(data.data)) {
+                dataArray = data.data;
+            } else if (data.success && Array.isArray(data.data)) {
+                dataArray = data.data;
+            } else {
+                console.warn('⚠️ Unexpected data structure:', data);
+                dataArray = Array.isArray(data) ? data : [];
+            }
+
+            console.log('📦 Data array to process:', dataArray);
+
+            // Transform data dengan field yang sesuai dari database
+            const transformedData: AlatBerat[] = dataArray.map((item: any) => ({
+                id: item.id_alat?.toString() || item.id?.toString() || Math.random().toString(),
+                nama_alat: item.nama_alat || 'Nama alat tidak tersedia',
+                jenis: item.jenis || 'Lainnya',
+                kapasitas: item.kapasitas || '-',
+                deskripsi: item.deskripsi || 'Deskripsi tidak tersedia',
+                harga_sewa_per_hari: item.harga_sewa_per_hari || item.harga_sewa || 0,
+                status: item.status || 'Tersedia',
+                foto: item.foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400',
+            }));
+
+            console.log('🔄 Transformed data:', transformedData);
+            setAlatBeratList(transformedData);
+
+        } catch (error) {
+            console.error('❌ Error fetching alat berat:', error);
+            setError(error instanceof Error ? error.message : 'Terjadi kesalahan saat mengambil data');
+            // Gunakan data fallback
+            setAlatBeratList(INITIAL_ALAT_BERAT);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Fetch data saat component mount
+    useEffect(() => {
+        fetchAlatBerat();
+    }, []);
 
     const getCurrentDate = () => {
         const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -99,7 +140,7 @@ export default function KelolaAlatBerat() {
     const currentDate = getCurrentDate();
 
     const filteredAlatBerat = alatBeratList.filter(item =>
-        item.namaUnit.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.nama_alat.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.jenis.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -114,12 +155,12 @@ export default function KelolaAlatBerat() {
     const handleEdit = (item: AlatBerat) => {
         setSelectedAlatBerat(item);
         setIsAddMode(false);
-        setNamaUnit(item.namaUnit);
-        setJumlahUnit(String(item.jumlahUnit));
-        setDeskripsi(item.deskripsi);
-        setHarga(String(item.harga));
-        setStatus(item.status);
+        setNamaAlat(item.nama_alat);
         setJenis(item.jenis);
+        setKapasitas(item.kapasitas);
+        setDeskripsi(item.deskripsi);
+        setHargaSewa(String(item.harga_sewa_per_hari));
+        setStatus(item.status);
         setFoto(item.foto);
         setModalVisible(true);
     };
@@ -132,12 +173,12 @@ export default function KelolaAlatBerat() {
     };
 
     const resetForm = () => {
-        setNamaUnit('');
-        setJumlahUnit('');
+        setNamaAlat('');
+        setJenis('Excavator');
+        setKapasitas('');
         setDeskripsi('');
-        setHarga('');
-        setStatus('Tersedia/Tidak Tersedia');
-        setJenis('Excavator/Crane/bulldozer/....');
+        setHargaSewa('');
+        setStatus('Tersedia');
         setFoto('');
     };
 
@@ -146,12 +187,32 @@ export default function KelolaAlatBerat() {
         setDeleteModalVisible(true);
     };
 
-    const handleConfirmDelete = (confirmed: boolean) => {
+    const handleConfirmDelete = async (confirmed: boolean) => {
         if (confirmed && selectedAlatBerat) {
-            setAlatBeratList(prev => prev.filter(item => item.id !== selectedAlatBerat.id));
-            console.log('Unit Alat Berat dihapus:', selectedAlatBerat.id);
-            if (!isAddMode) {
-                setModalVisible(false);
+            try {
+                console.log('🗑️ Deleting alat berat:', selectedAlatBerat.id);
+                const response = await fetch(`http://127.0.0.1:8000/api/alat-berat/${selectedAlatBerat.id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (response.ok) {
+                    // Hapus dari state lokal
+                    setAlatBeratList(prev => prev.filter(item => item.id !== selectedAlatBerat.id));
+                    console.log('✅ Unit Alat Berat dihapus:', selectedAlatBerat.id);
+                    Alert.alert('Sukses', 'Data berhasil dihapus');
+                    if (!isAddMode) {
+                        setModalVisible(false);
+                    }
+                } else {
+                    throw new Error('Gagal menghapus data');
+                }
+            } catch (error) {
+                console.error('❌ Error deleting alat berat:', error);
+                Alert.alert('Error', 'Gagal menghapus data dari server');
             }
         }
         setDeleteModalVisible(false);
@@ -159,54 +220,112 @@ export default function KelolaAlatBerat() {
     };
 
     const validateForm = (): boolean => {
-        if (!namaUnit.trim() || !jumlahUnit.trim() || !deskripsi.trim() || !harga.trim() || status === 'Tersedia/Tidak Tersedia' || jenis === 'Excavator/Crane/bulldozer/....') {
+        if (!nama_alat.trim() || !jenis.trim() || !kapasitas.trim() || !deskripsi.trim() || !harga_sewa_per_hari.trim() || !status.trim()) {
             Alert.alert('Error', 'Semua field harus diisi dengan benar!');
             return false;
         }
         return true;
     };
 
-    const handleUpdate = () => {
+    const handleUpdate = async () => {
         if (!validateForm()) return;
         if (selectedAlatBerat) {
-            setAlatBeratList(prev => prev.map(item =>
-                item.id === selectedAlatBerat.id
-                    ? {
-                        ...item,
-                        namaUnit,
-                        jumlahUnit: parseInt(jumlahUnit),
-                        deskripsi,
-                        harga: parseInt(harga),
-                        status,
-                        jenis,
-                        foto,
-                    }
-                    : item
-            ));
-            console.log('Data diupdate:', selectedAlatBerat.id);
+            try {
+                const updateData = {
+                    nama_alat: nama_alat,
+                    jenis: jenis,
+                    kapasitas: kapasitas,
+                    deskripsi: deskripsi,
+                    harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
+                    status: status,
+                    foto: foto,
+                };
+
+                console.log('📤 Update data:', updateData);
+                const response = await fetch(`http://127.0.0.1:8000/api/alat-berat/${selectedAlatBerat.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify(updateData),
+                });
+
+                if (response.ok) {
+                    // Update state lokal
+                    setAlatBeratList(prev => prev.map(item =>
+                        item.id === selectedAlatBerat.id
+                            ? {
+                                ...item,
+                                nama_alat,
+                                jenis,
+                                kapasitas,
+                                deskripsi,
+                                harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
+                                status,
+                                foto,
+                            }
+                            : item
+                    ));
+                    console.log('✅ Data diupdate:', selectedAlatBerat.id);
+                    Alert.alert('Sukses', 'Data berhasil diupdate');
+                    setModalVisible(false);
+                } else {
+                    throw new Error('Gagal mengupdate data');
+                }
+            } catch (error) {
+                console.error('❌ Error updating alat berat:', error);
+                Alert.alert('Error', 'Gagal mengupdate data di server');
+            }
         }
-        setModalVisible(false);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!validateForm()) return;
-        const newItem: AlatBerat = {
-            id: String(alatBeratList.length + 1),
-            namaUnit,
-            jumlahUnit: parseInt(jumlahUnit),
-            deskripsi,
-            harga: parseInt(harga),
-            status,
-            jenis,
-            foto: foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400',
-        };
-        setAlatBeratList(prev => [...prev, newItem]);
-        console.log('Data baru ditambahkan:', newItem);
-        setModalVisible(false);
+        
+        try {
+            const newItemData = {
+                nama_alat: nama_alat,
+                jenis: jenis,
+                kapasitas: kapasitas,
+                deskripsi: deskripsi,
+                harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
+                status: status,
+                foto: foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400',
+            };
+
+            console.log('📤 Save data:', newItemData);
+            const response = await fetch('http://127.0.0.1:8000/api/alat-berat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify(newItemData),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('✅ Save result:', result);
+                
+                // Refresh data setelah berhasil menambah
+                fetchAlatBerat();
+                
+                Alert.alert('Sukses', 'Data berhasil ditambahkan');
+                setModalVisible(false);
+            } else {
+                throw new Error('Gagal menambahkan data');
+            }
+        } catch (error) {
+            console.error('❌ Error adding alat berat:', error);
+            Alert.alert('Error', 'Gagal menambahkan data ke server');
+        }
     };
 
     const handleClear = () => {
-        handleDelete(selectedAlatBerat!);
+        if (selectedAlatBerat) {
+            handleDelete(selectedAlatBerat);
+        }
     };
 
     const handleCloseModal = () => {
@@ -221,6 +340,11 @@ export default function KelolaAlatBerat() {
     const selectJenis = (selectedJenis: string) => {
         setJenis(selectedJenis);
         setShowJenisDropdown(false);
+    };
+
+    // Refresh data
+    const handleRefresh = () => {
+        fetchAlatBerat();
     };
 
     return (
@@ -255,65 +379,110 @@ export default function KelolaAlatBerat() {
                                 placeholderTextColor="#999"
                             />
                         </View>
+                        <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                            <Text style={styles.refreshButtonText}>Refresh</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
                             <Text style={styles.addButtonText}>Tambahkan</Text>
                             <Text style={styles.addButtonIcon}>+</Text>
                         </TouchableOpacity>
                     </View>
 
-                    {/* Card Grid */}
-                    <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-                        <View style={styles.cardGrid}>
-                            {filteredAlatBerat.map((item) => (
-                                <View key={item.id} style={styles.card}>
-                                    {/* Status Badge */}
-                                    <View style={[
-                                        styles.statusBadge,
-                                        item.status === 'Tersedia' ? styles.statusAvailable : styles.statusUnavailable
-                                    ]}>
-                                        <Text style={styles.statusText}>{item.status}</Text>
-                                    </View>
+                    {/* Debug Info */}
+                    <View style={styles.debugContainer}>
+                        <Text style={styles.debugText}>
+                            Total Data: {alatBeratList.length} item
+                            {error && ` | Error: ${error}`}
+                        </Text>
+                    </View>
 
-                                    {/* Image */}
-                                    <Image source={{ uri: item.foto }} style={styles.cardImage} />
-
-                                    {/* Content */}
-                                    <View style={styles.cardContent}>
-                                        <Text style={styles.cardTitle}>{item.namaUnit}</Text>
-                                        <Text style={styles.cardDescription} numberOfLines={2}>
-                                            {item.deskripsi}
-                                        </Text>
-
-                                        {/* Info Row */}
-                                        <View style={styles.infoRow}>
-                                            <View style={styles.infoItem}>
-                                                <Text style={styles.infoIcon}>🏗️</Text>
-                                                <Text style={styles.infoText}>{item.jenis}</Text>
-                                            </View>
-                                            <View style={styles.infoItem}>
-                                                <Text style={styles.infoIcon}>📦</Text>
-                                                <Text style={styles.infoText}>{item.jumlahUnit} unit</Text>
-                                            </View>
-                                        </View>
-
-                                        {/* Price & Actions */}
-                                        <View style={styles.cardFooter}>
-                                            <View>
-                                                <Text style={styles.priceLabel}>Harga per hari:</Text>
-                                                <Text style={styles.priceValue}>{formatRupiah(item.harga)}</Text>
-                                            </View>
-                                            <TouchableOpacity
-                                                style={styles.editIconButton}
-                                                onPress={() => handleEdit(item)}
-                                            >
-                                                <Edit2 color="#FDB022" size={20} />
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                </View>
-                            ))}
+                    {/* Loading & Error State */}
+                    {isLoading && (
+                        <View style={styles.loadingContainer}>
+                            <Text style={styles.loadingText}>Memuat data alat berat...</Text>
                         </View>
-                    </ScrollView>
+                    )}
+
+                    {error && !isLoading && (
+                        <View style={styles.errorContainer}>
+                            <Text style={styles.errorText}>Error: {error}</Text>
+                            <TouchableOpacity style={styles.retryButton} onPress={fetchAlatBerat}>
+                                <Text style={styles.retryButtonText}>Coba Lagi</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* Card Grid */}
+                    {!isLoading && !error && (
+                        <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+                            {filteredAlatBerat.length === 0 ? (
+                                <View style={styles.emptyState}>
+                                    <Text style={styles.emptyStateText}>Tidak ada data alat berat</Text>
+                                    <Text style={styles.emptyStateSubtext}>
+                                        {alatBeratList.length === 0 
+                                            ? 'Data tidak ditemukan atau terjadi kesalahan' 
+                                            : 'Tidak ada hasil pencarian yang sesuai'
+                                        }
+                                    </Text>
+                                </View>
+                            ) : (
+                                <View style={styles.cardGrid}>
+                                    {filteredAlatBerat.map((item) => (
+                                        <View key={item.id} style={styles.card}>
+                                            {/* Status Badge */}
+                                            <View style={[
+                                                styles.statusBadge,
+                                                item.status === 'Tersedia' ? styles.statusAvailable : styles.statusUnavailable
+                                            ]}>
+                                                <Text style={styles.statusText}>{item.status}</Text>
+                                            </View>
+
+                                            {/* Image */}
+                                            <Image 
+                                                source={{ uri: item.foto }} 
+                                                style={styles.cardImage}
+                                                onError={() => console.log('❌ Image load error:', item.foto)}
+                                            />
+
+                                            {/* Content */}
+                                            <View style={styles.cardContent}>
+                                                <Text style={styles.cardTitle}>{item.nama_alat}</Text>
+                                                <Text style={styles.cardDescription} numberOfLines={2}>
+                                                    {item.deskripsi}
+                                                </Text>
+
+                                                {/* Info Row */}
+                                                <View style={styles.infoRow}>
+                                                    <View style={styles.infoItem}>
+                                                        <Text style={styles.infoIcon}>🏗️</Text>
+                                                        <Text style={styles.infoText}>{item.jenis}</Text>
+                                                    </View>
+                                                    <View style={styles.infoItem}>
+                                                        <Text style={styles.infoIcon}>⚖️</Text>
+                                                        <Text style={styles.infoText}>{item.kapasitas}</Text>
+                                                    </View>
+                                                </View>
+
+                                                {/* Price & Actions */}
+                                                <View style={styles.cardFooter}>
+                                                    <View>
+                                                        <Text style={styles.priceLabel}>Harga per hari:</Text>
+                                                        <Text style={styles.priceValue}>{formatRupiah(item.harga_sewa_per_hari)}</Text>
+                                                    </View>
+                                                    <TouchableOpacity
+                                                        style={styles.editIconButton}
+                                                        onPress={() => handleEdit(item)}
+                                                    >
+                                                        <Edit2 color="#FDB022" size={20} />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                        </ScrollView>
+                    )}
                 </View>
 
                 {/* Add/Edit Modal */}
@@ -344,47 +513,46 @@ export default function KelolaAlatBerat() {
                                 <View style={styles.formContainer}>
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Nama Unit</Text>
+                                            <Text style={styles.label}>Nama Alat</Text>
                                             <TextInput
                                                 style={styles.input}
-                                                value={namaUnit}
-                                                onChangeText={setNamaUnit}
+                                                value={nama_alat}
+                                                onChangeText={setNamaAlat}
                                                 placeholder="Excavator Volvo"
                                                 placeholderTextColor="#999"
                                             />
                                         </View>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Jumlah Unit</Text>
-                                            <TextInput
-                                                style={styles.input}
-                                                value={jumlahUnit}
-                                                onChangeText={setJumlahUnit}
-                                                placeholder="8"
-                                                placeholderTextColor="#999"
-                                                keyboardType="numeric"
-                                            />
+                                            <Text style={styles.label}>Jenis</Text>
+                                            <TouchableOpacity
+                                                style={styles.selectInput}
+                                                onPress={() => setShowJenisDropdown(true)}
+                                            >
+                                                <Text style={styles.selectText}>
+                                                    {jenis}
+                                                </Text>
+                                                <Text style={styles.selectArrow}>▼</Text>
+                                            </TouchableOpacity>
                                         </View>
                                     </View>
 
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Deskripsi</Text>
+                                            <Text style={styles.label}>Kapasitas</Text>
                                             <TextInput
-                                                style={[styles.input, styles.textArea]}
-                                                value={deskripsi}
-                                                onChangeText={setDeskripsi}
-                                                placeholder="Your description here....&#10;Lorem ipsum dolor sit amet consectetur"
+                                                style={styles.input}
+                                                value={kapasitas}
+                                                onChangeText={setKapasitas}
+                                                placeholder="2.5 Ton"
                                                 placeholderTextColor="#999"
-                                                multiline
-                                                numberOfLines={4}
                                             />
                                         </View>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Harga (RP)</Text>
+                                            <Text style={styles.label}>Harga Sewa (RP)</Text>
                                             <TextInput
                                                 style={styles.input}
-                                                value={harga}
-                                                onChangeText={setHarga}
+                                                value={harga_sewa_per_hari}
+                                                onChangeText={setHargaSewa}
                                                 placeholder="800.000"
                                                 placeholderTextColor="#999"
                                                 keyboardType="numeric"
@@ -399,33 +567,12 @@ export default function KelolaAlatBerat() {
                                                 style={styles.selectInput}
                                                 onPress={() => setShowStatusDropdown(true)}
                                             >
-                                                <Text style={[
-                                                    styles.selectText,
-                                                    status === 'Tersedia/Tidak Tersedia' && styles.placeholderText
-                                                ]}>
+                                                <Text style={styles.selectText}>
                                                     {status}
                                                 </Text>
                                                 <Text style={styles.selectArrow}>▼</Text>
                                             </TouchableOpacity>
                                         </View>
-                                        <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Jenis</Text>
-                                            <TouchableOpacity
-                                                style={styles.selectInput}
-                                                onPress={() => setShowJenisDropdown(true)}
-                                            >
-                                                <Text style={[
-                                                    styles.selectText,
-                                                    jenis === 'Excavator/Crane/bulldozer/....' && styles.placeholderText
-                                                ]}>
-                                                    {jenis}
-                                                </Text>
-                                                <Text style={styles.selectArrow}>▼</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>Foto</Text>
                                             <View style={styles.fotoInputContainer}>
@@ -433,7 +580,7 @@ export default function KelolaAlatBerat() {
                                                     style={[styles.input, { flex: 1, paddingRight: 10 }]}
                                                     value={foto}
                                                     onChangeText={setFoto}
-                                                    placeholder="img_08283_8823827_23848329"
+                                                    placeholder="URL foto alat berat"
                                                     placeholderTextColor="#999"
                                                 />
                                                 <TouchableOpacity>
@@ -441,7 +588,21 @@ export default function KelolaAlatBerat() {
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
-                                        <View style={styles.formGroup} />
+                                    </View>
+
+                                    <View style={styles.formRow}>
+                                        <View style={[styles.formGroup, { flex: 2 }]}>
+                                            <Text style={styles.label}>Deskripsi</Text>
+                                            <TextInput
+                                                style={[styles.input, styles.textArea]}
+                                                value={deskripsi}
+                                                onChangeText={setDeskripsi}
+                                                placeholder="Deskripsi alat berat..."
+                                                placeholderTextColor="#999"
+                                                multiline
+                                                numberOfLines={4}
+                                            />
+                                        </View>
                                     </View>
                                 </View>
                             </ScrollView>
@@ -545,10 +706,16 @@ export default function KelolaAlatBerat() {
                                     <Text style={styles.dropdownText}>Bulldozer</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={[styles.dropdownItem, { borderBottomWidth: 0 }]}
+                                    style={styles.dropdownItem}
                                     onPress={() => selectJenis('Dump Truck')}
                                 >
                                     <Text style={styles.dropdownText}>Dump Truck</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.dropdownItem, { borderBottomWidth: 0 }]}
+                                    onPress={() => selectJenis('Lainnya')}
+                                >
+                                    <Text style={styles.dropdownText}>Lainnya</Text>
                                 </TouchableOpacity>
                             </View>
                         </TouchableOpacity>
@@ -656,6 +823,20 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#333',
     },
+    refreshButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#10B981',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 10,
+        gap: 8,
+    },
+    refreshButtonText: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 14,
+        color: COLORS.white,
+    },
     addButton: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -673,6 +854,52 @@ const styles = StyleSheet.create({
     addButtonIcon: {
         fontFamily: 'Poppins_600SemiBold',
         fontSize: 20,
+        color: COLORS.white,
+    },
+    debugContainer: {
+        padding: 10,
+        backgroundColor: '#f0f0f0',
+        borderRadius: 5,
+        marginBottom: 10,
+    },
+    debugText: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 12,
+        color: '#666',
+    },
+    loadingContainer: {
+        padding: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    loadingText: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 16,
+        color: '#F59E0B',
+    },
+    errorContainer: {
+        padding: 20,
+        alignItems: 'center',
+        backgroundColor: '#FEE2E2',
+        borderRadius: 10,
+        marginBottom: 20,
+    },
+    errorText: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 14,
+        color: '#DC2626',
+        textAlign: 'center',
+        marginBottom: 10,
+    },
+    retryButton: {
+        backgroundColor: '#FDB022',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 14,
         color: COLORS.white,
     },
     scrollContainer: {
@@ -874,9 +1101,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#333',
     },
-    placeholderText: {
-        color: '#999',
-    },
     selectArrow: {
         fontSize: 12,
         color: '#F59E0B',
@@ -1043,5 +1267,22 @@ const styles = StyleSheet.create({
         fontFamily: 'Poppins_600SemiBold',
         fontSize: 14,
         color: COLORS.white,
+    },
+    emptyState: {
+        padding: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyStateText: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 16,
+        color: '#666',
+        marginBottom: 8,
+    },
+    emptyStateSubtext: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 14,
+        color: '#999',
+        textAlign: 'center',
     },
 });

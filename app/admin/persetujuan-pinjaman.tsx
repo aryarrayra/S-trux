@@ -1,72 +1,222 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
-import { ExternalLink, Search, X, Check, X as CloseIcon } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Linking, ActivityIndicator } from 'react-native';
+import { ExternalLink, Search, X, Check, FileText, Download, User, Package, Calendar } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
 
-// Mock data
+// Base URL API - menggunakan localhost
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
+
+// Mock data untuk fallback
 const INITIAL_LOAN_REQUESTS = [
   {
-    id: 'ST000-29022025-1812',
-    description: 'surat pinjaman excavator excavator cat 320DD',
-    status: 'Disetujui',
-  },
-  {
-    id: 'ST000-29022025-1813',
-    description: 'surat pinjaman excavator excavator cat 320DD',
-    status: 'Ditolak',
-  },
-  {
-    id: 'ST000-29022025-1812',
-    description: 'surat pinjaman excavator excavator cat 320DD',
+    id: 'ST001-29112025-1812',
+    description: 'Penyewaan Excavator Hitachi - Budi Santoso',
     status: 'Belum diverifikasi',
-  },
-  {
-    id: 'ST000-29022025-1814',
-    description: 'surat pinjaman excavator excavator cat 320DD',
-    status: 'Ditolak',
-  },
-  {
-    id: 'ST000-29022025-1915',
-    description: 'surat pinjaman excavator excavator cat 320DD',
-    status: 'Disetujui',
-  },
-  {
-    id: 'ST000-29022025-1916',
-    description: 'surat pinjaman excavator excavator cat 320DD',
-    status: 'Disetujui',
-  },
-  {
-    id: 'ST000-29022025-1912',
-    description: 'surat pinjaman excavator excavator cat 320DD',
-    status: 'Disetujui',
-  },
-  {
-    id: 'ST000-29022025-1912',
-    description: 'surat pinjaman excavator excavator cat 320DD',
-    status: 'Disetujui',
-  },
-  {
-    id: 'ST000-29022025-1912',
-    description: 'surat pinjaman excavator excavator cat 320DD',
-    status: 'Disetujui',
-  },
-  {
-    id: 'ST000-29022025-1913',
-    description: 'surat pinjaman excavator excavator cat 320DD',
-    status: 'Disetujui',
-  },
+    originalData: { id_sewa: 1, tanggal_sewa: '2025-11-29', total_harga: 2500000 },
+    pelanggan: { nama_pelanggan: 'Budi Santoso', no_ktp: '3201012345678901', no_telp: '08123456789', email: 'budi@mail.com' },
+    alat: { nama_alat: 'Excavator Hitachi ZX200', jenis: 'Excavator', kapasitas: '20 Ton', harga_sewa_per_hari: 2500000 },
+    dokumen: []
+  }
 ];
 
 export default function PersetujuanPinjaman() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [loanRequests, setLoanRequests] = useState(INITIAL_LOAN_REQUESTS);
+  const [loanRequests, setLoanRequests] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [verifyModalVisible, setVerifyModalVisible] = useState(false);
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
+  // Fetch data dari API local
+  const fetchPendingApprovals = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching data from:', `http://127.0.0.1:8000/api/penyewaan/persetujuan/pending`);
+      
+      const response = await fetch(`http://127.0.0.1:8000/api/penyewaan/persetujuan/pending`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('API Response:', result);
+      
+      if (result.success) {
+        const formattedData = result.data.map((item: any) => ({
+          id: `ST${String(item.id_sewa).padStart(3, '0')}`,
+          description: `Penyewaan ${item.alat?.nama_alat || 'Alat'} - ${item.pelanggan?.nama_pelanggan || 'Pelanggan'}`,
+          status: mapApprovalStatus(item.status_persetujuan),
+          originalData: item,
+          pelanggan: item.pelanggan,
+          alat: item.alat,
+          dokumen: item.dokumen || [],
+          pembayaran: item.pembayaran || []
+        }));
+        setLoanRequests(formattedData);
+        console.log('Formatted data:', formattedData.length, 'items');
+      } else {
+        Alert.alert('Error', result.message || 'Gagal memuat data');
+      }
+    } catch (err) {
+      console.error('Gagal fetch data persetujuan:', err);
+      Alert.alert(
+        'Error', 
+        `Tidak dapat terhubung ke server: ${err.message}\n\nPastikan server berjalan di http://127.0.0.1:8000`
+      );
+      
+      // Fallback ke mock data untuk testing
+      setLoanRequests(INITIAL_LOAN_REQUESTS);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Approve penyewaan
+  const handleConfirmVerify = async () => {
+    try {
+      setRefreshing(true);
+      const response = await fetch(`${API_BASE_URL}/penyewaan/${selectedRequest.originalData.id_sewa}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status_persetujuan: 'Disetujui'
+        })
+      });
+      
+      const result = await response.json();
+      console.log('Approve response:', result);
+      
+      if (result.success) {
+        // Refresh data
+        await fetchPendingApprovals();
+        setVerifyModalVisible(false);
+        setModalVisible(false);
+        Alert.alert('Sukses', 'Penyewaan berhasil disetujui');
+      } else {
+        Alert.alert('Error', result.message || 'Gagal menyetujui penyewaan');
+      }
+    } catch (err) {
+      console.error('Gagal approve penyewaan:', err);
+      Alert.alert('Error', 'Terjadi error saat menyetujui penyewaan');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Reject penyewaan
+  const handleConfirmReject = async () => {
+    try {
+      // Minta alasan penolakan
+      Alert.prompt(
+        'Alasan Penolakan',
+        'Masukkan alasan penolakan penyewaan:',
+        [
+          { text: 'Batal', style: 'cancel' },
+          { 
+            text: 'OK', 
+            onPress: async (alasan) => {
+              if (!alasan) {
+                Alert.alert('Error', 'Alasan penolakan harus diisi');
+                return;
+              }
+
+              setRefreshing(true);
+              try {
+                const response = await fetch(`${API_BASE_URL}/penyewaan/${selectedRequest.originalData.id_sewa}/approve`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    status_persetujuan: 'Ditolak',
+                    alasan_penolakan: alasan
+                  })
+                });
+                
+                const result = await response.json();
+                console.log('Reject response:', result);
+                
+                if (result.success) {
+                  // Refresh data
+                  await fetchPendingApprovals();
+                  setRejectModalVisible(false);
+                  setModalVisible(false);
+                  Alert.alert('Sukses', 'Penyewaan berhasil ditolak');
+                } else {
+                  Alert.alert('Error', result.message || 'Gagal menolak penyewaan');
+                }
+              } catch (err) {
+                console.error('Gagal reject penyewaan:', err);
+                Alert.alert('Error', 'Terjadi error saat menolak penyewaan');
+              } finally {
+                setRefreshing(false);
+              }
+            }
+          }
+        ],
+        'plain-text'
+      );
+      
+    } catch (err) {
+      console.error('Gagal reject penyewaan:', err);
+      Alert.alert('Error', 'Terjadi error saat menolak penyewaan');
+    }
+  };
+
+  // Download dokumen
+  const handleDownloadPDF = async (dokumen: any) => {
+    try {
+      const url = `${API_BASE_URL}/dokumen-pinjaman/download/${dokumen.id_dokumen}`;
+      console.log('Download URL:', url);
+      
+      // Untuk React Native, gunakan Linking untuk buka PDF
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Error', 'Tidak dapat membuka PDF viewer');
+      }
+    } catch (err) {
+      console.error('Gagal download PDF:', err);
+      Alert.alert('Error', 'Gagal membuka dokumen');
+    }
+  };
+
+  const handleOpenDocument = (request: any) => {
+    setSelectedRequest(request);
+    setModalVisible(true);
+  };
+
+  const handleVerifikasi = () => {
+    setModalVisible(false);
+    setVerifyModalVisible(true);
+  };
+
+  const handleTolak = () => {
+    setModalVisible(false);
+    setRejectModalVisible(true);
+  };
+
+  const handleCloseConfirm = () => {
+    setVerifyModalVisible(false);
+    setRejectModalVisible(false);
+  };
+
+  // Refresh data
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchPendingApprovals();
+  };
+
+  // Helper functions
   const getCurrentDate = () => {
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -88,57 +238,203 @@ export default function PersetujuanPinjaman() {
 
   const filteredRequests = loanRequests.filter(request =>
     request.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    request.description.toLowerCase().includes(searchQuery.toLowerCase())
+    request.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    request.pelanggan?.nama_pelanggan?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Disetujui':
-        return '#10B981'; // Green for approved (ijo)
-      case 'Ditolak':
-        return '#EF4444'; // Red for rejected (merah)
-      case 'Belum diverifikasi':
-        return '#F59E0B'; // Orange for pending
-      default:
-        return '#10B981';
+      case 'Disetujui': return '#10B981';
+      case 'Ditolak': return '#EF4444';
+      case 'Belum diverifikasi': return '#F59E0B';
+      default: return '#10B981';
     }
   };
 
-  const handleOpenDocument = (request: any) => {
-    setSelectedRequest(request);
-    setModalVisible(true);
+  const getStatusBackgroundColor = (status: string) => {
+    switch (status) {
+      case 'Belum diverifikasi': return '#FEF3C7';
+      case 'Disetujui': return '#D1FAE5';
+      case 'Ditolak': return '#FEE2E2';
+      default: return '#F3F4F6';
+    }
   };
 
-  const handleVerifikasi = () => {
-    setModalVisible(false);
-    setVerifyModalVisible(true);
+  const mapApprovalStatus = (status: string) => {
+    const statusMap: { [key: string]: string } = {
+      'Menunggu': 'Belum diverifikasi',
+      'Disetujui': 'Disetujui', 
+      'Ditolak': 'Ditolak'
+    };
+    return statusMap[status] || 'Belum diverifikasi';
   };
 
-  const handleTolak = () => {
-    setModalVisible(false);
-    setRejectModalVisible(true);
+  const calculateDuration = (start: string, end: string) => {
+    if (!start || !end) return 0;
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const handleConfirmVerify = () => {
-    setLoanRequests(prev => prev.map(req =>
-      req.id === selectedRequest.id ? { ...req, status: 'Disetujui' } : req
-    ));
-    console.log('Dokumen diverifikasi:', selectedRequest?.id);
-    setVerifyModalVisible(false);
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0
+    }).format(amount);
   };
 
-  const handleConfirmReject = () => {
-    setLoanRequests(prev => prev.map(req =>
-      req.id === selectedRequest.id ? { ...req, status: 'Ditolak' } : req
-    ));
-    console.log('Dokumen ditolak:', selectedRequest?.id);
-    setRejectModalVisible(false);
-  };
+  // Use effect untuk fetch data saat component mount
+  useEffect(() => {
+    fetchPendingApprovals();
+  }, []);
 
-  const handleCloseConfirm = () => {
-    setVerifyModalVisible(false);
-    setRejectModalVisible(false);
-  };
+  // Modal dengan data real
+  const DocumentModal = () => (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={modalVisible}
+      onRequestClose={() => setModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          {/* Header Modal */}
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Detail Penyewaan {selectedRequest?.id}</Text>
+            <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <X color="#fff" size={24} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalBody}>
+            {/* Info Pelanggan */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <User size={18} color="#F59E0B" />
+                <Text style={styles.sectionTitle}>Data Pelanggan</Text>
+              </View>
+              <View style={styles.infoGrid}>
+                <Text style={styles.infoLabel}>Nama:</Text>
+                <Text style={styles.infoValue}>{selectedRequest?.pelanggan?.nama_pelanggan || 'Tidak ada data'}</Text>
+                
+                <Text style={styles.infoLabel}>KTP:</Text>
+                <Text style={styles.infoValue}>{selectedRequest?.pelanggan?.no_ktp || '-'}</Text>
+                
+                <Text style={styles.infoLabel}>Telp:</Text>
+                <Text style={styles.infoValue}>{selectedRequest?.pelanggan?.no_telp || '-'}</Text>
+                
+                <Text style={styles.infoLabel}>Email:</Text>
+                <Text style={styles.infoValue}>{selectedRequest?.pelanggan?.email || '-'}</Text>
+              </View>
+            </View>
+
+            {/* Info Alat */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Package size={18} color="#F59E0B" />
+                <Text style={styles.sectionTitle}>Data Alat Berat</Text>
+              </View>
+              <View style={styles.infoGrid}>
+                <Text style={styles.infoLabel}>Alat:</Text>
+                <Text style={styles.infoValue}>{selectedRequest?.alat?.nama_alat || 'Tidak ada data'}</Text>
+                
+                <Text style={styles.infoLabel}>Jenis:</Text>
+                <Text style={styles.infoValue}>{selectedRequest?.alat?.jenis || '-'}</Text>
+                
+                <Text style={styles.infoLabel}>Kapasitas:</Text>
+                <Text style={styles.infoValue}>{selectedRequest?.alat?.kapasitas || '-'}</Text>
+                
+                <Text style={styles.infoLabel}>Harga/hari:</Text>
+                <Text style={styles.infoValue}>{formatCurrency(selectedRequest?.alat?.harga_sewa_per_hari || 0)}</Text>
+              </View>
+            </View>
+
+            {/* Info Penyewaan */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Calendar size={18} color="#F59E0B" />
+                <Text style={styles.sectionTitle}>Detail Penyewaan</Text>
+              </View>
+              <View style={styles.infoGrid}>
+                <Text style={styles.infoLabel}>Tanggal Sewa:</Text>
+                <Text style={styles.infoValue}>{selectedRequest?.originalData?.tanggal_sewa || '-'}</Text>
+                
+                <Text style={styles.infoLabel}>Tanggal Kembali:</Text>
+                <Text style={styles.infoValue}>{selectedRequest?.originalData?.tanggal_kembali || '-'}</Text>
+                
+                <Text style={styles.infoLabel}>Durasi:</Text>
+                <Text style={styles.infoValue}>
+                  {calculateDuration(selectedRequest?.originalData?.tanggal_sewa, selectedRequest?.originalData?.tanggal_kembali)} hari
+                </Text>
+                
+                <Text style={styles.infoLabel}>Total Harga:</Text>
+                <Text style={[styles.infoValue, styles.totalPrice]}>
+                  {formatCurrency(selectedRequest?.originalData?.total_harga || 0)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Dokumen */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <FileText size={18} color="#F59E0B" />
+                <Text style={styles.sectionTitle}>Dokumen Pendukung</Text>
+              </View>
+              
+              {selectedRequest?.dokumen?.length === 0 ? (
+                <Text style={styles.noDocumentText}>Belum ada dokumen</Text>
+              ) : (
+                selectedRequest?.dokumen?.map((dokumen: any) => (
+                  <TouchableOpacity 
+                    key={dokumen.id_dokumen}
+                    style={styles.documentItem}
+                    onPress={() => handleDownloadPDF(dokumen)}
+                  >
+                    <FileText color="#3B82F6" size={20} />
+                    <View style={styles.documentInfo}>
+                      <Text style={styles.documentName}>{dokumen.nama_dokumen}</Text>
+                      <Text style={styles.documentType}>{dokumen.tipe_dokumen}</Text>
+                    </View>
+                    <Download color="#6B7280" size={20} />
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          </ScrollView>
+
+          {/* Action Buttons */}
+          {selectedRequest?.status === 'Belum diverifikasi' && (
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.verifikasiButton}
+                onPress={handleVerifikasi}
+                disabled={refreshing}
+              >
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.verifikasiButtonText}>Setujui</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.tolakButton}
+                onPress={handleTolak}
+                disabled={refreshing}
+              >
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.tolakButtonText}>Tolak</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
 
   return (
     <>
@@ -151,12 +447,16 @@ export default function PersetujuanPinjaman() {
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={styles.pageTitle}>Persetujuan Pinjaman</Text>
-              <Text style={styles.pageSubtitle}>Kelola Dokumen Persetujuan Pinjaman Alat Berat</Text>
+              <Text style={styles.pageTitle}>Persetujuan Penyewaan</Text>
+              <Text style={styles.pageSubtitle}>Verifikasi Dokumen Permohonan Peminjaman</Text>
+              <Text style={styles.apiInfo}>API: {API_BASE_URL}</Text>
             </View>
             <View style={styles.dateTimeContainer}>
               <Text style={styles.dateText}>{currentDate.full}</Text>
               <Text style={styles.timeText}>{currentDate.time}</Text>
+              <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
+                <Text style={styles.refreshText}>Refresh</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -165,126 +465,86 @@ export default function PersetujuanPinjaman() {
             <Search color="#999" size={20} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Cari berdasarkan ID atau deskripsi..."
+              placeholder="Cari berdasarkan ID, nama pelanggan, atau alat..."
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholderTextColor="#999"
             />
           </View>
 
+          {/* Loading State */}
+          {loading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#F59E0B" />
+              <Text style={styles.loadingText}>Memuat data persetujuan...</Text>
+            </View>
+          )}
+
+          {/* Empty State */}
+          {!loading && loanRequests.length === 0 && (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Tidak ada data persetujuan</Text>
+              <TouchableOpacity onPress={handleRefresh} style={styles.retryButton}>
+                <Text style={styles.retryText}>Coba Lagi</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Table */}
-          <ScrollView style={styles.tableContainer}>
-            <View style={styles.table}>
-              {/* Table Header */}
-              <View style={styles.tableHeader}>
-                <View style={[styles.tableHeaderCell, { flex: 2 }]}>
-                  <Text style={styles.tableHeaderText}>Surat Pinjaman Tercatat</Text>
-                </View>
-                <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
-                  <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Status</Text>
-                </View>
-                <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.5 }]}>
-                  <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Lihat Dokumen</Text>
-                </View>
-              </View>
-
-              {/* Table Body */}
-              {filteredRequests.map((request, index) => (
-                <View key={index} style={styles.tableRow}>
-                  <View style={[styles.tableCell, { flex: 2, backgroundColor: '#F5EFE7' }]}>
-                    <Text style={styles.requestId}>{request.id}</Text>
-                    <Text style={styles.requestDescription}>{request.description}</Text>
+          {!loading && loanRequests.length > 0 && (
+            <ScrollView style={styles.tableContainer}>
+              <View style={styles.table}>
+                {/* Table Header */}
+                <View style={styles.tableHeader}>
+                  <View style={[styles.tableHeaderCell, { flex: 2 }]}>
+                    <Text style={styles.tableHeaderText}>Penyewaan Tercatat</Text>
                   </View>
+                  <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
+                    <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Status</Text>
+                  </View>
+                  <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.5 }]}>
+                    <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Detail</Text>
+                  </View>
+                </View>
 
-                  <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
-                    <View style={styles.statusBadge}>
-                      <Text style={[styles.statusText, { color: getStatusColor(request.status) }]}>
-                        {request.status}
+                {/* Table Body */}
+                {filteredRequests.map((request, index) => (
+                  <View key={index} style={styles.tableRow}>
+                    <View style={[styles.tableCell, { flex: 2, backgroundColor: '#F5EFE7' }]}>
+                      <Text style={styles.requestId}>{request.id}</Text>
+                      <Text style={styles.requestDescription}>
+                        {request.pelanggan?.nama_pelanggan || 'Unknown'} - {request.alat?.nama_alat || 'Unknown'}
+                      </Text>
+                      <Text style={styles.requestDate}>
+                        {request.originalData?.tanggal_sewa} • {formatCurrency(request.originalData?.total_harga || 0)}
                       </Text>
                     </View>
-                  </View>
 
-                  <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.5, backgroundColor: '#F5EFE7' }]}>
-                    <TouchableOpacity
-                      style={styles.viewButton}
-                      onPress={() => handleOpenDocument(request)}
-                    >
-                      <ExternalLink color={COLORS.white} size={18} />
-                    </TouchableOpacity>
+                    <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
+                      <View style={[styles.statusBadge, { backgroundColor: getStatusBackgroundColor(request.status) }]}>
+                        <Text style={[styles.statusText, { color: getStatusColor(request.status) }]}>
+                          {request.status}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.5, backgroundColor: '#F5EFE7' }]}>
+                      <TouchableOpacity
+                        style={styles.viewButton}
+                        onPress={() => handleOpenDocument(request)}
+                      >
+                        <ExternalLink color={COLORS.white} size={18} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              ))}
-            </View>
-          </ScrollView>
+                ))}
+              </View>
+            </ScrollView>
+          )}
         </View>
 
-        {/* Document Modal Popup */}
-        <Modal
-          animationType="fade"
-          transparent={true}
-          visible={modalVisible}
-          onRequestClose={() => setModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              {/* Header Modal */}
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{selectedRequest?.id}</Text>
-                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                  <X color="#666" size={24} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Content Modal */}
-              <ScrollView style={styles.modalBody}>
-                <Text style={styles.modalSectionTitle}>Penjelasan Makna Dua Kalimat Syahadat.</Text>
-
-                <Text style={styles.modalText}>
-                  Syahadatain merupakan bagian pertama dalam lima rukun Islam. Syahadatain adalah
-                  pondasi awal dan hal yang paling pokok. Syarat diterimanya semua amalan dalam rukun
-                  islam yang lainnya seperti Sholat, puasa, zakat dan Haji adalah kita harus sudah
-                  bersyahadat. Dan Syahadatain adalah gerbang awal seseorang masuk ke dalam Agama Islam.
-                </Text>
-
-                <Text style={styles.modalText}>
-                  Dan Syahadatain adalah pengakuan keimanan kepada Allah dan Muhammad sebagai
-                  utusan Allah. Syahadat diucapkan dengan kalimat "Ashaduala ilaha illallah, wa
-                  ashaduanna muhammadurrasulullah" yang artinya "Aku bersaksi bahwa tidak ada Tuhan
-                  selain Allah SWT, dan aku bersaksi bahwa Nabi Muhammad SAW adalah utusan Allah".
-                </Text>
-
-                <Text style={styles.modalText}>
-                  Konsekwensi dari pengucapan Syahadatain ini adalah kita beribadah dengan tujuan
-                  mengharap ridho Alloh dengan rangkaian Ibadah sesuai mengikuti apa-apa yang sudah
-                  dijelaskan dan dicontohkan oleh Rosululloh Muhammad Shallallahu 'Alaihi Wa Sallam.
-                </Text>
-
-                <Text style={styles.modalSectionTitle}>Penjelasan Tatacara Bersuci</Text>
-
-                <Text style={styles.modalText}>
-                  Bersuci merupakan syarat mutlak bagi seorang Muslim dalam melaksanakan proses
-                  ibadah kepada Allah SWT...
-                </Text>
-              </ScrollView>
-
-              {/* Footer Modal - Buttons */}
-              <View style={styles.modalFooter}>
-                <TouchableOpacity
-                  style={styles.verifikasiButton}
-                  onPress={handleVerifikasi}
-                >
-                  <Text style={styles.verifikasiButtonText}>Verifikasi</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.tolakButton}
-                  onPress={handleTolak}
-                >
-                  <Text style={styles.tolakButtonText}>Tolak</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+        {/* Document Modal */}
+        <DocumentModal />
 
         {/* Verify Confirmation Modal */}
         <Modal
@@ -304,13 +564,17 @@ export default function PersetujuanPinjaman() {
                 </View>
               </View>
               <View style={styles.confirmBody}>
-                <Text style={[styles.confirmSubtitle, { color: '#10B981' }]}>Anda Menyetujui Dokumen Ini</Text>
+                <Text style={[styles.confirmSubtitle, { color: '#10B981' }]}>Anda Menyetujui Penyewaan Ini</Text>
                 <Text style={styles.confirmText}>
-                  Dengan ini anda menyetujui surat peminjaman alat berat kepala unit yang telah diberikan terawat dan dalam kondisi prima
+                  Dengan ini anda menyetujui penyewaan alat berat dan dokumen pendukung yang telah diberikan
                 </Text>
               </View>
-              <TouchableOpacity style={styles.okButton} onPress={handleConfirmVerify}>
-                <Text style={styles.okButtonText}>OK</Text>
+              <TouchableOpacity style={styles.okButton} onPress={handleConfirmVerify} disabled={refreshing}>
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.okButtonText}>OK</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -326,21 +590,25 @@ export default function PersetujuanPinjaman() {
           <View style={styles.confirmOverlay}>
             <View style={[styles.confirmContent, { backgroundColor: '#FFF5F5' }]}>
               <View style={styles.confirmHeader}>
-                <Text style={styles.confirmTitle}>Reject</Text>
+                <Text style={styles.confirmTitle}>Tolak</Text>
               </View>
               <View style={styles.confirmIconContainer}>
                 <View style={[styles.confirmIcon, { backgroundColor: '#EF4444' }]}>
-                  <CloseIcon color="white" size={40} />
+                  <X color="white" size={40} />
                 </View>
               </View>
               <View style={styles.confirmBody}>
-                <Text style={[styles.confirmSubtitle, { color: '#EF4444' }]}>Anda Menolak Dokumen</Text>
+                <Text style={[styles.confirmSubtitle, { color: '#EF4444' }]}>Anda Menolak Penyewaan</Text>
                 <Text style={styles.confirmText}>
-                  Atas penolakan ini anda mengetahui bahwa ada kesalahan dalam pengisian dokumen baik yang relevan sampai jaminan
+                  Penyewaan ini akan ditolak dan pelanggan akan mendapatkan notifikasi
                 </Text>
               </View>
-              <TouchableOpacity style={styles.okButton} onPress={handleConfirmReject}>
-                <Text style={styles.okButtonText}>OK</Text>
+              <TouchableOpacity style={styles.okButton} onPress={handleConfirmReject} disabled={refreshing}>
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.okButtonText}>OK</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -379,6 +647,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  apiInfo: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 10,
+    color: '#666',
+    marginTop: 2,
+  },
   dateTimeContainer: {
     alignItems: 'flex-end',
   },
@@ -391,6 +665,18 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_500Medium',
     fontSize: 18,
     color: COLORS.darkGray,
+  },
+  refreshButton: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F59E0B',
+    borderRadius: 6,
+  },
+  refreshText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+    color: 'white',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -407,6 +693,39 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
     fontSize: 14,
     color: COLORS.darkGray,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: '#666',
+    marginTop: 10,
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 16,
+  },
+  retryButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#F59E0B',
+    borderRadius: 8,
+  },
+  retryText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+    color: 'white',
   },
   tableContainer: {
     flex: 1,
@@ -467,8 +786,14 @@ const styles = StyleSheet.create({
     color: '#666',
     alignSelf: 'flex-start',
   },
+  requestDate: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 10,
+    color: '#6B7280',
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
   statusBadge: {
-    backgroundColor: '#E8D7C3',
     paddingHorizontal: 28,
     paddingVertical: 10,
     borderRadius: 8,
@@ -519,20 +844,75 @@ const styles = StyleSheet.create({
     padding: 30,
     maxHeight: 400,
   },
-  modalSectionTitle: {
+  section: {
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 16,
     color: COLORS.darkGray,
-    marginBottom: 15,
-    marginTop: 10,
+    marginLeft: 8,
   },
-  modalText: {
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  infoLabel: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+    color: '#6B7280',
+    width: '30%',
+    marginBottom: 8,
+  },
+  infoValue: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: '#374151',
+    width: '70%',
+    marginBottom: 8,
+  },
+  totalPrice: {
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#059669',
+    fontSize: 14,
+  },
+  documentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  documentInfo: {
+    flex: 1,
+    marginLeft: 12
+  },
+  documentName: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+    color: '#1E293B'
+  },
+  documentType: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2
+  },
+  noDocumentText: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 14,
-    color: '#333',
-    lineHeight: 24,
-    textAlign: 'justify',
-    marginBottom: 15,
+    color: '#64748B',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    padding: 20
   },
   modalFooter: {
     flexDirection: 'row',

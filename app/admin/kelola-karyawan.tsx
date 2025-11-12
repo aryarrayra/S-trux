@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Search, Edit2, Trash2, X, Check, Calendar } from 'lucide-react-native';
@@ -6,14 +6,14 @@ import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
 
-// Mock data
+// Mock data fallback
 const INITIAL_EMPLOYEES = [
     {
         id: '1',
         namaLengkap: 'Argara Bhumi Tara',
         role: 'Karyawan',
         noTelp: '0823487322123',
-        email: '@Argar2187@gmail.com',
+        email: 'Argar2187@gmail.com',
     },
     {
         id: '2',
@@ -21,27 +21,6 @@ const INITIAL_EMPLOYEES = [
         role: 'Karyawan',
         noTelp: '0812345678901',
         email: 'budi.santoso@gmail.com',
-    },
-    {
-        id: '3',
-        namaLengkap: 'Citra Dewi',
-        role: 'Petugas',
-        noTelp: '0856789012345',
-        email: 'citra.dewi@gmail.com',
-    },
-    {
-        id: '4',
-        namaLengkap: 'Dimas Prasetyo',
-        role: 'Karyawan',
-        noTelp: '0898765432109',
-        email: 'dimas.prasetyo@gmail.com',
-    },
-    {
-        id: '5',
-        namaLengkap: 'Eka Putri',
-        role: 'Petugas',
-        noTelp: '0821234567890',
-        email: 'eka.putri@gmail.com',
     },
 ];
 
@@ -56,6 +35,12 @@ type Employee = {
     alamat?: string;
 };
 
+interface ApiResponse {
+    success: boolean;
+    data?: any[];
+    message?: string;
+}
+
 export default function KelolaKaryawan() {
     const [searchQuery, setSearchQuery] = useState('');
     const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
@@ -65,6 +50,8 @@ export default function KelolaKaryawan() {
     const [isAddMode, setIsAddMode] = useState(false);
     const [showRoleDropdown, setShowRoleDropdown] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     // Form states
     const [namaLengkap, setNamaLengkap] = useState('');
@@ -75,6 +62,60 @@ export default function KelolaKaryawan() {
     const [date, setDate] = useState(new Date());
     const [noTelp, setNoTelp] = useState('');
     const [role, setRole] = useState('Karyawan');
+
+    // Fetch data dari API
+    const fetchEmployees = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            console.log('Fetching employees from API...');
+            const response = await fetch('http://127.0.0.1:8000/api/petugas', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            console.log('Response status:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data: ApiResponse = await response.json();
+            console.log('API Response:', data);
+
+            if (data.success && data.data) {
+                // Transform data dari API ke format yang sesuai
+                const transformedData: Employee[] = data.data.map((item: any) => ({
+                    id: item.id?.toString() || Math.random().toString(),
+                    namaLengkap: item.nama_petugas || item.nama_petugas || 'Nama tidak tersedia',
+                    role: item.role || item.jabatan || 'Karyawan',
+                    noTelp: item.no_telp || item.telepon || item.phone || 'Tidak ada telepon',
+                    email: item.email || 'Email tidak tersedia',
+                    tempatLahir: item.tempat_lahir || item.tempatLahir || '',
+                    tanggalLahir: item.tanggal_lahir || item.tanggalLahir || '',
+                    alamat: item.alamat || '',
+                }));
+                setEmployees(transformedData);
+            } else {
+                throw new Error(data.message || 'Gagal mengambil data petugas');
+            }
+        } catch (error) {
+            console.error('Error fetching employees:', error);
+            setError(error instanceof Error ? error.message : 'Terjadi kesalahan saat mengambil data');
+            // Tetap gunakan data fallback
+            setEmployees(INITIAL_EMPLOYEES);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Fetch data saat component mount
+    useEffect(() => {
+        fetchEmployees();
+    }, []);
 
     const getCurrentDate = () => {
         const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -157,10 +198,30 @@ export default function KelolaKaryawan() {
         setDeleteModalVisible(true);
     };
 
-    const handleConfirmDelete = (confirmed: boolean) => {
+    const handleConfirmDelete = async (confirmed: boolean) => {
         if (confirmed && selectedEmployee) {
-            setEmployees(prev => prev.filter(emp => emp.id !== selectedEmployee.id));
-            console.log('Karyawan dihapus:', selectedEmployee.id);
+            try {
+                // Delete dari API
+                const response = await fetch(`http://127.0.0.1:8000/api/petugas/${selectedEmployee.id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (response.ok) {
+                    // Hapus dari state lokal
+                    setEmployees(prev => prev.filter(emp => emp.id !== selectedEmployee.id));
+                    console.log('Karyawan dihapus:', selectedEmployee.id);
+                    Alert.alert('Sukses', 'Data berhasil dihapus');
+                } else {
+                    throw new Error('Gagal menghapus data');
+                }
+            } catch (error) {
+                console.error('Error deleting employee:', error);
+                Alert.alert('Error', 'Gagal menghapus data dari server');
+            }
         }
         setDeleteModalVisible(false);
         setSelectedEmployee(null);
@@ -174,43 +235,105 @@ export default function KelolaKaryawan() {
         return true;
     };
 
-    const handleUpdate = () => {
+    const handleUpdate = async () => {
         if (!validateForm()) return;
         if (selectedEmployee) {
-            setEmployees(prev => prev.map(emp =>
-                emp.id === selectedEmployee.id
-                    ? {
-                        ...emp,
-                        namaLengkap,
-                        email,
-                        tempatLahir,
-                        alamat,
-                        tanggalLahir,
-                        noTelp,
-                        role,
-                    }
-                    : emp
-            ));
-            console.log('Data diupdate:', selectedEmployee.id);
+            try {
+                const updateData = {
+                    nama: namaLengkap,
+                    email: email,
+                    tempat_lahir: tempatLahir,
+                    alamat: alamat,
+                    tanggal_lahir: tanggalLahir,
+                    no_telp: noTelp,
+                    role: role,
+                };
+
+                const response = await fetch(`http://127.0.0.1:8000/api/petugas/${selectedEmployee.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify(updateData),
+                });
+
+                if (response.ok) {
+                    // Update state lokal
+                    setEmployees(prev => prev.map(emp =>
+                        emp.id === selectedEmployee.id
+                            ? {
+                                ...emp,
+                                namaLengkap,
+                                email,
+                                tempatLahir,
+                                alamat,
+                                tanggalLahir,
+                                noTelp,
+                                role,
+                            }
+                            : emp
+                    ));
+                    console.log('Data diupdate:', selectedEmployee.id);
+                    Alert.alert('Sukses', 'Data berhasil diupdate');
+                    setModalVisible(false);
+                } else {
+                    throw new Error('Gagal mengupdate data');
+                }
+            } catch (error) {
+                console.error('Error updating employee:', error);
+                Alert.alert('Error', 'Gagal mengupdate data di server');
+            }
         }
-        setModalVisible(false);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!validateForm()) return;
-        const newEmployee: Employee = {
-            id: String(employees.length + 1),
-            namaLengkap,
-            email,
-            tempatLahir,
-            alamat,
-            tanggalLahir,
-            noTelp,
-            role,
-        };
-        setEmployees(prev => [...prev, newEmployee]);
-        console.log('Data baru ditambahkan:', newEmployee);
-        setModalVisible(false);
+        
+        try {
+            const newEmployeeData = {
+                nama: namaLengkap,
+                email: email,
+                tempat_lahir: tempatLahir,
+                alamat: alamat,
+                tanggal_lahir: tanggalLahir,
+                no_telp: noTelp,
+                role: role,
+            };
+
+            const response = await fetch('http://127.0.0.1:8000/api/petugas', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify(newEmployeeData),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                // Tambahkan ke state lokal
+                const newEmployee: Employee = {
+                    id: result.data?.id || String(employees.length + 1),
+                    namaLengkap,
+                    email,
+                    tempatLahir,
+                    alamat,
+                    tanggalLahir,
+                    noTelp,
+                    role,
+                };
+                setEmployees(prev => [...prev, newEmployee]);
+                console.log('Data baru ditambahkan:', newEmployee);
+                Alert.alert('Sukses', 'Data berhasil ditambahkan');
+                setModalVisible(false);
+            } else {
+                throw new Error('Gagal menambahkan data');
+            }
+        } catch (error) {
+            console.error('Error adding employee:', error);
+            Alert.alert('Error', 'Gagal menambahkan data ke server');
+        }
     };
 
     const handleClear = () => {
@@ -225,6 +348,11 @@ export default function KelolaKaryawan() {
     const selectRole = (selectedRole: string) => {
         setRole(selectedRole);
         setShowRoleDropdown(false);
+    };
+
+    // Refresh data
+    const handleRefresh = () => {
+        fetchEmployees();
     };
 
     return (
@@ -259,73 +387,94 @@ export default function KelolaKaryawan() {
                                 placeholderTextColor="#999"
                             />
                         </View>
+                        <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                            <Text style={styles.refreshButtonText}>Refresh</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
                             <Text style={styles.addButtonText}>Tambahkan</Text>
                             <Text style={styles.addButtonIcon}>+</Text>
                         </TouchableOpacity>
                     </View>
 
+                    {/* Loading & Error State */}
+                    {isLoading && (
+                        <View style={styles.loadingContainer}>
+                            <Text style={styles.loadingText}>Memuat data...</Text>
+                        </View>
+                    )}
+
+                    {error && (
+                        <View style={styles.errorContainer}>
+                            <Text style={styles.errorText}>Error: {error}</Text>
+                            <TouchableOpacity style={styles.retryButton} onPress={fetchEmployees}>
+                                <Text style={styles.retryButtonText}>Coba Lagi</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
                     {/* Table */}
-                    <ScrollView style={styles.tableContainer}>
-                        <View style={styles.table}>
-                            {/* Table Header */}
-                            <View style={styles.tableHeader}>
-                                <View style={[styles.tableHeaderCell, { flex: 1.5 }]}>
-                                    <Text style={styles.tableHeaderText}>Nama Lengkap</Text>
-                                </View>
-                                <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
-                                    <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Role</Text>
-                                </View>
-                                <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
-                                    <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>No. Telp</Text>
-                                </View>
-                                <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1.5 }]}>
-                                    <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Email</Text>
-                                </View>
-                                <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.8 }]}>
-                                    <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Aksi</Text>
-                                </View>
-                            </View>
-
-                            {/* Table Body */}
-                            {filteredEmployees.map((employee, index) => (
-                                <View key={index} style={styles.tableRow}>
-                                    <View style={[styles.tableCell, { flex: 1.5, backgroundColor: '#F5EFE7', alignItems: 'flex-start' }]}>
-                                        <Text style={styles.employeeName}>{employee.namaLengkap}</Text>
+                    {!isLoading && !error && (
+                        <ScrollView style={styles.tableContainer}>
+                            <View style={styles.table}>
+                                {/* Table Header */}
+                                <View style={styles.tableHeader}>
+                                    <View style={[styles.tableHeaderCell, { flex: 1.5 }]}>
+                                        <Text style={styles.tableHeaderText}>Nama Lengkap</Text>
                                     </View>
-
-                                    <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
-                                        <Text style={styles.employeeRole}>{employee.role}</Text>
+                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
+                                        <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Role</Text>
                                     </View>
-
-                                    <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
-                                        <Text style={styles.employeePhone}>{employee.noTelp}</Text>
+                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
+                                        <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>No. Telp</Text>
                                     </View>
-
-                                    <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1.5, backgroundColor: '#F5EFE7' }]}>
-                                        <Text style={styles.employeeEmail}>{employee.email}</Text>
+                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1.5 }]}>
+                                        <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Email</Text>
                                     </View>
+                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.8 }]}>
+                                        <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Aksi</Text>
+                                    </View>
+                                </View>
 
-                                    <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8, backgroundColor: '#F5EFE7' }]}>
-                                        <View style={styles.actionButtons}>
-                                            <TouchableOpacity
-                                                style={styles.editButton}
-                                                onPress={() => handleEdit(employee)}
-                                            >
-                                                <Edit2 color={COLORS.white} size={16} />
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                style={styles.deleteButton}
-                                                onPress={() => handleDelete(employee)}
-                                            >
-                                                <Trash2 color={COLORS.white} size={16} />
-                                            </TouchableOpacity>
+                                {/* Table Body */}
+                                {filteredEmployees.map((employee, index) => (
+                                    <View key={employee.id} style={styles.tableRow}>
+                                        <View style={[styles.tableCell, { flex: 1.5, backgroundColor: '#F5EFE7', alignItems: 'flex-start' }]}>
+                                            <Text style={styles.employeeName}>{employee.namaLengkap}</Text>
+                                        </View>
+
+                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
+                                            <Text style={styles.employeeRole}>{employee.role}</Text>
+                                        </View>
+
+                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
+                                            <Text style={styles.employeePhone}>{employee.noTelp}</Text>
+                                        </View>
+
+                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1.5, backgroundColor: '#F5EFE7' }]}>
+                                            <Text style={styles.employeeEmail}>{employee.email}</Text>
+                                        </View>
+
+                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8, backgroundColor: '#F5EFE7' }]}>
+                                            <View style={styles.actionButtons}>
+                                                <TouchableOpacity
+                                                    style={styles.editButton}
+                                                    onPress={() => handleEdit(employee)}
+                                                >
+                                                    <Edit2 color={COLORS.white} size={16} />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={styles.deleteButton}
+                                                    onPress={() => handleDelete(employee)}
+                                                >
+                                                    <Trash2 color={COLORS.white} size={16} />
+                                                </TouchableOpacity>
+                                            </View>
                                         </View>
                                     </View>
-                                </View>
-                            ))}
-                        </View>
-                    </ScrollView>
+                                ))}
+                            </View>
+                        </ScrollView>
+                    )}
                 </View>
 
                 {/* Edit/Add Modal */}
@@ -623,6 +772,20 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: COLORS.darkGray,
     },
+    refreshButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#10B981',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 10,
+        gap: 8,
+    },
+    refreshButtonText: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 14,
+        color: COLORS.white,
+    },
     addButton: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -640,6 +803,41 @@ const styles = StyleSheet.create({
     addButtonIcon: {
         fontFamily: 'Poppins_600SemiBold',
         fontSize: 20,
+        color: COLORS.white,
+    },
+    // Loading & Error Styles
+    loadingContainer: {
+        padding: 20,
+        alignItems: 'center',
+    },
+    loadingText: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 16,
+        color: COLORS.primary,
+    },
+    errorContainer: {
+        padding: 20,
+        alignItems: 'center',
+        backgroundColor: '#FEE2E2',
+        borderRadius: 10,
+        marginBottom: 20,
+    },
+    errorText: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 14,
+        color: '#DC2626',
+        textAlign: 'center',
+        marginBottom: 10,
+    },
+    retryButton: {
+        backgroundColor: '#FDB022',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 14,
         color: COLORS.white,
     },
     tableContainer: {
@@ -979,5 +1177,4 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: COLORS.white,
     },
-    
 });

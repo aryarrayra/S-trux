@@ -6,6 +6,8 @@ export const COLORS = {
   primary: '#F39F29',
   primaryLight: '#FDCB41',
   primaryTransparent: 'rgba(243, 159, 41, 0.2)',
+  primaryGradientEnd: '#FDCB41',
+  background: '#F4F4F4',
   cardBackground: '#141212',
   cardGradientStart: '#0F0E0E',
   cardGradientEnd: '#1D1D1D',
@@ -18,4 +20,23 @@ export const COLORS = {
   historyText: '#5C4300',
   maintenanceCardBg: 'rgba(243, 159, 41, 0.35)',
   textMuted: '#323232',
+
+  text: '#000000',
+  textSecondary: '#978D8D',
+  searchBar: '#ECECEC',
+  inactive: '#978D8D',
+  danger: '#CF0000',
+  shadow: 'rgba(151, 141, 141, 0.2)',
+  cardShadow: 'rgba(0, 0, 0, 0.25)',
+
+    // History Screen Colors
+  historyActive: '#2970F3',
+  historyCompleted: '#03CF00',
+  historyCancelled: '#CF0000',
+  filterBackground: '#D9D9D9',
+  buttonYellow: '#FDCB41',
+  buttonYellowText: '#5C4300',
+  completedButtonBg: '#E8FCF3',
+  cancelledButtonBg: '#FCE8E8',
+  line: '#978D8D',
 };
