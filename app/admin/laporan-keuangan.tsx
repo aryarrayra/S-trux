@@ -5,6 +5,13 @@ import Svg, { Path, G } from 'react-native-svg';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 
+interface LabelPosition {
+    name: string;
+    percentage: number;
+    x: number;
+    y: number;
+}
+
 // Mock data
 const FINANCIAL_DATA = {
     totalPendapatan: 330000000,
@@ -12,10 +19,10 @@ const FINANCIAL_DATA = {
     percentageChange: 2.5,
     categories: [
         { name: 'Excavator', percentage: 35, color: '#F4E5C2' },
-        { name: 'Crane', percentage: 10, color: '#F5D7A1' },
+        { name: 'Bulldozer', percentage: 25, color: '#F0B952' },
         { name: 'Dump truck', percentage: 25, color: '#F5C771' },
         { name: 'Lainnya', percentage: 5, color: '#E8A855' },
-        { name: 'Bulldozer', percentage: 25, color: '#F0B952' },
+        { name: 'Crane', percentage: 10, color: '#F5D7A1' },
     ],
 };
 
@@ -24,9 +31,19 @@ export default function LaporanKeuangan() {
     const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
 
     const getCurrentDate = () => {
+        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        const now = new Date();
+        const dayName = days[now.getDay()];
+        const date = now.getDate();
+        const month = months[now.getMonth()];
+        const year = now.getFullYear();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+
         return {
-            full: 'Rabu, 12 November 2025',
-            time: '06:15 WIB'
+            full: `${dayName}, ${date} ${month} ${year}`,
+            time: `${hours}:${minutes} WIB`
         };
     };
 
@@ -67,15 +84,24 @@ export default function LaporanKeuangan() {
         ].join(' ');
     };
 
-    // Generate segments
-    let currentAngle = 0;
-    const segments = FINANCIAL_DATA.categories.map((category) => {
+    // Compute segments and label positions - Excavator largest at top, Bulldozer adjacent smaller
+    const centerX = 150;
+    const centerY = 150;
+    const radius = 140;
+    let currentAngle = 0; // Start Excavator at top
+    const segments: React.ReactElement[] = [];
+    const labelPositions: LabelPosition[] = [];
+
+    FINANCIAL_DATA.categories.forEach((category, index) => {
         const startAngle = currentAngle;
         const slice = (category.percentage / 100) * 360;
         const endAngle = startAngle + slice;
+        const midAngle = (startAngle + endAngle) / 2;
         currentAngle = endAngle;
-        const path = describeArc(150, 150, 140, startAngle, endAngle);
-        return (
+
+        // Arc path
+        const path = describeArc(centerX, centerY, radius, startAngle, endAngle);
+        segments.push(
             <Path
                 d={path}
                 fill={category.color}
@@ -84,6 +110,23 @@ export default function LaporanKeuangan() {
                 key={category.name}
             />
         );
+
+        // Label position near segment (mid angle, outside radius)
+        let labelRadius = radius + 60;
+        // Closer for Crane and Lainnya only
+        if (category.name === 'Crane' || category.name === 'Lainnya') {
+            labelRadius = radius + 40;
+        }
+        const radians = (midAngle - 90) * Math.PI / 180;
+        const labelX = centerX + labelRadius * Math.cos(radians);
+        const labelY = centerY + labelRadius * Math.sin(radians);
+
+        labelPositions.push({
+            name: category.name,
+            percentage: category.percentage,
+            x: labelX,
+            y: labelY
+        });
     });
 
     return (
@@ -157,7 +200,7 @@ export default function LaporanKeuangan() {
                     {/* Pie Chart Section */}
                     <View style={styles.chartCard}>
                         <Text style={styles.chartTitle}>Pendapatan per kategori</Text>
-                        
+
                         <View style={styles.chartContainer}>
                             {/* Pie Chart */}
                             <View style={styles.pieChartWrapper}>
@@ -166,23 +209,24 @@ export default function LaporanKeuangan() {
                                         {segments}
                                     </G>
                                 </Svg>
-                                
-                                {/* Category Labels */}
-                                <View style={styles.labelExcavator}>
-                                    <Text style={styles.labelText}>Excavator 35%</Text>
-                                </View>
-                                <View style={styles.labelCrane}>
-                                    <Text style={styles.labelText}>Crane 10%</Text>
-                                </View>
-                                <View style={styles.labelDumpTruck}>
-                                    <Text style={styles.labelText}>Dump truck 25%</Text>
-                                </View>
-                                <View style={styles.labelLainnya}>
-                                    <Text style={styles.labelText}>Lainnya 5%</Text>
-                                </View>
-                                <View style={styles.labelBulldozer}>
-                                    <Text style={styles.labelText}>Bulldozer 25%</Text>
-                                </View>
+
+                                {/* Dynamic Category Labels near segments */}
+                                {labelPositions.map((label, index) => (
+                                    <View
+                                        key={index}
+                                        style={[
+                                            styles.labelContainer,
+                                            {
+                                                left: label.x - 50,
+                                                top: label.y - 8,
+                                            }
+                                        ]}
+                                    >
+                                        <Text style={styles.labelText}>
+                                            {label.name} {label.percentage}%
+                                        </Text>
+                                    </View>
+                                ))}
                             </View>
                         </View>
                     </View>
@@ -402,51 +446,20 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    labelExcavator: {
+    labelContainer: {
         position: 'absolute',
-        top: 50,
-        right: 50,
-    },
-    labelCrane: {
-        position: 'absolute',
-        top: 130,
-        right: 50,
-    },
-    labelDumpTruck: {
-        position: 'absolute',
-        bottom: 130,
-        right: 50,
-    },
-    labelLainnya: {
-        position: 'absolute',
-        bottom: 50,
-        left: 50,
-    },
-    labelBulldozer: {
-        position: 'absolute',
-        top: 130,
-        left: 50,
+        alignItems: 'center',
+        paddingHorizontal: 8,
     },
     labelText: {
         fontFamily: 'Poppins_500Medium',
         fontSize: 13,
         color: '#F59E0B',
-    },
-    categoryLabel: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    colorBox: {
-        width: 20,
-        height: 20,
+        textAlign: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
         borderRadius: 4,
-        marginRight: 10,
-    },
-    categoryText: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 14,
-        color: '#666',
+        paddingHorizontal: 4,
+        paddingVertical: 2,
     },
     dropdownOverlay: {
         flex: 1,
