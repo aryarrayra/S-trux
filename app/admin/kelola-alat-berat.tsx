@@ -1,31 +1,63 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Search, Edit2, Trash2, X, Check, Calendar } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Image } from 'react-native';
+import { Search, Edit2, Trash2, X, Camera, Plus } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
 
-// Mock data
+// Mock data untuk Alat Berat
 const INITIAL_ALAT_BERAT = [
     {
         id: '1',
-        namaLengkap: 'Argara Bhumi Tara',
-        role: 'Karyawan',
-        noTelp: '0923448732283',
-        email: 'Arget3187@gmail.com',
+        namaUnit: 'Excavator Caterpillar 320DD',
+        jumlahUnit: 8,
+        deskripsi: 'Your description here....\nLorem ipsum dolor sit amet consectetur',
+        harga: 800000,
+        status: 'Tersedia',
+        jenis: 'Excavator',
+        foto: 'https://images.unsplash.com/photo-1523800503107-5bc3ba2a6f81?w=400',
+    },
+    {
+        id: '2',
+        namaUnit: 'Tower Crane Leibherr',
+        jumlahUnit: 5,
+        deskripsi: 'Your description here....\nLorem ipsum dolor sit amet consectetur',
+        harga: 1500000,
+        status: 'Tidak Tersedia',
+        jenis: 'Crane',
+        foto: 'https://images.unsplash.com/photo-1431219658633-5d23b4e4d9f5?w=400',
+    },
+    {
+        id: '3',
+        namaUnit: 'Bulldozer Komatsu',
+        jumlahUnit: 5,
+        deskripsi: 'Your description here....\nLorem ipsum dolor sit amet consectetur',
+        harga: 500000,
+        status: 'Tersedia',
+        jenis: 'Bulldozer',
+        foto: 'https://images.unsplash.com/photo-1675439171730-9a3d3e1f9c1d?w=400',
+    },
+    {
+        id: '4',
+        namaUnit: 'Dump Truck Hino',
+        jumlahUnit: 5,
+        deskripsi: 'Your description here....\nLorem ipsum dolor sit amet consectetur',
+        harga: 750000,
+        status: 'Tersedia',
+        jenis: 'Dump Truck',
+        foto: 'https://images.unsplash.com/photo-1517423440422-9a8c0c2f4e1a?w=400',
     },
 ];
 
 type AlatBerat = {
     id: string;
-    namaLengkap: string;
-    role: string;
-    noTelp: string;
-    email: string;
-    tempatLahir?: string;
-    tanggalLahir?: string;
-    alamat?: string;
+    namaUnit: string;
+    jumlahUnit: number;
+    deskripsi: string;
+    harga: number;
+    status: string;
+    jenis: string;
+    foto: string;
 };
 
 export default function KelolaAlatBerat() {
@@ -35,18 +67,17 @@ export default function KelolaAlatBerat() {
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
     const [selectedAlatBerat, setSelectedAlatBerat] = useState<AlatBerat | null>(null);
     const [isAddMode, setIsAddMode] = useState(false);
-    const [showRoleDropdown, setShowRoleDropdown] = useState(false);
-    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+    const [showJenisDropdown, setShowJenisDropdown] = useState(false);
 
     // Form states
-    const [namaLengkap, setNamaLengkap] = useState('');
-    const [email, setEmail] = useState('');
-    const [tempatLahir, setTempatLahir] = useState('');
-    const [alamat, setAlamat] = useState('');
-    const [tanggalLahir, setTanggalLahir] = useState('');
-    const [date, setDate] = useState(new Date());
-    const [noTelp, setNoTelp] = useState('');
-    const [role, setRole] = useState('Karyawan');
+    const [namaUnit, setNamaUnit] = useState('');
+    const [jumlahUnit, setJumlahUnit] = useState('');
+    const [deskripsi, setDeskripsi] = useState('');
+    const [harga, setHarga] = useState('');
+    const [status, setStatus] = useState('Tersedia/Tidak Tersedia');
+    const [jenis, setJenis] = useState('Excavator/Crane/bulldozer/....');
+    const [foto, setFoto] = useState('');
 
     const getCurrentDate = () => {
         const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -67,41 +98,29 @@ export default function KelolaAlatBerat() {
 
     const currentDate = getCurrentDate();
 
-    // Format date ke DD/MM/YYYY
-    const formatDate = (dateObj: Date) => {
-        return dateObj.toLocaleDateString('id-ID', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        });
-    };
-
-    // Update tanggalLahir string saat date berubah
-    const onDateChange = (event: any, selectedDate?: Date) => {
-        const currentDate = selectedDate || date;
-        setShowDatePicker(Platform.OS === 'ios');
-        setDate(currentDate);
-        setTanggalLahir(formatDate(currentDate));
-    };
-
     const filteredAlatBerat = alatBeratList.filter(item =>
-        item.namaLengkap.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.noTelp.includes(searchQuery)
+        item.namaUnit.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.jenis.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    const formatRupiah = (number: number) => {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0
+        }).format(number).replace('Rp', 'RP.');
+    };
 
     const handleEdit = (item: AlatBerat) => {
         setSelectedAlatBerat(item);
         setIsAddMode(false);
-        setNamaLengkap(item.namaLengkap);
-        setEmail(item.email);
-        setTempatLahir(item.tempatLahir || '');
-        setAlamat(item.alamat || '');
-        const parsedDate = item.tanggalLahir ? new Date(item.tanggalLahir.split('/').reverse().join('-')) : new Date();
-        setDate(parsedDate);
-        setTanggalLahir(item.tanggalLahir || '');
-        setNoTelp(item.noTelp);
-        setRole(item.role || 'Karyawan');
+        setNamaUnit(item.namaUnit);
+        setJumlahUnit(String(item.jumlahUnit));
+        setDeskripsi(item.deskripsi);
+        setHarga(String(item.harga));
+        setStatus(item.status);
+        setJenis(item.jenis);
+        setFoto(item.foto);
         setModalVisible(true);
     };
 
@@ -113,15 +132,13 @@ export default function KelolaAlatBerat() {
     };
 
     const resetForm = () => {
-        setNamaLengkap('');
-        setEmail('');
-        setTempatLahir('');
-        setAlamat('');
-        const defaultDate = new Date();
-        setDate(defaultDate);
-        setTanggalLahir('');
-        setNoTelp('');
-        setRole('Karyawan');
+        setNamaUnit('');
+        setJumlahUnit('');
+        setDeskripsi('');
+        setHarga('');
+        setStatus('Tersedia/Tidak Tersedia');
+        setJenis('Excavator/Crane/bulldozer/....');
+        setFoto('');
     };
 
     const handleDelete = (item: AlatBerat) => {
@@ -132,15 +149,18 @@ export default function KelolaAlatBerat() {
     const handleConfirmDelete = (confirmed: boolean) => {
         if (confirmed && selectedAlatBerat) {
             setAlatBeratList(prev => prev.filter(item => item.id !== selectedAlatBerat.id));
-            console.log('Alat Berat dihapus:', selectedAlatBerat.id);
+            console.log('Unit Alat Berat dihapus:', selectedAlatBerat.id);
+            if (!isAddMode) {
+                setModalVisible(false);
+            }
         }
         setDeleteModalVisible(false);
         setSelectedAlatBerat(null);
     };
 
     const validateForm = (): boolean => {
-        if (!namaLengkap.trim() || !email.trim() || !tempatLahir.trim() || !alamat.trim() || !tanggalLahir.trim() || !noTelp.trim() || !role.trim()) {
-            Alert.alert('Error', 'Semua field harus diisi!');
+        if (!namaUnit.trim() || !jumlahUnit.trim() || !deskripsi.trim() || !harga.trim() || status === 'Tersedia/Tidak Tersedia' || jenis === 'Excavator/Crane/bulldozer/....') {
+            Alert.alert('Error', 'Semua field harus diisi dengan benar!');
             return false;
         }
         return true;
@@ -153,13 +173,13 @@ export default function KelolaAlatBerat() {
                 item.id === selectedAlatBerat.id
                     ? {
                         ...item,
-                        namaLengkap,
-                        email,
-                        tempatLahir,
-                        alamat,
-                        tanggalLahir,
-                        noTelp,
-                        role,
+                        namaUnit,
+                        jumlahUnit: parseInt(jumlahUnit),
+                        deskripsi,
+                        harga: parseInt(harga),
+                        status,
+                        jenis,
+                        foto,
                     }
                     : item
             ));
@@ -172,13 +192,13 @@ export default function KelolaAlatBerat() {
         if (!validateForm()) return;
         const newItem: AlatBerat = {
             id: String(alatBeratList.length + 1),
-            namaLengkap,
-            email,
-            tempatLahir,
-            alamat,
-            tanggalLahir,
-            noTelp,
-            role,
+            namaUnit,
+            jumlahUnit: parseInt(jumlahUnit),
+            deskripsi,
+            harga: parseInt(harga),
+            status,
+            jenis,
+            foto: foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400',
         };
         setAlatBeratList(prev => [...prev, newItem]);
         console.log('Data baru ditambahkan:', newItem);
@@ -186,17 +206,21 @@ export default function KelolaAlatBerat() {
     };
 
     const handleClear = () => {
-        resetForm();
+        handleDelete(selectedAlatBerat!);
     };
 
     const handleCloseModal = () => {
         setModalVisible(false);
     };
 
-    // Handler untuk pilih role dari dropdown
-    const selectRole = (selectedRole: string) => {
-        setRole(selectedRole);
-        setShowRoleDropdown(false);
+    const selectStatus = (selectedStatus: string) => {
+        setStatus(selectedStatus);
+        setShowStatusDropdown(false);
+    };
+
+    const selectJenis = (selectedJenis: string) => {
+        setJenis(selectedJenis);
+        setShowJenisDropdown(false);
     };
 
     return (
@@ -225,7 +249,7 @@ export default function KelolaAlatBerat() {
                             <Search color="#999" size={20} />
                             <TextInput
                                 style={styles.searchInput}
-                                placeholder="Cari berdasarkan nama, email, atau nomor telepon..."
+                                placeholder="Cari berdasarkan nama atau jenis alat berat..."
                                 value={searchQuery}
                                 onChangeText={setSearchQuery}
                                 placeholderTextColor="#999"
@@ -237,60 +261,52 @@ export default function KelolaAlatBerat() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Table */}
-                    <ScrollView style={styles.tableContainer}>
-                        <View style={styles.table}>
-                            {/* Table Header */}
-                            <View style={styles.tableHeader}>
-                                <View style={[styles.tableHeaderCell, { flex: 1.5 }]}>
-                                    <Text style={styles.tableHeaderText}>Nama Lengkap</Text>
-                                </View>
-                                <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
-                                    <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Role</Text>
-                                </View>
-                                <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
-                                    <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>No. Telp</Text>
-                                </View>
-                                <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1.5 }]}>
-                                    <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Email</Text>
-                                </View>
-                                <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.8 }]}>
-                                    <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Aksi</Text>
-                                </View>
-                            </View>
-
-                            {/* Table Body */}
-                            {filteredAlatBerat.map((item, index) => (
-                                <View key={index} style={styles.tableRow}>
-                                    <View style={[styles.tableCell, { flex: 1.5, backgroundColor: '#F5EFE7', alignItems: 'flex-start' }]}>
-                                        <Text style={styles.itemName}>{item.namaLengkap}</Text>
+                    {/* Card Grid */}
+                    <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+                        <View style={styles.cardGrid}>
+                            {filteredAlatBerat.map((item) => (
+                                <View key={item.id} style={styles.card}>
+                                    {/* Status Badge */}
+                                    <View style={[
+                                        styles.statusBadge,
+                                        item.status === 'Tersedia' ? styles.statusAvailable : styles.statusUnavailable
+                                    ]}>
+                                        <Text style={styles.statusText}>{item.status}</Text>
                                     </View>
 
-                                    <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
-                                        <Text style={styles.itemRole}>{item.role}</Text>
-                                    </View>
+                                    {/* Image */}
+                                    <Image source={{ uri: item.foto }} style={styles.cardImage} />
 
-                                    <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
-                                        <Text style={styles.itemPhone}>{item.noTelp}</Text>
-                                    </View>
+                                    {/* Content */}
+                                    <View style={styles.cardContent}>
+                                        <Text style={styles.cardTitle}>{item.namaUnit}</Text>
+                                        <Text style={styles.cardDescription} numberOfLines={2}>
+                                            {item.deskripsi}
+                                        </Text>
 
-                                    <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1.5, backgroundColor: '#F5EFE7' }]}>
-                                        <Text style={styles.itemEmail}>{item.email}</Text>
-                                    </View>
+                                        {/* Info Row */}
+                                        <View style={styles.infoRow}>
+                                            <View style={styles.infoItem}>
+                                                <Text style={styles.infoIcon}>🏗️</Text>
+                                                <Text style={styles.infoText}>{item.jenis}</Text>
+                                            </View>
+                                            <View style={styles.infoItem}>
+                                                <Text style={styles.infoIcon}>📦</Text>
+                                                <Text style={styles.infoText}>{item.jumlahUnit} unit</Text>
+                                            </View>
+                                        </View>
 
-                                    <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8, backgroundColor: '#F5EFE7' }]}>
-                                        <View style={styles.actionButtons}>
+                                        {/* Price & Actions */}
+                                        <View style={styles.cardFooter}>
+                                            <View>
+                                                <Text style={styles.priceLabel}>Harga per hari:</Text>
+                                                <Text style={styles.priceValue}>{formatRupiah(item.harga)}</Text>
+                                            </View>
                                             <TouchableOpacity
-                                                style={styles.editButton}
+                                                style={styles.editIconButton}
                                                 onPress={() => handleEdit(item)}
                                             >
-                                                <Edit2 color={COLORS.white} size={16} />
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                style={styles.deleteButton}
-                                                onPress={() => handleDelete(item)}
-                                            >
-                                                <Trash2 color={COLORS.white} size={16} />
+                                                <Edit2 color="#FDB022" size={20} />
                                             </TouchableOpacity>
                                         </View>
                                     </View>
@@ -300,7 +316,7 @@ export default function KelolaAlatBerat() {
                     </ScrollView>
                 </View>
 
-                {/* Edit/Add Modal */}
+                {/* Add/Edit Modal */}
                 <Modal
                     animationType="fade"
                     transparent={true}
@@ -314,7 +330,9 @@ export default function KelolaAlatBerat() {
                                 <TouchableOpacity onPress={handleCloseModal}>
                                     <X color="#F59E0B" size={24} />
                                 </TouchableOpacity>
-                                <Text style={styles.modalTitle}>{isAddMode ? 'Tambah Data Alat Berat' : 'Update Data Alat Berat'}</Text>
+                                <Text style={styles.modalTitle}>
+                                    {isAddMode ? 'Tambah Unit Alat Berat' : 'Update Data Alat Berat'}
+                                </Text>
                                 <View style={styles.modalDateContainer}>
                                     <Text style={styles.modalDateText}>{currentDate.full}</Text>
                                     <Text style={styles.modalTimeText}>{currentDate.time}</Text>
@@ -326,79 +344,82 @@ export default function KelolaAlatBerat() {
                                 <View style={styles.formContainer}>
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Nama Lengkap</Text>
+                                            <Text style={styles.label}>Nama Unit</Text>
                                             <TextInput
                                                 style={styles.input}
-                                                value={namaLengkap}
-                                                onChangeText={setNamaLengkap}
-                                                placeholder="Eggy Johns"
+                                                value={namaUnit}
+                                                onChangeText={setNamaUnit}
+                                                placeholder="Excavator Volvo"
                                                 placeholderTextColor="#999"
                                             />
                                         </View>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Email</Text>
+                                            <Text style={styles.label}>Jumlah Unit</Text>
                                             <TextInput
                                                 style={styles.input}
-                                                value={email}
-                                                onChangeText={setEmail}
-                                                placeholder="Eggy10@gmail.com"
+                                                value={jumlahUnit}
+                                                onChangeText={setJumlahUnit}
+                                                placeholder="8"
                                                 placeholderTextColor="#999"
-                                                keyboardType="email-address"
+                                                keyboardType="numeric"
                                             />
                                         </View>
                                     </View>
 
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Tempat Lahir</Text>
-                                            <TextInput
-                                                style={styles.input}
-                                                value={tempatLahir}
-                                                onChangeText={setTempatLahir}
-                                                placeholder="Jakarta"
-                                                placeholderTextColor="#999"
-                                            />
-                                        </View>
-                                        <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Alamat</Text>
+                                            <Text style={styles.label}>Deskripsi</Text>
                                             <TextInput
                                                 style={[styles.input, styles.textArea]}
-                                                value={alamat}
-                                                onChangeText={setAlamat}
-                                                placeholder="Jl. Mawar III Jakarta Pusat"
+                                                value={deskripsi}
+                                                onChangeText={setDeskripsi}
+                                                placeholder="Your description here....&#10;Lorem ipsum dolor sit amet consectetur"
                                                 placeholderTextColor="#999"
                                                 multiline
-                                                numberOfLines={3}
+                                                numberOfLines={4}
+                                            />
+                                        </View>
+                                        <View style={styles.formGroup}>
+                                            <Text style={styles.label}>Harga (RP)</Text>
+                                            <TextInput
+                                                style={styles.input}
+                                                value={harga}
+                                                onChangeText={setHarga}
+                                                placeholder="800.000"
+                                                placeholderTextColor="#999"
+                                                keyboardType="numeric"
                                             />
                                         </View>
                                     </View>
 
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Tanggal Lahir</Text>
-                                            {/* Manual Input with Optional Picker */}
-                                            <View style={styles.dateInputContainer}>
-                                                <TextInput
-                                                    style={[styles.input, { flex: 1, paddingRight: 10 }]}
-                                                    value={tanggalLahir}
-                                                    onChangeText={setTanggalLahir}
-                                                    placeholder="17/10/1999"
-                                                    placeholderTextColor="#999"
-                                                    keyboardType="numeric"
-                                                />
-                                                <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-                                                    <Calendar color="#F59E0B" size={20} />
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-                                        <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Role</Text>
-                                            {/* Custom Dropdown untuk Role */}
+                                            <Text style={styles.label}>Status</Text>
                                             <TouchableOpacity
                                                 style={styles.selectInput}
-                                                onPress={() => setShowRoleDropdown(true)}
+                                                onPress={() => setShowStatusDropdown(true)}
                                             >
-                                                <Text style={styles.selectText}>{role}</Text>
+                                                <Text style={[
+                                                    styles.selectText,
+                                                    status === 'Tersedia/Tidak Tersedia' && styles.placeholderText
+                                                ]}>
+                                                    {status}
+                                                </Text>
+                                                <Text style={styles.selectArrow}>▼</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                        <View style={styles.formGroup}>
+                                            <Text style={styles.label}>Jenis</Text>
+                                            <TouchableOpacity
+                                                style={styles.selectInput}
+                                                onPress={() => setShowJenisDropdown(true)}
+                                            >
+                                                <Text style={[
+                                                    styles.selectText,
+                                                    jenis === 'Excavator/Crane/bulldozer/....' && styles.placeholderText
+                                                ]}>
+                                                    {jenis}
+                                                </Text>
                                                 <Text style={styles.selectArrow}>▼</Text>
                                             </TouchableOpacity>
                                         </View>
@@ -406,32 +427,24 @@ export default function KelolaAlatBerat() {
 
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>No. Telp</Text>
-                                            <TextInput
-                                                style={styles.input}
-                                                value={noTelp}
-                                                onChangeText={setNoTelp}
-                                                placeholder="0172631291286821"
-                                                placeholderTextColor="#999"
-                                                keyboardType="phone-pad"
-                                            />
+                                            <Text style={styles.label}>Foto</Text>
+                                            <View style={styles.fotoInputContainer}>
+                                                <TextInput
+                                                    style={[styles.input, { flex: 1, paddingRight: 10 }]}
+                                                    value={foto}
+                                                    onChangeText={setFoto}
+                                                    placeholder="img_08283_8823827_23848329"
+                                                    placeholderTextColor="#999"
+                                                />
+                                                <TouchableOpacity>
+                                                    <Camera color="#F59E0B" size={20} />
+                                                </TouchableOpacity>
+                                            </View>
                                         </View>
                                         <View style={styles.formGroup} />
                                     </View>
                                 </View>
                             </ScrollView>
-
-                            {/* DateTimePicker */}
-                            {showDatePicker && (
-                                <DateTimePicker
-                                    testID="dateTimePicker"
-                                    value={date}
-                                    mode="date"
-                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                    onChange={onDateChange}
-                                    maximumDate={new Date()}
-                                />
-                            )}
 
                             {/* Footer Modal - Buttons */}
                             <View style={styles.modalFooter}>
@@ -441,7 +454,9 @@ export default function KelolaAlatBerat() {
                                         onPress={handleSave}
                                     >
                                         <Text style={styles.saveButtonText}>Simpan</Text>
-                                        <Check color={COLORS.white} size={18} />
+                                        <View style={styles.buttonIconContainer}>
+                                            <Plus color={COLORS.white} size={18} />
+                                        </View>
                                     </TouchableOpacity>
                                 ) : (
                                     <>
@@ -450,14 +465,18 @@ export default function KelolaAlatBerat() {
                                             onPress={handleUpdate}
                                         >
                                             <Text style={styles.updateButtonText}>Update</Text>
-                                            <Check color={COLORS.white} size={18} />
+                                            <View style={styles.buttonIconContainer}>
+                                                <Edit2 color={COLORS.white} size={18} />
+                                            </View>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={styles.clearButton}
                                             onPress={handleClear}
                                         >
-                                            <Text style={styles.clearButtonText}>Clear</Text>
-                                            <X color={COLORS.white} size={18} />
+                                            <Text style={styles.clearButtonText}>Hapus</Text>
+                                            <View style={styles.buttonIconContainer}>
+                                                <Trash2 color={COLORS.white} size={18} />
+                                            </View>
                                         </TouchableOpacity>
                                     </>
                                 )}
@@ -465,30 +484,71 @@ export default function KelolaAlatBerat() {
                         </View>
                     </View>
 
-                    {/* Custom Modal untuk Dropdown Role */}
+                    {/* Dropdown Modal untuk Status */}
                     <Modal
                         animationType="fade"
                         transparent={true}
-                        visible={showRoleDropdown}
-                        onRequestClose={() => setShowRoleDropdown(false)}
+                        visible={showStatusDropdown}
+                        onRequestClose={() => setShowStatusDropdown(false)}
                     >
                         <TouchableOpacity
                             style={styles.dropdownOverlay}
                             activeOpacity={1}
-                            onPress={() => setShowRoleDropdown(false)}
+                            onPress={() => setShowStatusDropdown(false)}
                         >
                             <View style={styles.dropdownContent}>
                                 <TouchableOpacity
                                     style={styles.dropdownItem}
-                                    onPress={() => selectRole('Karyawan')}
+                                    onPress={() => selectStatus('Tersedia')}
                                 >
-                                    <Text style={styles.dropdownText}>Karyawan</Text>
+                                    <Text style={styles.dropdownText}>Tersedia</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.dropdownItem, { borderBottomWidth: 0 }]}
+                                    onPress={() => selectStatus('Tidak Tersedia')}
+                                >
+                                    <Text style={styles.dropdownText}>Tidak Tersedia</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableOpacity>
+                    </Modal>
+
+                    {/* Dropdown Modal untuk Jenis */}
+                    <Modal
+                        animationType="fade"
+                        transparent={true}
+                        visible={showJenisDropdown}
+                        onRequestClose={() => setShowJenisDropdown(false)}
+                    >
+                        <TouchableOpacity
+                            style={styles.dropdownOverlay}
+                            activeOpacity={1}
+                            onPress={() => setShowJenisDropdown(false)}
+                        >
+                            <View style={styles.dropdownContent}>
+                                <TouchableOpacity
+                                    style={styles.dropdownItem}
+                                    onPress={() => selectJenis('Excavator')}
+                                >
+                                    <Text style={styles.dropdownText}>Excavator</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={styles.dropdownItem}
-                                    onPress={() => selectRole('Petugas')}
+                                    onPress={() => selectJenis('Crane')}
                                 >
-                                    <Text style={styles.dropdownText}>Petugas</Text>
+                                    <Text style={styles.dropdownText}>Crane</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.dropdownItem}
+                                    onPress={() => selectJenis('Bulldozer')}
+                                >
+                                    <Text style={styles.dropdownText}>Bulldozer</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.dropdownItem, { borderBottomWidth: 0 }]}
+                                    onPress={() => selectJenis('Dump Truck')}
+                                >
+                                    <Text style={styles.dropdownText}>Dump Truck</Text>
                                 </TouchableOpacity>
                             </View>
                         </TouchableOpacity>
@@ -506,16 +566,17 @@ export default function KelolaAlatBerat() {
                         <View style={styles.confirmContent}>
                             <View style={styles.confirmIconContainer}>
                                 <View style={styles.confirmIcon}>
-                                    <Trash2 color="#EF4444" size={48} />
+                                    <Trash2 color="#EF4444" size={64} />
                                 </View>
                             </View>
-                            <Text style={styles.confirmTitle}>Anda Yakin Menghapus Data Ini?</Text>
+                            <View style={styles.dividerLine} />
+                            <Text style={styles.confirmTitle}>Anda Yakin Menghapus Unit Ini?</Text>
                             <View style={styles.confirmButtons}>
                                 <TouchableOpacity
                                     style={styles.confirmYesButton}
                                     onPress={() => handleConfirmDelete(true)}
                                 >
-                                    <Text style={styles.confirmButtonText}>YA</Text>
+                                    <Text style={styles.confirmButtonText}>Ya</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={styles.confirmNoButton}
@@ -541,7 +602,7 @@ const styles = StyleSheet.create({
     mainContent: {
         flex: 1,
         padding: 30,
-        backgroundColor: COLORS.white,
+        backgroundColor: '#F5F5F5',
     },
     header: {
         flexDirection: 'row',
@@ -567,12 +628,12 @@ const styles = StyleSheet.create({
     dateText: {
         fontFamily: 'Poppins_500Medium',
         fontSize: 14,
-        color: COLORS.primary,
+        color: '#F59E0B',
     },
     timeText: {
         fontFamily: 'Poppins_500Medium',
         fontSize: 18,
-        color: COLORS.darkGray,
+        color: '#333',
     },
     searchRow: {
         flexDirection: 'row',
@@ -583,7 +644,7 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F5F5F5',
+        backgroundColor: COLORS.white,
         borderRadius: 10,
         paddingHorizontal: 15,
         paddingVertical: 10,
@@ -593,7 +654,7 @@ const styles = StyleSheet.create({
         flex: 1,
         fontFamily: 'Poppins_400Regular',
         fontSize: 14,
-        color: COLORS.darkGray,
+        color: '#333',
     },
     addButton: {
         flexDirection: 'row',
@@ -614,88 +675,108 @@ const styles = StyleSheet.create({
         fontSize: 20,
         color: COLORS.white,
     },
-    tableContainer: {
+    scrollContainer: {
         flex: 1,
     },
-    table: {
+    cardGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 20,
+    },
+    card: {
+        width: '23%',
         backgroundColor: COLORS.white,
-        borderRadius: 10,
+        borderRadius: 12,
         overflow: 'hidden',
-        borderWidth: 2,
-        borderColor: '#D4A574',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
-    tableHeader: {
-        flexDirection: 'row',
-        backgroundColor: '#E8D5C4',
-        borderBottomWidth: 2,
-        borderBottomColor: '#D4A574',
+    statusBadge: {
+        position: 'absolute',
+        top: 12,
+        left: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 6,
+        zIndex: 1,
     },
-    tableHeaderCell: {
-        paddingVertical: 15,
-        paddingHorizontal: 20,
-        justifyContent: 'center',
+    statusAvailable: {
+        backgroundColor: '#3B82F6',
     },
-    tableHeaderCellBorder: {
-        borderLeftWidth: 2,
-        borderLeftColor: '#D4A574',
+    statusUnavailable: {
+        backgroundColor: '#EF4444',
     },
-    tableHeaderText: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 14,
-        color: COLORS.darkGray,
-    },
-    tableRow: {
-        flexDirection: 'row',
-        borderBottomWidth: 2,
-        borderBottomColor: '#D4A574',
-    },
-    tableCell: {
-        paddingVertical: 15,
-        paddingHorizontal: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    tableCellBorder: {
-        borderLeftWidth: 2,
-        borderLeftColor: '#D4A574',
-    },
-    itemName: {
+    statusText: {
         fontFamily: 'Poppins_500Medium',
-        fontSize: 13,
-        color: COLORS.darkGray,
+        fontSize: 11,
+        color: COLORS.white,
     },
-    itemRole: {
+    cardImage: {
+        width: '100%',
+        height: 160,
+        backgroundColor: '#E5E5E5',
+    },
+    cardContent: {
+        padding: 15,
+    },
+    cardTitle: {
+        fontFamily: 'Poppins_600SemiBold',
+        fontSize: 15,
+        color: '#333',
+        marginBottom: 8,
+    },
+    cardDescription: {
         fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
+        fontSize: 12,
+        color: '#666',
+        marginBottom: 12,
+        lineHeight: 18,
     },
-    itemPhone: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    itemEmail: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    actionButtons: {
+    infoRow: {
         flexDirection: 'row',
-        gap: 8,
+        gap: 15,
+        marginBottom: 15,
     },
-    editButton: {
-        backgroundColor: '#FDB022',
-        width: 36,
-        height: 36,
-        borderRadius: 8,
-        justifyContent: 'center',
+    infoItem: {
+        flexDirection: 'row',
         alignItems: 'center',
+        gap: 5,
     },
-    deleteButton: {
-        backgroundColor: '#FDB022',
-        width: 36,
-        height: 36,
+    infoIcon: {
+        fontSize: 14,
+    },
+    infoText: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 12,
+        color: '#666',
+    },
+    cardFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E5E5',
+    },
+    priceLabel: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 11,
+        color: '#666',
+        marginBottom: 3,
+    },
+    priceValue: {
+        fontFamily: 'Poppins_600SemiBold',
+        fontSize: 16,
+        color: '#F59E0B',
+    },
+    editIconButton: {
+        width: 40,
+        height: 40,
         borderRadius: 8,
+        backgroundColor: '#FFF4E6',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -740,7 +821,7 @@ const styles = StyleSheet.create({
     modalTimeText: {
         fontFamily: 'Poppins_500Medium',
         fontSize: 14,
-        color: COLORS.darkGray,
+        color: '#333',
     },
     modalBody: {
         padding: 30,
@@ -759,7 +840,7 @@ const styles = StyleSheet.create({
     label: {
         fontFamily: 'Poppins_500Medium',
         fontSize: 13,
-        color: COLORS.darkGray,
+        color: '#333',
         marginBottom: 8,
     },
     input: {
@@ -771,20 +852,10 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         fontFamily: 'Poppins_400Regular',
         fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    dateInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: COLORS.white,
-        borderWidth: 1.5,
-        borderColor: '#F59E0B',
-        borderRadius: 8,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
+        color: '#333',
     },
     textArea: {
-        minHeight: 80,
+        minHeight: 100,
         textAlignVertical: 'top',
     },
     selectInput: {
@@ -801,15 +872,28 @@ const styles = StyleSheet.create({
     selectText: {
         fontFamily: 'Poppins_400Regular',
         fontSize: 13,
-        color: COLORS.darkGray,
+        color: '#333',
+    },
+    placeholderText: {
+        color: '#999',
     },
     selectArrow: {
         fontSize: 12,
         color: '#F59E0B',
     },
+    fotoInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.white,
+        borderWidth: 1.5,
+        borderColor: '#F59E0B',
+        borderRadius: 8,
+        paddingHorizontal: 15,
+        paddingVertical: 12,
+    },
     modalFooter: {
         flexDirection: 'row',
-        justifyContent: 'center',
+        justifyContent: 'flex-end',
         alignItems: 'center',
         padding: 20,
         gap: 15,
@@ -850,7 +934,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FDB022',
         paddingHorizontal: 40,
         paddingVertical: 12,
-        borderRadius: 25,
+        borderRadius: 8,
         gap: 10,
     },
     saveButtonText: {
@@ -858,7 +942,15 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: COLORS.white,
     },
-    // Styles baru untuk Custom Dropdown
+    buttonIconContainer: {
+        width: 24,
+        height: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: COLORS.white,
+        borderRadius: 4,
+    },
     dropdownOverlay: {
         flex: 1,
         justifyContent: 'center',
@@ -885,9 +977,8 @@ const styles = StyleSheet.create({
     dropdownText: {
         fontFamily: 'Poppins_400Regular',
         fontSize: 16,
-        color: COLORS.darkGray,
+        color: '#333',
     },
-
     confirmOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -899,8 +990,8 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.white,
         borderRadius: 16,
         width: '100%',
-        maxWidth: 300,
-        padding: 30,
+        maxWidth: 400,
+        padding: 40,
         alignItems: 'center',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
@@ -912,43 +1003,45 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     confirmIcon: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: '#FEE2E2',
         justifyContent: 'center',
         alignItems: 'center',
     },
+    dividerLine: {
+        width: '100%',
+        height: 1,
+        backgroundColor: '#F59E0B',
+        marginVertical: 20,
+    },
     confirmTitle: {
         fontFamily: 'Poppins_600SemiBold',
-        fontSize: 14,
+        fontSize: 16,
         color: '#F59E0B',
         textAlign: 'center',
-        marginBottom: 25,
+        marginBottom: 30,
     },
     confirmButtons: {
         flexDirection: 'row',
-        gap: 12,
+        gap: 15,
     },
     confirmYesButton: {
         backgroundColor: '#FDB022',
-        paddingHorizontal: 30,
-        paddingVertical: 10,
-        borderRadius: 20,
-        minWidth: 80,
+        paddingHorizontal: 40,
+        paddingVertical: 12,
+        borderRadius: 25,
+        minWidth: 100,
         alignItems: 'center',
     },
     confirmNoButton: {
         backgroundColor: '#FDB022',
-        paddingHorizontal: 30,
-        paddingVertical: 10,
-        borderRadius: 20,
-        minWidth: 80,
+        paddingHorizontal: 40,
+        paddingVertical: 12,
+        borderRadius: 25,
+        minWidth: 100,
         alignItems: 'center',
     },
     confirmButtonText: {
         fontFamily: 'Poppins_600SemiBold',
-        fontSize: 13,
+        fontSize: 14,
         color: COLORS.white,
     },
 });
