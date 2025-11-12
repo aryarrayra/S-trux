@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,10 +10,11 @@ import {
   Platform,
   SafeAreaView,
   Image,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { User, Lock } from 'lucide-react-native';
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 const COLORS = {
   white: '#FFFFFF',
@@ -28,56 +29,173 @@ const COLORS = {
   buttonShadow: '#FDCB41',
 };
 
-const FormComponent = () => (
-  <View style={styles.formContainer}>
-    <View style={styles.formCard}>
-      <View style={styles.logoContainer}>
-        <View style={styles.logoBox}>
-          <Text style={styles.logoText}>ST</Text>
+interface LoginData {
+  username: string;
+  password: string;
+}
+
+interface ApiResponse {
+  success: boolean;
+  message?: string;
+  token?: string;
+  user?: any;
+}
+
+const FormComponent = () => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUsernameFocused, setIsUsernameFocused] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const router = useRouter();
+
+  const showAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      // Untuk web, gunakan window.alert atau custom modal
+      window.alert(`${title}\n\n${message}`);
+    } else {
+      // Untuk mobile, gunakan Alert dari react-native
+      Alert.alert(title, message, [{ text: 'OK' }]);
+    }
+  };
+
+  const handleLogin = async () => {
+    console.log('Login button clicked'); // Debug log
+
+    // Basic validation
+    if (!username.trim() || !password.trim()) {
+      showAlert('Form Tidak Lengkap', 'Harap masukkan username dan password');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const loginData: LoginData = {
+        username: username.trim(),
+        password: password.trim(),
+      };
+
+      console.log('Sending login request...'); // Debug log
+
+      const response = await fetch('http://127.0.0.1:8000/api/admin/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(loginData),
+      });
+
+      console.log('Response status:', response.status); // Debug log
+
+      const data: ApiResponse = await response.json();
+      console.log('Response data:', data); // Debug log
+
+      if (response.ok && data.success) {
+        // Login successful
+        showAlert('Berhasil', data.message || 'Login berhasil!');
+        
+        // Store token if available
+        if (data.token) {
+          console.log('Token received:', data.token);
+        }
+
+        // Navigate to dashboard
+        router.push('/admin/dashboard');
+      } else {
+        // Login failed
+        showAlert('Login Gagal', data.message || 'Username atau password tidak sesuai');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      showAlert(
+        'Error Jaringan', 
+        'Tidak dapat terhubung ke server. Periksa koneksi Anda dan coba lagi.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.formContainer}>
+      <View style={styles.formCard}>
+        <View style={styles.logoContainer}>
+          <View style={styles.logoBox}>
+            <Text style={styles.logoText}>ST</Text>
+          </View>
+          <Text style={styles.logoBrand}>S`Trux</Text>
         </View>
-        <Text style={styles.logoBrand}>S`Trux</Text>
-      </View>
 
-      <View style={styles.separator} />
+        <View style={styles.separator} />
 
-      <Text style={styles.formTitle}>Masukkan Identitas Akun Anda</Text>
+        <Text style={styles.formTitle}>Masukkan Identitas Akun Anda</Text>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Username</Text>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your username"
-            placeholderTextColor="#777"
-            autoCapitalize="none"
-            autoComplete="username"
-          />
-          <User color={COLORS.primary} size={20} />
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Username</Text>
+          <View style={[
+            styles.inputContainer,
+            isUsernameFocused && styles.inputContainerFocused
+          ]}>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your username"
+              placeholderTextColor="#777"
+              autoCapitalize="none"
+              autoComplete="username"
+              value={username}
+              onChangeText={setUsername}
+              editable={!isLoading}
+              onFocus={() => setIsUsernameFocused(true)}
+              onBlur={() => setIsUsernameFocused(false)}
+              returnKeyType="next"
+            />
+            <User color={COLORS.primary} size={20} />
+          </View>
         </View>
-      </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Password</Text>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your password"
-            placeholderTextColor="#777"
-            secureTextEntry
-            autoComplete="current-password"
-          />
-          <Lock color={COLORS.primary} size={20} />
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Password</Text>
+          <View style={[
+            styles.inputContainer,
+            isPasswordFocused && styles.inputContainerFocused
+          ]}>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your password"
+              placeholderTextColor="#777"
+              secureTextEntry
+              autoComplete="password"
+              value={password}
+              onChangeText={setPassword}
+              editable={!isLoading}
+              onFocus={() => setIsPasswordFocused(true)}
+              onBlur={() => setIsPasswordFocused(false)}
+              onSubmitEditing={handleLogin}
+              returnKeyType="go"
+            />
+            <Lock color={COLORS.primary} size={20} />
+          </View>
         </View>
-      </View>
 
-      <Link href="/admin/dashboard" asChild>
-        <TouchableOpacity style={styles.loginButton}>
-          <Text style={styles.loginButtonText}>Login</Text>
+        <TouchableOpacity 
+          style={[
+            styles.loginButton, 
+            isLoading && styles.loginButtonDisabled
+          ]}
+          onPress={handleLogin}
+          disabled={isLoading}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.loginButtonText}>
+            {isLoading ? 'Sedang Login...' : 'Login'}
+          </Text>
         </TouchableOpacity>
-      </Link>
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 interface BrandingComponentProps {
   isDesktop: boolean;
@@ -96,7 +214,7 @@ const BrandingComponent = ({ isDesktop }: BrandingComponentProps) => (
     </View>
     <Image
       source={{
-        uri: 'https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/573c/f841/5960ca53b5fafb38315e4a83831f8165?Expires=1762732800&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=Yb0DnLtkQV6CLk7EtX9Z9ewqzaWGeFxwoUpYkU~fSe~e1t80FJBtUvhSdRcQAyfsEpa4a4QxRqQqUeoXP-njGyFEhzZCrn88AM8rx5deLw1wE4LuAWde7Wrn9MlaEJdzCDRuZXnhAh691e0dQxfSypUL7ZKDsEN6O2E8ewt8oXHiU3pqocp5hOjZykqG338fjRh2Qys2hSXBg4Ny-JhVvlHphOPl9yhGPsWmT3Rc52cKggYvWIFEPl~cf-bQ77iLjpomLg0vSMIdv3v8-ecgNtdod96MUAbNNORCDxlOP3ekVRCgbbzNMYiEUQmX54lJMww0A9oDDpZaCIsGdscRhg__',
+        uri: 'https://img-wrapper.vercel.app/api?url=https://s3-alpha-sig.figma.com/img/573c/f841/5960ca53b5fafb38315e4a83831f8165?Expires=1762732800&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=Yb0DnLtkQV6CLk7EtX9Z9ewqzaWGeFxwoUpYkU~fSe~e1t80FJBtUvhSdRcQAyfsEpa4a4QxRqQqUeoXP-njGyFEhzZCrn88AM8rx5deLw1wE4LuAWde7Wrn9MlaEJdzCDRuZXnhAh691e0dQxfSypUL7ZKDsEN6O2E8ewt8oXHiU3pqocp5hOjZykqG338fjRh2Qys2hSXBg4Ny-JhVvlHphOPl9yhGPsWmT3Rc52cKggYvWIFEPl~cf-bQ77iLjpomLg0vSMIdv3v8-ecgNtdod96MUAbNNORCDxlOP3ekVRCgbbzNMYiEUQmX54lJMww0A9oDDpZaCIsGdscRhg__',
       }}
       style={styles.excavatorImage}
       resizeMode="contain"
@@ -114,6 +232,7 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           <View style={styles.outerFrame}>
             <View style={[styles.mainContainer, isDesktop && styles.desktopContainer]}>
@@ -221,10 +340,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.primaryTransparent,
-    borderWidth: 0.3,
-    borderColor: COLORS.primary,
     borderRadius: 7,
     paddingHorizontal: 15,
+    borderWidth: 0,
+  },
+  inputContainerFocused: {
+    borderWidth: 1,
+    borderColor: COLORS.primary,
   },
   input: {
     flex: 1,
@@ -232,16 +354,22 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
     fontSize: 14,
     color: COLORS.darkGray,
+    ...Platform.select({
+      web: {
+        outlineStyle: 'none',
+      },
+    }),
   },
   loginButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 25,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: 'center',
     marginTop: 20,
     ...Platform.select({
       web: {
         boxShadow: `0px 0px 5px ${COLORS.buttonShadow}`,
+        cursor: 'pointer',
       },
       native: {
         shadowColor: COLORS.buttonShadow,
@@ -253,6 +381,9 @@ const styles = StyleSheet.create({
     }),
     alignSelf: 'center',
     width: 144,
+  },
+  loginButtonDisabled: {
+    opacity: 0.6,
   },
   loginButtonText: {
     fontFamily: 'Poppins_600SemiBold',
