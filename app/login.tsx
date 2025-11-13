@@ -95,7 +95,7 @@ const FormComponent = () => {
       if (response.ok && data.success) {
         // Login successful
         showAlert('Berhasil', data.message || 'Login berhasil!');
-        
+
         // Store token if available
         if (data.token) {
           console.log('Token received:', data.token);
@@ -110,7 +110,7 @@ const FormComponent = () => {
     } catch (error) {
       console.error('Login error:', error);
       showAlert(
-        'Error Jaringan', 
+        'Error Jaringan',
         'Tidak dapat terhubung ke server. Periksa koneksi Anda dan coba lagi.'
       );
     } finally {
@@ -167,7 +167,7 @@ const FormComponent = () => {
               placeholderTextColor="#777"
               secureTextEntry
               autoComplete="password"
-              value={password}
+              value={username}
               onChangeText={setPassword}
               editable={!isLoading}
               onFocus={() => setIsPasswordFocused(true)}
@@ -179,9 +179,9 @@ const FormComponent = () => {
           </View>
         </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
-            styles.loginButton, 
+            styles.loginButton,
             isLoading && styles.loginButtonDisabled
           ]}
           onPress={handleLogin}
@@ -354,10 +354,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
     fontSize: 14,
     color: COLORS.darkGray,
-    ...Platform.select({
-      web: {
-        outlineStyle: 'none',
-      },
+    ...(Platform.OS === 'web' && {
+      // @ts-ignore - outline is a web-only CSS property
+      outline: 'none',
     }),
   },
   loginButton: {
