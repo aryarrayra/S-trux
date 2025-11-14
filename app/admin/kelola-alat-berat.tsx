@@ -76,7 +76,7 @@ export default function KelolaAlatBerat() {
 
             // Handle berbagai struktur response
             let dataArray = [];
-            
+
             if (Array.isArray(data)) {
                 dataArray = data;
             } else if (data.data && Array.isArray(data.data)) {
@@ -282,7 +282,7 @@ export default function KelolaAlatBerat() {
 
     const handleSave = async () => {
         if (!validateForm()) return;
-        
+
         try {
             const newItemData = {
                 nama_alat: nama_alat,
@@ -307,10 +307,10 @@ export default function KelolaAlatBerat() {
             if (response.ok) {
                 const result = await response.json();
                 console.log('✅ Save result:', result);
-                
+
                 // Refresh data setelah berhasil menambah
                 fetchAlatBerat();
-                
+
                 Alert.alert('Sukses', 'Data berhasil ditambahkan');
                 setModalVisible(false);
             } else {
@@ -364,6 +364,9 @@ export default function KelolaAlatBerat() {
                         <View style={styles.dateTimeContainer}>
                             <Text style={styles.dateText}>{currentDate.full}</Text>
                             <Text style={styles.timeText}>{currentDate.time}</Text>
+                            <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                                <Text style={styles.refreshButtonText}>Refresh</Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
 
@@ -379,9 +382,6 @@ export default function KelolaAlatBerat() {
                                 placeholderTextColor="#999"
                             />
                         </View>
-                        <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
-                            <Text style={styles.refreshButtonText}>Refresh</Text>
-                        </TouchableOpacity>
                         <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
                             <Text style={styles.addButtonText}>Tambahkan</Text>
                             <Text style={styles.addButtonIcon}>+</Text>
@@ -419,8 +419,8 @@ export default function KelolaAlatBerat() {
                                 <View style={styles.emptyState}>
                                     <Text style={styles.emptyStateText}>Tidak ada data alat berat</Text>
                                     <Text style={styles.emptyStateSubtext}>
-                                        {alatBeratList.length === 0 
-                                            ? 'Data tidak ditemukan atau terjadi kesalahan' 
+                                        {alatBeratList.length === 0
+                                            ? 'Data tidak ditemukan atau terjadi kesalahan'
                                             : 'Tidak ada hasil pencarian yang sesuai'
                                         }
                                     </Text>
@@ -438,8 +438,8 @@ export default function KelolaAlatBerat() {
                                             </View>
 
                                             {/* Image */}
-                                            <Image 
-                                                source={{ uri: item.foto }} 
+                                            <Image
+                                                source={{ uri: item.foto }}
                                                 style={styles.cardImage}
                                                 onError={() => console.log('❌ Image load error:', item.foto)}
                                             />
@@ -824,17 +824,16 @@ const styles = StyleSheet.create({
         color: '#333',
     },
     refreshButton: {
-        flexDirection: 'row',
+        marginTop: 10,
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        backgroundColor: '#F59E0B',
+        borderRadius: 8,
         alignItems: 'center',
-        backgroundColor: '#10B981',
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        borderRadius: 10,
-        gap: 8,
     },
     refreshButtonText: {
         fontFamily: 'Poppins_500Medium',
-        fontSize: 14,
+        fontSize: 12,
         color: COLORS.white,
     },
     addButton: {

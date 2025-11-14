@@ -8,26 +8,27 @@ import { Stack } from 'expo-router';
 // Base URL API - menggunakan localhost
 const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
-// Mock data untuk fallback
-const INITIAL_LOAN_REQUESTS = [
-  {
-    id: 'ST001-29112025-1812',
-    description: 'Penyewaan Excavator Hitachi - Budi Santoso',
-    status: 'Belum diverifikasi',
-    originalData: { id_sewa: 1, tanggal_sewa: '2025-11-29', total_harga: 2500000 },
-    pelanggan: { nama_pelanggan: 'Budi Santoso', no_ktp: '3201012345678901', no_telp: '08123456789', email: 'budi@mail.com' },
-    alat: { nama_alat: 'Excavator Hitachi ZX200', jenis: 'Excavator', kapasitas: '20 Ton', harga_sewa_per_hari: 2500000 },
-    dokumen: []
-  }
-];
+// Interface for LoanRequest
+interface LoanRequest {
+  id: string;
+  description: string;
+  status: string;
+  originalData: any;
+  pelanggan: any;
+  alat: any;
+  dokumen: any[];
+  pembayaran: any[];
+}
 
 export default function PersetujuanPinjaman() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [loanRequests, setLoanRequests] = useState([]);
+  const [loanRequests, setLoanRequests] = useState<LoanRequest[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [verifyModalVisible, setVerifyModalVisible] = useState(false);
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [rejectReasonModalVisible, setRejectReasonModalVisible] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [selectedRequest, setSelectedRequest] = useState<LoanRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -36,18 +37,18 @@ export default function PersetujuanPinjaman() {
     try {
       setLoading(true);
       console.log('Fetching data from:', `http://127.0.0.1:8000/api/penyewaan/persetujuan/pending`);
-      
+
       const response = await fetch(`http://127.0.0.1:8000/api/penyewaan/persetujuan/pending`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const result = await response.json();
       console.log('API Response:', result);
-      
+
       if (result.success) {
-        const formattedData = result.data.map((item: any) => ({
+        const formattedData: LoanRequest[] = result.data.map((item: any) => ({
           id: `ST${String(item.id_sewa).padStart(3, '0')}`,
           description: `Penyewaan ${item.alat?.nama_alat || 'Alat'} - ${item.pelanggan?.nama_pelanggan || 'Pelanggan'}`,
           status: mapApprovalStatus(item.status_persetujuan),
@@ -62,15 +63,13 @@ export default function PersetujuanPinjaman() {
       } else {
         Alert.alert('Error', result.message || 'Gagal memuat data');
       }
-    } catch (err) {
+    } catch (error: unknown) {
+      const err = error as Error;
       console.error('Gagal fetch data persetujuan:', err);
       Alert.alert(
-        'Error', 
+        'Error',
         `Tidak dapat terhubung ke server: ${err.message}\n\nPastikan server berjalan di http://127.0.0.1:8000`
       );
-      
-      // Fallback ke mock data untuk testing
-      setLoanRequests(INITIAL_LOAN_REQUESTS);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -79,6 +78,11 @@ export default function PersetujuanPinjaman() {
 
   // Approve penyewaan
   const handleConfirmVerify = async () => {
+    if (!selectedRequest) return;
+
+    // Tutup modal konfirmasi dulu
+    setVerifyModalVisible(false);
+
     try {
       setRefreshing(true);
       const response = await fetch(`${API_BASE_URL}/penyewaan/${selectedRequest.originalData.id_sewa}/approve`, {
@@ -90,20 +94,19 @@ export default function PersetujuanPinjaman() {
           status_persetujuan: 'Disetujui'
         })
       });
-      
+
       const result = await response.json();
       console.log('Approve response:', result);
-      
+
       if (result.success) {
-        // Refresh data
         await fetchPendingApprovals();
-        setVerifyModalVisible(false);
         setModalVisible(false);
         Alert.alert('Sukses', 'Penyewaan berhasil disetujui');
       } else {
         Alert.alert('Error', result.message || 'Gagal menyetujui penyewaan');
       }
-    } catch (err) {
+    } catch (error: unknown) {
+      const err = error as Error;
       console.error('Gagal approve penyewaan:', err);
       Alert.alert('Error', 'Terjadi error saat menyetujui penyewaan');
     } finally {
@@ -111,64 +114,71 @@ export default function PersetujuanPinjaman() {
     }
   };
 
-  // Reject penyewaan
-  const handleConfirmReject = async () => {
-    try {
-      // Minta alasan penolakan
-      Alert.prompt(
-        'Alasan Penolakan',
-        'Masukkan alasan penolakan penyewaan:',
-        [
-          { text: 'Batal', style: 'cancel' },
-          { 
-            text: 'OK', 
-            onPress: async (alasan) => {
-              if (!alasan) {
-                Alert.alert('Error', 'Alasan penolakan harus diisi');
-                return;
-              }
+  // Handler untuk klik OK pada modal konfirmasi tolak
+  const handleConfirmReject = () => {
+    if (!selectedRequest) return;
 
-              setRefreshing(true);
-              try {
-                const response = await fetch(`${API_BASE_URL}/penyewaan/${selectedRequest.originalData.id_sewa}/approve`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    status_persetujuan: 'Ditolak',
-                    alasan_penolakan: alasan
-                  })
-                });
-                
-                const result = await response.json();
-                console.log('Reject response:', result);
-                
-                if (result.success) {
-                  // Refresh data
-                  await fetchPendingApprovals();
-                  setRejectModalVisible(false);
-                  setModalVisible(false);
-                  Alert.alert('Sukses', 'Penyewaan berhasil ditolak');
-                } else {
-                  Alert.alert('Error', result.message || 'Gagal menolak penyewaan');
-                }
-              } catch (err) {
-                console.error('Gagal reject penyewaan:', err);
-                Alert.alert('Error', 'Terjadi error saat menolak penyewaan');
-              } finally {
-                setRefreshing(false);
-              }
-            }
-          }
-        ],
-        'plain-text'
-      );
-      
-    } catch (err) {
+    // Tutup modal konfirmasi tolak
+    setRejectModalVisible(false);
+
+    // Buka modal untuk input alasan penolakan
+    setRejectReasonModalVisible(true);
+  };
+
+  // Submit reject dengan alasan
+  const handleSubmitReject = async () => {
+    if (!selectedRequest) return;
+
+    if (!rejectReason || rejectReason.trim() === '') {
+      Alert.alert('Error', 'Alasan penolakan harus diisi');
+      return;
+    }
+
+    // Tutup modal input alasan terlebih dahulu
+    setRejectReasonModalVisible(false);
+    setModalVisible(false);
+
+    // Simpan alasan ke variable sementara
+    const alasanPenolakan = rejectReason.trim();
+    // Reset form
+    setRejectReason('');
+
+    try {
+      setRefreshing(true);
+      const response = await fetch(`${API_BASE_URL}/penyewaan/${selectedRequest.originalData.id_sewa}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status_persetujuan: 'Ditolak',
+          alasan_penolakan: alasanPenolakan
+        })
+      });
+
+      const result = await response.json();
+      console.log('Reject response:', result);
+
+      if (result.success) {
+        await fetchPendingApprovals();
+        Alert.alert('Sukses', 'Penyewaan berhasil ditolak');
+      } else {
+        Alert.alert('Error', result.message || 'Gagal menolak penyewaan');
+      }
+    } catch (error: unknown) {
+      const err = error as Error;
       console.error('Gagal reject penyewaan:', err);
       Alert.alert('Error', 'Terjadi error saat menolak penyewaan');
+    } finally {
+      setRefreshing(false);
     }
+  };
+
+  // Cancel reject
+  const handleCancelReject = () => {
+    setRejectReasonModalVisible(false);
+    setRejectReason('');
+    setModalVisible(false);
   };
 
   // Download dokumen
@@ -176,21 +186,21 @@ export default function PersetujuanPinjaman() {
     try {
       const url = `${API_BASE_URL}/dokumen-pinjaman/download/${dokumen.id_dokumen}`;
       console.log('Download URL:', url);
-      
-      // Untuk React Native, gunakan Linking untuk buka PDF
+
       const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
         await Linking.openURL(url);
       } else {
         Alert.alert('Error', 'Tidak dapat membuka PDF viewer');
       }
-    } catch (err) {
+    } catch (error: unknown) {
+      const err = error as Error;
       console.error('Gagal download PDF:', err);
       Alert.alert('Error', 'Gagal membuka dokumen');
     }
   };
 
-  const handleOpenDocument = (request: any) => {
+  const handleOpenDocument = (request: LoanRequest) => {
     setSelectedRequest(request);
     setModalVisible(true);
   };
@@ -210,7 +220,6 @@ export default function PersetujuanPinjaman() {
     setRejectModalVisible(false);
   };
 
-  // Refresh data
   const handleRefresh = () => {
     setRefreshing(true);
     fetchPendingApprovals();
@@ -263,7 +272,7 @@ export default function PersetujuanPinjaman() {
   const mapApprovalStatus = (status: string) => {
     const statusMap: { [key: string]: string } = {
       'Menunggu': 'Belum diverifikasi',
-      'Disetujui': 'Disetujui', 
+      'Disetujui': 'Disetujui',
       'Ditolak': 'Ditolak'
     };
     return statusMap[status] || 'Belum diverifikasi';
@@ -285,7 +294,6 @@ export default function PersetujuanPinjaman() {
     }).format(amount);
   };
 
-  // Use effect untuk fetch data saat component mount
   useEffect(() => {
     fetchPendingApprovals();
   }, []);
@@ -300,7 +308,6 @@ export default function PersetujuanPinjaman() {
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          {/* Header Modal */}
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Detail Penyewaan {selectedRequest?.id}</Text>
             <TouchableOpacity onPress={() => setModalVisible(false)}>
@@ -318,13 +325,13 @@ export default function PersetujuanPinjaman() {
               <View style={styles.infoGrid}>
                 <Text style={styles.infoLabel}>Nama:</Text>
                 <Text style={styles.infoValue}>{selectedRequest?.pelanggan?.nama_pelanggan || 'Tidak ada data'}</Text>
-                
+
                 <Text style={styles.infoLabel}>KTP:</Text>
                 <Text style={styles.infoValue}>{selectedRequest?.pelanggan?.no_ktp || '-'}</Text>
-                
+
                 <Text style={styles.infoLabel}>Telp:</Text>
                 <Text style={styles.infoValue}>{selectedRequest?.pelanggan?.no_telp || '-'}</Text>
-                
+
                 <Text style={styles.infoLabel}>Email:</Text>
                 <Text style={styles.infoValue}>{selectedRequest?.pelanggan?.email || '-'}</Text>
               </View>
@@ -339,13 +346,13 @@ export default function PersetujuanPinjaman() {
               <View style={styles.infoGrid}>
                 <Text style={styles.infoLabel}>Alat:</Text>
                 <Text style={styles.infoValue}>{selectedRequest?.alat?.nama_alat || 'Tidak ada data'}</Text>
-                
+
                 <Text style={styles.infoLabel}>Jenis:</Text>
                 <Text style={styles.infoValue}>{selectedRequest?.alat?.jenis || '-'}</Text>
-                
+
                 <Text style={styles.infoLabel}>Kapasitas:</Text>
                 <Text style={styles.infoValue}>{selectedRequest?.alat?.kapasitas || '-'}</Text>
-                
+
                 <Text style={styles.infoLabel}>Harga/hari:</Text>
                 <Text style={styles.infoValue}>{formatCurrency(selectedRequest?.alat?.harga_sewa_per_hari || 0)}</Text>
               </View>
@@ -360,15 +367,15 @@ export default function PersetujuanPinjaman() {
               <View style={styles.infoGrid}>
                 <Text style={styles.infoLabel}>Tanggal Sewa:</Text>
                 <Text style={styles.infoValue}>{selectedRequest?.originalData?.tanggal_sewa || '-'}</Text>
-                
+
                 <Text style={styles.infoLabel}>Tanggal Kembali:</Text>
                 <Text style={styles.infoValue}>{selectedRequest?.originalData?.tanggal_kembali || '-'}</Text>
-                
+
                 <Text style={styles.infoLabel}>Durasi:</Text>
                 <Text style={styles.infoValue}>
                   {calculateDuration(selectedRequest?.originalData?.tanggal_sewa, selectedRequest?.originalData?.tanggal_kembali)} hari
                 </Text>
-                
+
                 <Text style={styles.infoLabel}>Total Harga:</Text>
                 <Text style={[styles.infoValue, styles.totalPrice]}>
                   {formatCurrency(selectedRequest?.originalData?.total_harga || 0)}
@@ -382,12 +389,12 @@ export default function PersetujuanPinjaman() {
                 <FileText size={18} color="#F59E0B" />
                 <Text style={styles.sectionTitle}>Dokumen Pendukung</Text>
               </View>
-              
+
               {selectedRequest?.dokumen?.length === 0 ? (
                 <Text style={styles.noDocumentText}>Belum ada dokumen</Text>
               ) : (
                 selectedRequest?.dokumen?.map((dokumen: any) => (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     key={dokumen.id_dokumen}
                     style={styles.documentItem}
                     onPress={() => handleDownloadPDF(dokumen)}
@@ -404,7 +411,6 @@ export default function PersetujuanPinjaman() {
             </View>
           </ScrollView>
 
-          {/* Action Buttons */}
           {selectedRequest?.status === 'Belum diverifikasi' && (
             <View style={styles.modalFooter}>
               <TouchableOpacity
@@ -442,9 +448,7 @@ export default function PersetujuanPinjaman() {
       <View style={styles.container}>
         <SideBar />
 
-        {/* Main Content */}
         <View style={styles.mainContent}>
-          {/* Header */}
           <View style={styles.header}>
             <View>
               <Text style={styles.pageTitle}>Persetujuan Penyewaan</Text>
@@ -460,7 +464,6 @@ export default function PersetujuanPinjaman() {
             </View>
           </View>
 
-          {/* Search Bar */}
           <View style={styles.searchContainer}>
             <Search color="#999" size={20} />
             <TextInput
@@ -472,7 +475,6 @@ export default function PersetujuanPinjaman() {
             />
           </View>
 
-          {/* Loading State */}
           {loading && (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#F59E0B" />
@@ -480,7 +482,6 @@ export default function PersetujuanPinjaman() {
             </View>
           )}
 
-          {/* Empty State */}
           {!loading && loanRequests.length === 0 && (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>Tidak ada data persetujuan</Text>
@@ -490,11 +491,9 @@ export default function PersetujuanPinjaman() {
             </View>
           )}
 
-          {/* Table */}
           {!loading && loanRequests.length > 0 && (
             <ScrollView style={styles.tableContainer}>
               <View style={styles.table}>
-                {/* Table Header */}
                 <View style={styles.tableHeader}>
                   <View style={[styles.tableHeaderCell, { flex: 2 }]}>
                     <Text style={styles.tableHeaderText}>Penyewaan Tercatat</Text>
@@ -507,7 +506,6 @@ export default function PersetujuanPinjaman() {
                   </View>
                 </View>
 
-                {/* Table Body */}
                 {filteredRequests.map((request, index) => (
                   <View key={index} style={styles.tableRow}>
                     <View style={[styles.tableCell, { flex: 2, backgroundColor: '#F5EFE7' }]}>
@@ -543,7 +541,6 @@ export default function PersetujuanPinjaman() {
           )}
         </View>
 
-        {/* Document Modal */}
         <DocumentModal />
 
         {/* Verify Confirmation Modal */}
@@ -610,6 +607,57 @@ export default function PersetujuanPinjaman() {
                   <Text style={styles.okButtonText}>OK</Text>
                 )}
               </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Reject Reason Input Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={rejectReasonModalVisible}
+          onRequestClose={handleCancelReject}
+        >
+          <View style={styles.confirmOverlay}>
+            <View style={[styles.confirmContent, { backgroundColor: '#FFFFFF', paddingBottom: 20, maxWidth: 400 }]}>
+              <View style={[styles.confirmHeader, { backgroundColor: '#EF4444', borderTopLeftRadius: 16, borderTopRightRadius: 16 }]}>
+                <Text style={[styles.confirmTitle, { color: '#FFFFFF' }]}>Alasan Penolakan</Text>
+              </View>
+              <View style={styles.confirmBody}>
+                <Text style={[styles.confirmText, { marginBottom: 16 }]}>
+                  Masukkan alasan penolakan penyewaan:
+                </Text>
+                <TextInput
+                  style={styles.reasonInput}
+                  placeholder="Tulis alasan penolakan di sini..."
+                  placeholderTextColor="#999"
+                  value={rejectReason}
+                  onChangeText={setRejectReason}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </View>
+              <View style={styles.reasonButtonContainer}>
+                <TouchableOpacity
+                  style={[styles.reasonButton, styles.cancelButton]}
+                  onPress={handleCancelReject}
+                  disabled={refreshing}
+                >
+                  <Text style={styles.cancelButtonText}>Batal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.reasonButton, styles.submitButton]}
+                  onPress={handleSubmitReject}
+                  disabled={refreshing}
+                >
+                  {refreshing ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Submit</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
@@ -812,7 +860,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -950,7 +997,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.white,
   },
-  // Confirmation Modal Styles
   confirmOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1014,6 +1060,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   okButtonText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+    color: COLORS.white,
+  },
+  reasonInput: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 8,
+    padding: 12,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: '#333',
+    minHeight: 100,
+    backgroundColor: '#F9F9F9',
+  },
+  reasonButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    width: '100%',
+  },
+  reasonButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#9CA3AF',
+  },
+  cancelButtonText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+    color: COLORS.white,
+  },
+  submitButton: {
+    backgroundColor: '#EF4444',
+  },
+  submitButtonText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 14,
     color: COLORS.white,

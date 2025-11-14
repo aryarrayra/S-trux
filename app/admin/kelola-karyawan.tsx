@@ -289,7 +289,7 @@ export default function KelolaKaryawan() {
 
     const handleSave = async () => {
         if (!validateForm()) return;
-        
+
         try {
             const newEmployeeData = {
                 nama: namaLengkap,
@@ -372,6 +372,9 @@ export default function KelolaKaryawan() {
                         <View style={styles.dateTimeContainer}>
                             <Text style={styles.dateText}>{currentDate.full}</Text>
                             <Text style={styles.timeText}>{currentDate.time}</Text>
+                            <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                                <Text style={styles.refreshButtonText}>Refresh</Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
 
@@ -387,9 +390,6 @@ export default function KelolaKaryawan() {
                                 placeholderTextColor="#999"
                             />
                         </View>
-                        <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
-                            <Text style={styles.refreshButtonText}>Refresh</Text>
-                        </TouchableOpacity>
                         <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
                             <Text style={styles.addButtonText}>Tambahkan</Text>
                             <Text style={styles.addButtonIcon}>+</Text>
@@ -773,17 +773,16 @@ const styles = StyleSheet.create({
         color: COLORS.darkGray,
     },
     refreshButton: {
-        flexDirection: 'row',
+        marginTop: 10,
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        backgroundColor: '#F59E0B',
+        borderRadius: 8,
         alignItems: 'center',
-        backgroundColor: '#10B981',
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        borderRadius: 10,
-        gap: 8,
     },
     refreshButtonText: {
         fontFamily: 'Poppins_500Medium',
-        fontSize: 14,
+        fontSize: 12,
         color: COLORS.white,
     },
     addButton: {
@@ -1113,7 +1112,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: COLORS.darkGray,
     },
-    
+
     confirmOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
