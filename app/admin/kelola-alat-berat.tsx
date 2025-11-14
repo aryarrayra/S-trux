@@ -57,35 +57,38 @@ export default function KelolaAlatBerat() {
         setError(null);
         try {
             console.log('🔄 Fetching alat berat from API...');
-            const response = await fetch('http://127.0.0.1:8000/api/alat-berat', {
+            // Handle URL untuk emulator: Android gunakan 10.0.2.2, iOS gunakan localhost
+            const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/alat-berat' : 'http://127.0.0.1:8000/api/alat-berat';
+            const response = await fetch(apiUrl, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
+                    // Uncomment jika butuh auth token dari login
+                    // 'Authorization': `Bearer ${token}`,
                 },
             });
 
             console.log('📊 Response status:', response.status);
 
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorText = await response.text();
+                console.error('❌ API Error Body:', errorText);
+                throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
             }
 
             const data = await response.json();
             console.log('✅ API Response data:', data);
 
-            // Handle berbagai struktur response
+            // Handle struktur response dari Laravel BaseController: {success: true, data: [...], message: '...'}
             let dataArray = [];
-
-            if (Array.isArray(data)) {
+            if (data.success && Array.isArray(data.data)) {
+                dataArray = data.data;
+            } else if (Array.isArray(data)) {
                 dataArray = data;
-            } else if (data.data && Array.isArray(data.data)) {
-                dataArray = data.data;
-            } else if (data.success && Array.isArray(data.data)) {
-                dataArray = data.data;
             } else {
                 console.warn('⚠️ Unexpected data structure:', data);
-                dataArray = Array.isArray(data) ? data : [];
+                dataArray = [];
             }
 
             console.log('📦 Data array to process:', dataArray);
@@ -97,7 +100,7 @@ export default function KelolaAlatBerat() {
                 jenis: item.jenis || 'Lainnya',
                 kapasitas: item.kapasitas || '-',
                 deskripsi: item.deskripsi || 'Deskripsi tidak tersedia',
-                harga_sewa_per_hari: item.harga_sewa_per_hari || item.harga_sewa || 0,
+                harga_sewa_per_hari: Number(item.harga_sewa_per_hari) || item.harga_sewa || 0,
                 status: item.status || 'Tersedia',
                 foto: item.foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400',
             }));
@@ -191,7 +194,8 @@ export default function KelolaAlatBerat() {
         if (confirmed && selectedAlatBerat) {
             try {
                 console.log('🗑️ Deleting alat berat:', selectedAlatBerat.id);
-                const response = await fetch(`http://127.0.0.1:8000/api/alat-berat/${selectedAlatBerat.id}`, {
+                const apiUrl = Platform.OS === 'android' ? `http://10.0.2.2:8000/api/alat-berat/${selectedAlatBerat.id}` : `http://127.0.0.1:8000/api/alat-berat/${selectedAlatBerat.id}`;
+                const response = await fetch(apiUrl, {
                     method: 'DELETE',
                     headers: {
                         'Accept': 'application/json',
@@ -242,7 +246,8 @@ export default function KelolaAlatBerat() {
                 };
 
                 console.log('📤 Update data:', updateData);
-                const response = await fetch(`http://127.0.0.1:8000/api/alat-berat/${selectedAlatBerat.id}`, {
+                const apiUrl = Platform.OS === 'android' ? `http://10.0.2.2:8000/api/alat-berat/${selectedAlatBerat.id}` : `http://127.0.0.1:8000/api/alat-berat/${selectedAlatBerat.id}`;
+                const response = await fetch(apiUrl, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -295,7 +300,8 @@ export default function KelolaAlatBerat() {
             };
 
             console.log('📤 Save data:', newItemData);
-            const response = await fetch('http://127.0.0.1:8000/api/alat-berat', {
+            const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/alat-berat' : 'http://127.0.0.1:8000/api/alat-berat';
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
