@@ -5,13 +5,31 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
-  ScrollView,
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { History, Star } from 'lucide-react-native';
-import { COLORS } from '../../../constants/Colors';
+import { useRouter } from 'expo-router';
+
+const COLORS = {
+  background: '#F4F4F4',
+  white: '#FFFFFF',
+  black: '#000000',
+  primary: '#F39F29',
+  primaryGradientEnd: '#FDCB41',
+  historyActive: '#4CAF50',
+  historyCompleted: '#2196F3',
+  historyCancelled: '#F44336',
+  completedButtonBg: '#E3F2FD',
+  cancelledButtonBg: '#FFEBEE',
+  buttonYellow: '#FDCB41',
+  buttonYellowText: '#000000',
+  filterBackground: '#E5E5E5',
+  cardShadow: '#000000',
+  inactive: '#978D8D',
+  line: '#D9D9D9',
+};
 
 type HistoryStatus = 'Aktif' | 'Selesai' | 'Dibatalkan';
 
@@ -94,11 +112,31 @@ const getStatusStyle = (status: HistoryStatus) => {
 };
 
 const HistoryCard = ({ item }: { item: HistoryItem }) => {
+  const router = useRouter();
+
+  const handleDetailPress = () => {
+    router.push({
+      pathname: '/user/historysewa',
+      params: {
+        transactionId: item.transactionId,
+        itemName: item.title,
+        itemImage: item.imageUrl,
+        itemPrice: item.totalCost,
+        projectName: item.project,
+        dateRange: item.dateRange,
+        status: item.status
+      }
+    });
+  };
+
   const renderFooter = () => {
     switch (item.status) {
       case 'Aktif':
         return (
-          <TouchableOpacity style={styles.detailButton}>
+          <TouchableOpacity 
+            style={styles.detailButton}
+            onPress={handleDetailPress}
+          >
             <Text style={styles.detailButtonText}>Lihat detail</Text>
           </TouchableOpacity>
         );

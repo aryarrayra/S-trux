@@ -26,6 +26,7 @@ export const COLORS = {
   searchBar: '#ECECEC',
   inactive: '#978D8D',
   danger: '#CF0000',
+  dangerLight: '#FFE8E8',
   shadow: 'rgba(151, 141, 141, 0.2)',
   cardShadow: 'rgba(0, 0, 0, 0.25)',
 

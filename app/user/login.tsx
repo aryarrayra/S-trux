@@ -12,9 +12,12 @@ import {
   ScrollView,
   ActivityIndicator,
   Animated,
+  Dimensions,
 } from 'react-native';
 import { User, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { router } from 'expo-router';
+
+const { height, width } = Dimensions.get('window');
 
 const COLORS = {
   primary: '#F39F29',
@@ -36,6 +39,7 @@ export default function UserLoginScreen() {
   
   const containerAnim = useRef(new Animated.Value(1)).current;
   const orangeAnim = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -51,23 +55,20 @@ export default function UserLoginScreen() {
     setIsLoading(true);
 
     try {
-      // Simulasi proses login
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Validasi sederhana
       if (username && password.length >= 6) {
         console.log('User login successful');
         
-        // Mulai proses transition
         setIsTransitioning(true);
         
         // Fade out seluruh container login
         Animated.timing(containerAnim, {
           toValue: 0,
-          duration: 300,
+          duration: 200,
           useNativeDriver: true,
         }).start(() => {
-          // Setelah login view menghilang, mulai animasi ellipse oranye
+          // Setelah login view menghilang, mulai animasi titik oranye
           startOrangeAnimation();
         });
         
@@ -82,18 +83,20 @@ export default function UserLoginScreen() {
   };
 
   const startOrangeAnimation = () => {
-    // Animasi ellipse oranye muncul dari bawah dan membesar
-    Animated.parallel([
-      Animated.timing(orangeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      })
+    // Animasi titik kecil -> membesar memenuhi layar -> fade out
+    Animated.sequence([
+      // Zoom in dan fade out bersamaan
+      Animated.parallel([
+        // Zoom in dari titik kecil ke besar
+        Animated.timing(orangeAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        })
+      ])
     ]).start(() => {
       // Setelah animasi selesai, navigasi ke dashboard
-      setTimeout(() => {
-        router.replace('/user/dashboarduser');
-      }, 200);
+      router.replace('/user/dashboarduser');
     });
   };
 
@@ -102,23 +105,25 @@ export default function UserLoginScreen() {
   };
 
   const handleRegister = () => {
-    Alert.alert('Daftar Akun', 'Fitur pendaftaran akan segera tersedia');
+    router.push('/user/register');
   };
 
-  // Interpolasi untuk animasi ellipse oranye
-  const orangeEllipseTransform = orangeAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1000, -1000], // Mulai dari jauh di bawah, naik ke atas
-  });
+  // Handle keyboard show/hide
+  const handleFocus = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: 100, animated: true });
+    }, 100);
+  };
 
+  // Interpolasi untuk animasi titik oranye
   const orangeEllipseScale = orangeAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, 15], // Membesar hingga menutupi layar
+    outputRange: [0, Math.max(width, height) * 2], // Dari titik kecil -> sangat besar
   });
 
   const orangeEllipseOpacity = orangeAnim.interpolate({
-    inputRange: [0, 0.3, 1],
-    outputRange: [0, 1, 1], // Muncul perlahan
+    inputRange: [0, 0.7, 1],
+    outputRange: [1, 0.8, 0], // Tetap terlihat -> mulai fade out -> hilang
   });
 
   return (
@@ -127,18 +132,21 @@ export default function UserLoginScreen() {
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoid}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -500}
         >
           <ScrollView 
+            ref={scrollViewRef}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
           >
-            {/* Animasi Ellipse Oranye - akan muncul saat transition */}
+            {/* Animasi Titik Oranye */}
             <Animated.View 
               style={[
                 styles.orangeEllipse,
                 {
                   transform: [
-                    { translateY: orangeEllipseTransform },
                     { scale: orangeEllipseScale }
                   ],
                   opacity: orangeEllipseOpacity
@@ -180,6 +188,7 @@ export default function UserLoginScreen() {
                       autoComplete="username"
                       editable={!isLoading && !isTransitioning}
                       returnKeyType="next"
+                      onFocus={handleFocus}
                     />
                     <View style={styles.iconContainer}>
                       <User size={20} color={COLORS.primary} strokeWidth={1.5} />
@@ -201,6 +210,7 @@ export default function UserLoginScreen() {
                       editable={!isLoading && !isTransitioning}
                       returnKeyType="done"
                       onSubmitEditing={handleLogin}
+                      onFocus={handleFocus}
                     />
                     <TouchableOpacity 
                       style={styles.iconContainer}
@@ -275,20 +285,23 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    minHeight: 800,
+    minHeight: height,
+    justifyContent: 'center',
   },
   loginContent: {
     flex: 1,
+    justifyContent: 'center',
   },
-  // Animasi Ellipse Oranye
+  // Animasi Titik Oranye
   orangeEllipse: {
     position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 1, // Mulai dari titik sangat kecil
+    height: 1,
+    borderRadius: 0.5,
     backgroundColor: '#F39F29',
     alignSelf: 'center',
-    bottom: -50, // Posisi awal di bawah layar
+    top: height / 2, // Posisi di tengah layar
+    left: width / 2,
     zIndex: 10,
   },
   ellipseBackground: {
@@ -298,14 +311,12 @@ const styles = StyleSheet.create({
     borderRadius: 450,
     backgroundColor: '#0F0E0E',
     left: -260,
-    top: 300,
+    top: 200,
   },
   headerContainer: {
-    position: 'absolute',
-    top: 200,
-    left: 0,
-    right: 0,
     alignItems: 'center',
+    marginBottom: 160,
+    marginTop: 0,
   },
   welcomeText: {
     fontFamily: 'Poppins-Medium',
@@ -316,29 +327,27 @@ const styles = StyleSheet.create({
   subtitleText: {
     fontFamily: 'Poppins-Regular',
     fontSize: 12,
-    lineHeight: 18,
-    color: '#978D8D',
+    lineHeight: 20,
+    color: '#645959ff',
     marginTop: 2,
   },
   formContainer: {
-    position: 'absolute',
-    top: 420,
-    left: 50,
-    right: 50,
+    paddingHorizontal: 50,
+    marginBottom: 10,
   },
   inputWrapper: {
-    marginBottom: 38,
+    marginBottom: 25,
   },
   label: {
     fontFamily: 'Poppins-Regular',
     fontSize: 10,
     lineHeight: 15,
     color: '#FFFFFF',
-    marginBottom: 2,
+    marginBottom: 5,
     marginLeft: 15,
   },
   inputContainer: {
-    height: 31,
+    height: 45,
     borderRadius: 7,
     borderWidth: 0.5,
     borderColor: '#F39F29',
@@ -355,9 +364,9 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontFamily: 'Poppins-Regular',
-    fontSize: 10,
+    fontSize: 12,
     color: '#FFFFFF',
-    paddingVertical: 0,
+    paddingVertical: 8,
   },
   iconContainer: {
     width: 24,
@@ -367,8 +376,8 @@ const styles = StyleSheet.create({
   },
   forgotPasswordContainer: {
     alignSelf: 'flex-end',
-    marginTop: -10,
-    marginBottom: 15,
+    marginTop: 5,
+    marginBottom: 20,
   },
   forgotPasswordText: {
     fontFamily: 'Poppins-Regular',
@@ -380,9 +389,9 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: '#F39F29',
     borderRadius: 25,
-    paddingVertical: 8,
+    paddingVertical: 12,
     alignItems: 'center',
-    marginTop: 18,
+    marginTop: 10,
     shadowColor: '#FDCB41',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
@@ -400,20 +409,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   footerContainer: {
-    position: 'absolute',
-    top: 650,
-    left: 50,
-    right: 50,
+    alignItems: 'center',
+    marginTop: 30,
+    paddingHorizontal: 50,
   },
   registerContainer: {
-    marginTop: 25,
+    marginTop: 10,
   },
   registerText: {
     fontFamily: 'Poppins-Regular',
     fontSize: 13,
     lineHeight: 19.5,
     color: '#FFFFFF',
-    textAlign: 'left',
+    textAlign: 'center',
   },
   registerLink: {
     color: '#F39F29',
