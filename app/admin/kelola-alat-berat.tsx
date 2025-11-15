@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Image } from 'react-native';
 import { Search, Edit2, Trash2, X, Camera, Plus } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
@@ -49,7 +50,9 @@ export default function KelolaAlatBerat() {
     const [deskripsi, setDeskripsi] = useState('');
     const [harga_sewa_per_hari, setHargaSewa] = useState('');
     const [status, setStatus] = useState('Tersedia');
-    const [foto, setFoto] = useState('');
+    const [foto, setFoto] = useState(''); // URL foto setelah upload
+    const [selectedImage, setSelectedImage] = useState<string | null>(null); // Local URI sementara untuk preview
+    const [isUploading, setIsUploading] = useState(false); // State untuk loading upload
 
     // Fetch data dari API dengan field yang sesuai
     const fetchAlatBerat = async () => {
@@ -118,6 +121,75 @@ export default function KelolaAlatBerat() {
         }
     };
 
+    // Request permission untuk image picker
+    const requestPermissions = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission denied', 'Sorry, we need camera roll permissions to make this work!');
+            return false;
+        }
+        return true;
+    };
+
+    // Pick image dari galeri (atau kamera jika diinginkan)
+    const pickImage = async () => {
+        const hasPermission = await requestPermissions();
+        if (!hasPermission) return;
+
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 1,
+        });
+
+        if (!result.canceled) {
+            const localUri = result.assets[0].uri;
+            setSelectedImage(localUri);
+            // Upload image ke server dan dapatkan URL
+            await uploadImage(localUri);
+        }
+    };
+
+    // Fungsi upload image ke backend (asumsi endpoint /upload-foto)
+    const uploadImage = async (localUri: string) => {
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('foto', {
+                uri: localUri,
+                type: 'image/jpeg', // Sesuaikan dengan tipe image
+                name: 'foto.jpg',
+            } as any);
+
+            const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/upload-foto' : 'http://127.0.0.1:8000/api/upload-foto';
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    // 'Authorization': `Bearer ${token}`, // Jika butuh auth
+                },
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                const uploadedUrl = result.url || result.data?.url; // Sesuaikan dengan response backend
+                setFoto(uploadedUrl);
+                console.log('✅ Image uploaded:', uploadedUrl);
+                Alert.alert('Sukses', 'Foto berhasil diupload!');
+            } else {
+                throw new Error('Upload gagal');
+            }
+        } catch (error) {
+            console.error('❌ Upload error:', error);
+            Alert.alert('Error', 'Gagal mengupload foto. Silakan coba lagi.');
+            setSelectedImage(null);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
     // Fetch data saat component mount
     useEffect(() => {
         fetchAlatBerat();
@@ -165,6 +237,7 @@ export default function KelolaAlatBerat() {
         setHargaSewa(String(item.harga_sewa_per_hari));
         setStatus(item.status);
         setFoto(item.foto);
+        setSelectedImage(null); // Reset local image
         setModalVisible(true);
     };
 
@@ -183,6 +256,7 @@ export default function KelolaAlatBerat() {
         setHargaSewa('');
         setStatus('Tersedia');
         setFoto('');
+        setSelectedImage(null);
     };
 
     const handleDelete = (item: AlatBerat) => {
@@ -242,7 +316,7 @@ export default function KelolaAlatBerat() {
                     deskripsi: deskripsi,
                     harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
                     status: status,
-                    foto: foto,
+                    foto: foto, // Gunakan URL yang sudah diupload
                 };
 
                 console.log('📤 Update data:', updateData);
@@ -296,7 +370,7 @@ export default function KelolaAlatBerat() {
                 deskripsi: deskripsi,
                 harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
                 status: status,
-                foto: foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400',
+                foto: foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400', // Default jika tidak ada foto baru
             };
 
             console.log('📤 Save data:', newItemData);
@@ -336,6 +410,7 @@ export default function KelolaAlatBerat() {
 
     const handleCloseModal = () => {
         setModalVisible(false);
+        resetForm(); // Reset form saat close
     };
 
     const selectStatus = (selectedStatus: string) => {
@@ -581,18 +656,32 @@ export default function KelolaAlatBerat() {
                                         </View>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>Foto</Text>
-                                            <View style={styles.fotoInputContainer}>
-                                                <TextInput
-                                                    style={[styles.input, { flex: 1, paddingRight: 10 }]}
-                                                    value={foto}
-                                                    onChangeText={setFoto}
-                                                    placeholder="URL foto alat berat"
-                                                    placeholderTextColor="#999"
-                                                />
-                                                <TouchableOpacity>
-                                                    <Camera color="#F59E0B" size={20} />
-                                                </TouchableOpacity>
-                                            </View>
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.fotoInputContainer,
+                                                    isUploading && styles.uploadingContainer
+                                                ]}
+                                                onPress={pickImage}
+                                                disabled={isUploading}
+                                            >
+                                                {selectedImage || foto ? (
+                                                    <Image
+                                                        source={{ uri: selectedImage || foto }}
+                                                        style={styles.previewImage}
+                                                        resizeMode="cover"
+                                                    />
+                                                ) : (
+                                                    <View style={styles.placeholderContainer}>
+                                                        <Camera color="#F59E0B" size={24} />
+                                                        <Text style={styles.placeholderText}>Pilih Foto</Text>
+                                                    </View>
+                                                )}
+                                                {isUploading && (
+                                                    <View style={styles.uploadingOverlay}>
+                                                        <Text style={styles.uploadingText}>Mengupload...</Text>
+                                                    </View>
+                                                )}
+                                            </TouchableOpacity>
                                         </View>
                                     </View>
 
@@ -1111,14 +1200,49 @@ const styles = StyleSheet.create({
         color: '#F59E0B',
     },
     fotoInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
         backgroundColor: COLORS.white,
         borderWidth: 1.5,
         borderColor: '#F59E0B',
         borderRadius: 8,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
+        padding: 0,
+        height: 120,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderStyle: 'dashed',
+    },
+    previewImage: {
+        width: '100%',
+        height: 120,
+        borderRadius: 8,
+    },
+    placeholderContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    placeholderText: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 12,
+        color: '#999',
+        marginTop: 5,
+    },
+    uploadingContainer: {
+        opacity: 0.7,
+    },
+    uploadingOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 8,
+    },
+    uploadingText: {
+        color: COLORS.white,
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 14,
     },
     modalFooter: {
         flexDirection: 'row',

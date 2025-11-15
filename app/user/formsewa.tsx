@@ -78,12 +78,12 @@ const ProgressBar = ({ currentStep, totalSteps }: { currentStep: number; totalSt
   </View>
 );
 
-const DateInput = ({ 
-  label, 
-  value, 
-  onPress 
-}: { 
-  label: string; 
+const DateInput = ({
+  label,
+  value,
+  onPress
+}: {
+  label: string;
   value: string;
   onPress: () => void;
 }) => (
@@ -98,14 +98,14 @@ const DateInput = ({
   </TouchableOpacity>
 );
 
-const LocationInput = ({ 
-  label, 
-  value, 
+const LocationInput = ({
+  label,
+  value,
   onPress,
   latitude,
   longitude,
   address
-}: { 
+}: {
   label: string;
   value: string;
   onPress: () => void;
@@ -133,15 +133,15 @@ const LocationInput = ({
   </TouchableOpacity>
 );
 
-const ProjectInput = ({ 
-  label, 
+const ProjectInput = ({
+  label,
   defaultValue = '',
   placeholder = '',
   multiline = false,
   numberOfLines = 1,
   value,
   onChangeText
-}: { 
+}: {
   label: string;
   defaultValue?: string;
   placeholder?: string;
@@ -168,13 +168,13 @@ const ProjectInput = ({
   </View>
 );
 
-const ItemCard = ({ 
-  imageUrl, 
-  name, 
-  price 
-}: { 
-  imageUrl: string; 
-  name: string; 
+const ItemCard = ({
+  imageUrl,
+  name,
+  price
+}: {
+  imageUrl: string;
+  name: string;
   price: string;
 }) => (
   <View style={styles.itemCard}>
@@ -189,27 +189,27 @@ const ItemCard = ({
 const SummaryCard = ({ startDate, endDate, duration, projectName, projectLocation, latitude, longitude, totalCost }: any) => (
   <View style={styles.summaryCard}>
     <Text style={styles.summaryCardTitle}>Ringkasan Sewa</Text>
-    
+
     <View style={styles.summaryRow}>
       <Text style={styles.summaryLabel}>Tanggal Mulai</Text>
       <Text style={styles.summaryValue}>{startDate}</Text>
     </View>
-    
+
     <View style={styles.summaryRow}>
       <Text style={styles.summaryLabel}>Tanggal Selesai</Text>
       <Text style={styles.summaryValue}>{endDate}</Text>
     </View>
-    
+
     <View style={styles.summaryRow}>
       <Text style={styles.summaryLabel}>Durasi</Text>
       <Text style={styles.summaryValue}>{duration} hari</Text>
     </View>
-    
+
     <View style={styles.summaryRow}>
       <Text style={styles.summaryLabel}>Nama Proyek</Text>
       <Text style={styles.summaryValue}>{projectName}</Text>
     </View>
-    
+
     <View style={styles.summaryRow}>
       <Text style={styles.summaryLabel}>Lokasi</Text>
       <View style={styles.locationSummary}>
@@ -221,7 +221,7 @@ const SummaryCard = ({ startDate, endDate, duration, projectName, projectLocatio
         )}
       </View>
     </View>
-    
+
     <View style={[styles.summaryRow, { marginTop: 8 }]}>
       <Text style={styles.totalLabel}>Total Biaya</Text>
       <Text style={styles.totalValue}>Rp {totalCost.toLocaleString('id-ID')}</Text>
@@ -232,12 +232,12 @@ const SummaryCard = ({ startDate, endDate, duration, projectName, projectLocatio
 const ProjectDetailsCard = ({ projectName, projectLocation, projectDescription, latitude, longitude }: any) => (
   <View style={styles.detailsCard}>
     <Text style={styles.detailsCardTitle}>Detail Proyek</Text>
-    
+
     <View style={styles.detailItem}>
       <Text style={styles.detailLabel}>Nama Proyek</Text>
       <Text style={styles.detailValue}>{projectName}</Text>
     </View>
-    
+
     <View style={styles.detailItem}>
       <Text style={styles.detailLabel}>Lokasi Proyek</Text>
       <View style={styles.locationDetail}>
@@ -249,7 +249,7 @@ const ProjectDetailsCard = ({ projectName, projectLocation, projectDescription, 
         )}
       </View>
     </View>
-    
+
     {projectDescription ? (
       <View style={styles.detailItem}>
         <Text style={styles.detailLabel}>Deskripsi Proyek</Text>
@@ -263,7 +263,7 @@ const DocumentDownloadCard = () => (
   <View style={styles.documentCard}>
     <Text style={styles.documentCardTitle}>Dokumen untuk Diunduh</Text>
     <Text style={styles.documentCardSubtitle}>Unduh dan isi dokumen di bawah ini</Text>
-    
+
     <TouchableOpacity style={styles.downloadButton}>
       <FileText color={COLORS.black} size={20} />
       <View style={styles.downloadTextContainer}>
@@ -272,7 +272,7 @@ const DocumentDownloadCard = () => (
       </View>
       <Download color={COLORS.black} size={20} />
     </TouchableOpacity>
-    
+
     <TouchableOpacity style={styles.downloadButton}>
       <FileText color={COLORS.black} size={20} />
       <View style={styles.downloadTextContainer}>
@@ -288,7 +288,7 @@ const DocumentUploadCard = ({ onUpload }: { onUpload?: () => void }) => (
   <View style={styles.documentCard}>
     <Text style={styles.documentCardTitle}>Unggah Dokumen</Text>
     <Text style={styles.documentCardSubtitle}>Unggah dokumen yang telah diisi</Text>
-    
+
     <TouchableOpacity style={styles.uploadButton} onPress={onUpload}>
       <Upload color={COLORS.black} size={24} />
       <Text style={styles.uploadText}>Unggah Dokumen</Text>
@@ -297,13 +297,13 @@ const DocumentUploadCard = ({ onUpload }: { onUpload?: () => void }) => (
   </View>
 );
 
-const MapModal = ({ 
-  visible, 
-  onClose, 
-  onLocationSelect 
-}: { 
-  visible: boolean; 
-  onClose: () => void; 
+const MapModal = ({
+  visible,
+  onClose,
+  onLocationSelect
+}: {
+  visible: boolean;
+  onClose: () => void;
   onLocationSelect: (location: any) => void;
 }) => {
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
@@ -907,8 +907,7 @@ const MapModal = ({
               <X color={COLORS.black} size={24} />
             </TouchableOpacity>
           </View>
-          
-          {/* Leaflet Map menggunakan WebView */}
+
           <View style={styles.mapContainer}>
             <WebView
               ref={webViewRef}
@@ -920,7 +919,6 @@ const MapModal = ({
               startInLoadingState={true}
               scalesPageToFit={true}
               mixedContentMode="compatibility"
-              androidHardwareAccelerationDisabled={false}
               overScrollMode="never"
             />
           </View>
@@ -932,11 +930,11 @@ const MapModal = ({
 
 // Fungsi untuk memformat tanggal
 const formatDate = (date: Date) => {
-  const options: Intl.DateTimeFormatOptions = { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
   };
   return date.toLocaleDateString('id-ID', options);
 };
@@ -953,20 +951,20 @@ export default function SewaFormScreen() {
   const [currentStep, setCurrentStep] = useState(1);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
-  
+
   // State untuk step 1 (Periode Sewa)
   const [startDate, setStartDate] = useState<Date>(() => {
     const date = new Date();
     date.setDate(date.getDate() + 2);
     return date;
   });
-  
+
   const [endDate, setEndDate] = useState<Date>(() => {
     const date = new Date();
     date.setDate(date.getDate() + 5);
     return date;
   });
-  
+
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
 
@@ -986,10 +984,10 @@ export default function SewaFormScreen() {
     if (selectedDate) {
       const minDate = new Date();
       minDate.setDate(minDate.getDate() + 2);
-      
+
       if (selectedDate >= minDate) {
         setStartDate(selectedDate);
-        
+
         if (endDate < selectedDate) {
           const newEndDate = new Date(selectedDate);
           newEndDate.setDate(newEndDate.getDate() + 1);
@@ -1020,7 +1018,6 @@ export default function SewaFormScreen() {
     if (currentStep < 3) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Submit form dan tampilkan modal sukses
       setShowSuccessModal(true);
     }
   };
@@ -1034,13 +1031,11 @@ export default function SewaFormScreen() {
   };
 
   const handleDocumentUpload = () => {
-    // Simulate document upload
     setDocumentsUploaded(true);
   };
 
   const handleSuccessConfirm = () => {
     setShowSuccessModal(false);
-    // Kembali ke katalog
     router.push('/user/(tabs)/katalog');
   };
 
@@ -1056,15 +1051,15 @@ export default function SewaFormScreen() {
               </Text>
             </View>
 
-            <DateInput 
-              label="Tanggal Mulai" 
-              value={formatDate(startDate)} 
+            <DateInput
+              label="Tanggal Mulai"
+              value={formatDate(startDate)}
               onPress={() => setShowStartPicker(true)}
             />
-            
-            <DateInput 
-              label="Tanggal Selesai" 
-              value={formatDate(endDate)} 
+
+            <DateInput
+              label="Tanggal Selesai"
+              value={formatDate(endDate)}
               onPress={() => setShowEndPicker(true)}
             />
 
@@ -1103,7 +1098,7 @@ export default function SewaFormScreen() {
               value={projectName}
               onChangeText={setProjectName}
             />
-            
+
             <LocationInput
               label="Lokasi Proyek"
               value={projectLocation}
@@ -1112,7 +1107,7 @@ export default function SewaFormScreen() {
               longitude={longitude || undefined}
               address={address}
             />
-            
+
             <ProjectInput
               label="Deskripsi Proyek"
               placeholder="jelaskan kebutuhan dan penggunaan alat berat"
@@ -1128,7 +1123,7 @@ export default function SewaFormScreen() {
         return (
           <>
             <View style={styles.section}>
-              <SummaryCard 
+              <SummaryCard
                 startDate={formatDate(startDate)}
                 endDate={formatDate(endDate)}
                 duration={duration}
@@ -1139,9 +1134,9 @@ export default function SewaFormScreen() {
                 totalCost={totalCost}
               />
             </View>
-            
+
             <View style={styles.section}>
-              <ProjectDetailsCard 
+              <ProjectDetailsCard
                 projectName={projectName}
                 projectLocation={projectLocation}
                 projectDescription={projectDescription}
@@ -1149,11 +1144,11 @@ export default function SewaFormScreen() {
                 longitude={longitude}
               />
             </View>
-            
+
             <View style={styles.section}>
               <DocumentDownloadCard />
             </View>
-            
+
             <View style={styles.section}>
               <DocumentUploadCard onUpload={handleDocumentUpload} />
             </View>
@@ -1175,8 +1170,8 @@ export default function SewaFormScreen() {
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent} 
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -1202,20 +1197,20 @@ export default function SewaFormScreen() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity 
-            style={styles.backButton} 
+          <TouchableOpacity
+            style={styles.backButton}
             onPress={handleBackStep}
           >
             <Text style={styles.buttonText}>
               {currentStep === 1 ? 'Kembali' : 'Kembali'}
             </Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[
               styles.nextButton,
               currentStep === 3 && !isStep3Complete && styles.nextButtonDisabled
-            ]} 
+            ]}
             onPress={handleNextStep}
             disabled={currentStep === 3 && !isStep3Complete}
           >
@@ -1229,14 +1224,12 @@ export default function SewaFormScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Map Modal */}
       <MapModal
         visible={showMapModal}
         onClose={() => setShowMapModal(false)}
         onLocationSelect={handleLocationSelect}
       />
 
-      {/* Success Modal */}
       <Modal
         visible={showSuccessModal}
         transparent={true}
@@ -1249,16 +1242,16 @@ export default function SewaFormScreen() {
             <View style={styles.successIconContainer}>
               <CheckCircle size={64} color={COLORS.orange} />
             </View>
-            
+
             <Text style={styles.successTitle}>
               Terima Kasih!
             </Text>
-            
+
             <Text style={styles.successMessage}>
               Terima kasih sudah memesan. Dokumen anda sudah diajukan, silahkan menunggu admin untuk menerima ajukan anda.
             </Text>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.successButton}
               onPress={handleSuccessConfirm}
             >
@@ -1690,7 +1683,6 @@ const styles = StyleSheet.create({
   nextButtonTextDisabled: {
     color: COLORS.disabledText,
   },
-  // Map Modal Styles yang diperbaiki
   mapModalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1738,7 +1730,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
   },
-  // Success Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
