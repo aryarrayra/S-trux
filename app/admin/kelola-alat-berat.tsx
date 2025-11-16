@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Image } from 'react-native';
-import { Search, Edit2, Trash2, X, Camera, Plus } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Image, Animated } from 'react-native';
+import { Search, Edit2, Trash2, X, Camera, Plus, CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import axios from 'axios';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
@@ -31,6 +33,108 @@ type AlatBerat = {
     foto: string;
 };
 
+// Toast Component - VERSI YANG DIPERBAIKI
+const Toast = ({ visible, message, type, onHide, duration = 4000 }: {
+    visible: boolean;
+    message: string;
+    type: 'success' | 'error' | 'warning';
+    onHide: () => void;
+    duration?: number;
+}) => {
+    const fadeAnim = new Animated.Value(0);
+    const slideAnim = new Animated.Value(-100);
+
+    useEffect(() => {
+        if (visible) {
+            // Animate in
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 300,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(slideAnim, {
+                    toValue: 0,
+                    duration: 300,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+
+            // Auto hide after duration
+            const timer = setTimeout(() => {
+                hideToast();
+            }, duration);
+
+            return () => clearTimeout(timer);
+        }
+    }, [visible]);
+
+    const hideToast = () => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+            Animated.timing(slideAnim, {
+                toValue: -100,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+        ]).start(() => {
+            onHide();
+        });
+    };
+
+    // Fungsi getToastStyle - DIPINDAHKAN KE DALAM KOMPONEN
+    const getToastStyle = () => {
+        switch (type) {
+            case 'success':
+                return styles.successToast;
+            case 'error':
+                return styles.errorToast;
+            case 'warning':
+                return styles.warningToast;
+            default:
+                return styles.successToast;
+        }
+    };
+
+    // Fungsi getIcon - DIPINDAHKAN KE DALAM KOMPONEN
+    const getIcon = () => {
+        switch (type) {
+            case 'success':
+                return <CheckCircle color="#fff" size={24} />;
+            case 'error':
+                return <XCircle color="#fff" size={24} />;
+            case 'warning':
+                return <AlertCircle color="#fff" size={24} />;
+            default:
+                return <CheckCircle color="#fff" size={24} />;
+        }
+    };
+
+    if (!visible) return null;
+
+    return (
+        <Animated.View 
+            style={[
+                styles.toastContainer,
+                getToastStyle(),
+                {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                },
+            ]}
+        >
+            <View style={styles.toastContent}>
+                {getIcon()}
+                <Text style={styles.toastText}>{message}</Text>
+            </View>
+        </Animated.View>
+    );
+};
+
 export default function KelolaAlatBerat() {
     const [searchQuery, setSearchQuery] = useState('');
     const [alatBeratList, setAlatBeratList] = useState<AlatBerat[]>([]);
@@ -43,6 +147,11 @@ export default function KelolaAlatBerat() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Toast states
+    const [toastVisible, setToastVisible] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+    const [toastType, setToastType] = useState<'success' | 'error' | 'warning'>('success');
+
     // Form states
     const [nama_alat, setNamaAlat] = useState('');
     const [jenis, setJenis] = useState('Excavator');
@@ -50,40 +159,130 @@ export default function KelolaAlatBerat() {
     const [deskripsi, setDeskripsi] = useState('');
     const [harga_sewa_per_hari, setHargaSewa] = useState('');
     const [status, setStatus] = useState('Tersedia');
-    const [foto, setFoto] = useState(''); // URL foto setelah upload
-    const [selectedImage, setSelectedImage] = useState<string | null>(null); // Local URI sementara untuk preview
-    const [isUploading, setIsUploading] = useState(false); // State untuk loading upload
+    const [foto, setFoto] = useState('');
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
 
-    // Fetch data dari API dengan field yang sesuai
+    // Base URL untuk API
+    const getBaseUrl = () => {
+        return Platform.OS === 'android' ? 'http://10.0.2.2:8000/api' : 'http://127.0.0.1:8000/api';
+    };
+
+    // Create Axios instance
+    const api = axios.create({
+        baseURL: getBaseUrl(),
+        timeout: 15000,
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+    });
+
+    // Show toast function
+    const showToast = (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+        setToastMessage(message);
+        setToastType(type);
+        setToastVisible(true);
+    };
+
+// Solusi SIMPLE: Simpan URI asli tanpa copy
+const saveImage = async (localUri: string): Promise<string> => {
+    try {
+        // Langsung return URI asli tanpa copy
+        console.log('✅ Using original image URI:', localUri);
+        return localUri;
+        
+    } catch (error) {
+        console.error('❌ Error saving image:', error);
+        return localUri; // Tetap return URI asli meski error
+    }
+};
+
+// Fungsi untuk convert URI ke base64
+const uriToBase64 = async (uri: string): Promise<string> => {
+    try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64 = reader.result as string;
+                resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error('❌ Error converting URI to base64:', error);
+        throw new Error('Gagal mengkonversi gambar');
+    }
+};
+
+// Di dalam pickImage - PERBAIKI
+const pickImage = async () => {
+    try {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            showToast('Izin akses galeri diperlukan', 'error');
+            return;
+        }
+
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 0.7, // Kurangi quality untuk ukuran file lebih kecil
+            base64: true, // IMPORTANT: Enable base64
+        });
+
+        if (!result.canceled && result.assets[0]) {
+            const asset = result.assets[0];
+            setSelectedImage(asset.uri);
+            
+            showToast('Mengkonversi gambar...', 'warning');
+            setIsUploading(true);
+            
+            try {
+                let imageData = asset.uri;
+                
+                // Jika base64 tersedia, gunakan langsung
+                if (asset.base64) {
+                    imageData = `data:image/jpeg;base64,${asset.base64}`;
+                    console.log('✅ Using base64 from ImagePicker');
+                } else {
+                    // Fallback: convert URI ke base64
+                    imageData = await uriToBase64(asset.uri);
+                    console.log('✅ Converted URI to base64');
+                }
+                
+                setFoto(imageData); // Simpan sebagai base64 string
+                showToast('Gambar berhasil dipilih!', 'success');
+            } catch (error) {
+                console.error('❌ Conversion failed:', error);
+                showToast('Gagal mengkonversi gambar', 'error');
+                setSelectedImage(null);
+            } finally {
+                setIsUploading(false);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error picking image:', error);
+        showToast('Gagal memilih gambar', 'error');
+        setIsUploading(false);
+    }
+};
+
+    // Fetch data dari API
     const fetchAlatBerat = async () => {
         setIsLoading(true);
         setError(null);
         try {
             console.log('🔄 Fetching alat berat from API...');
-            // Handle URL untuk emulator: Android gunakan 10.0.2.2, iOS gunakan localhost
-            const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/alat-berat' : 'http://127.0.0.1:8000/api/alat-berat';
-            const response = await fetch(apiUrl, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    // Uncomment jika butuh auth token dari login
-                    // 'Authorization': `Bearer ${token}`,
-                },
-            });
+            const response = await api.get('/alat-berat');
 
-            console.log('📊 Response status:', response.status);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('❌ API Error Body:', errorText);
-                throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
+            const data = response.data;
             console.log('✅ API Response data:', data);
 
-            // Handle struktur response dari Laravel BaseController: {success: true, data: [...], message: '...'}
             let dataArray = [];
             if (data.success && Array.isArray(data.data)) {
                 dataArray = data.data;
@@ -96,7 +295,275 @@ export default function KelolaAlatBerat() {
 
             console.log('📦 Data array to process:', dataArray);
 
-            // Transform data dengan field yang sesuai dari database
+            // Transform data - HANDLE FOTO DENGAN BENAR
+            const transformedData: AlatBerat[] = dataArray.map((item: any) => {
+                let fotoUrl = item.foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400';
+                
+                // Jika foto adalah path lokal, gunakan langsung
+                if (item.foto && item.foto.startsWith('file://')) {
+                    fotoUrl = item.foto;
+                }
+                // Jika foto adalah path assets, gunakan langsung
+                else if (item.foto && item.foto.includes('assets/')) {
+                    fotoUrl = item.foto;
+                }
+
+                return {
+                    id: item.id_alat?.toString() || item.id?.toString() || Math.random().toString(),
+                    nama_alat: item.nama_alat || 'Nama alat tidak tersedia',
+                    jenis: item.jenis || 'Lainnya',
+                    kapasitas: item.kapasitas || '-',
+                    deskripsi: item.deskripsi || 'Deskripsi tidak tersedia',
+                    harga_sewa_per_hari: Number(item.harga_sewa_per_hari) || item.harga_sewa || 0,
+                    status: item.status || 'Tersedia',
+                    foto: fotoUrl,
+                };
+            });
+
+            console.log('🔄 Transformed data:', transformedData);
+            setAlatBeratList(transformedData);
+
+        } catch (error) {
+            console.error('❌ Error fetching alat berat:', error);
+            const errorMessage = axios.isAxiosError(error) 
+                ? error.response?.data?.message || error.message 
+                : 'Terjadi kesalahan saat mengambil data';
+            setError(errorMessage);
+            setAlatBeratList(INITIAL_ALAT_BERAT);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Validasi form
+    const validateForm = (): boolean => {
+        if (!nama_alat.trim()) {
+            showToast('Nama alat harus diisi!', 'error');
+            return false;
+        }
+        if (!jenis.trim()) {
+            showToast('Jenis alat harus dipilih!', 'error');
+            return false;
+        }
+        if (!kapasitas.trim()) {
+            showToast('Kapasitas harus diisi!', 'error');
+            return false;
+        }
+        if (!deskripsi.trim()) {
+            showToast('Deskripsi harus diisi!', 'error');
+            return false;
+        }
+        if (!harga_sewa_per_hari.trim() || isNaN(parseInt(harga_sewa_per_hari)) || parseInt(harga_sewa_per_hari) <= 0) {
+            showToast('Harga sewa harus berupa angka yang valid!', 'error');
+            return false;
+        }
+        if (!status.trim()) {
+            showToast('Status harus dipilih!', 'error');
+            return false;
+        }
+        return true;
+    };
+
+    // HANDLE SAVE - VERSI BARU (simpan path lokal)
+    const handleSave = async () => {
+        if (!validateForm()) return;
+
+        try {
+            const newItemData = {
+                nama_alat: nama_alat.trim(),
+                jenis: jenis.trim(),
+                kapasitas: kapasitas.trim(),
+                deskripsi: deskripsi.trim(),
+                harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
+                status: status,
+                foto: foto, // Simpan path lokal
+            };
+
+            console.log('📤 Saving data:', newItemData);
+            
+            const response = await api.post('/alat-berat', newItemData);
+            console.log('✅ Save response:', response.data);
+
+            // Refresh data
+            await fetchAlatBerat();
+
+            showToast('Data alat berat berhasil ditambahkan! 🎉', 'success');
+            
+            setModalVisible(false);
+            resetForm();
+
+        } catch (error) {
+            console.error('❌ Error saving alat berat:', error);
+            
+            let errorMessage = 'Gagal menambahkan data alat berat';
+            if (axios.isAxiosError(error)) {
+                if (error.response?.data?.message) {
+                    errorMessage = error.response.data.message;
+                }
+                if (error.response?.data?.errors) {
+                    const errors = error.response.data.errors;
+                    const firstError = Object.values(errors)[0];
+                    errorMessage = Array.isArray(firstError) ? firstError[0] : String(firstError);
+                    console.error('Validation errors:', errors);
+                }
+            }
+            
+            showToast(errorMessage, 'error');
+        }
+    };
+
+    // HANDLE UPDATE - VERSI BARU
+    const handleUpdate = async () => {
+        if (!validateForm() || !selectedAlatBerat) return;
+
+        try {
+            const updateData = {
+                nama_alat: nama_alat.trim(),
+                jenis: jenis.trim(),
+                kapasitas: kapasitas.trim(),
+                deskripsi: deskripsi.trim(),
+                harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
+                status: status,
+                foto: foto,
+            };
+
+            console.log('📤 Updating data:', updateData);
+            
+            const response = await api.put(`/alat-berat/${selectedAlatBerat.id}`, updateData);
+            console.log('✅ Update response:', response.data);
+
+            // Refresh data
+            await fetchAlatBerat();
+
+            showToast('Data alat berat berhasil diupdate! ✅', 'success');
+            
+            setModalVisible(false);
+
+        } catch (error) {
+            console.error('❌ Error updating alat berat:', error);
+            
+            let errorMessage = 'Gagal mengupdate data alat berat';
+            if (axios.isAxiosError(error)) {
+                if (error.response?.data?.message) {
+                    errorMessage = error.response.data.message;
+                }
+                if (error.response?.data?.errors) {
+                    const errors = error.response.data.errors;
+                    const firstError = Object.values(errors)[0];
+                    errorMessage = Array.isArray(firstError) ? firstError[0] : String(firstError);
+                    console.error('Validation errors:', errors);
+                }
+            }
+            
+            showToast(errorMessage, 'error');
+        }
+    };
+
+    // Reset form
+    const resetForm = () => {
+        setNamaAlat('');
+        setJenis('Excavator');
+        setKapasitas('');
+        setDeskripsi('');
+        setHargaSewa('');
+        setStatus('Tersedia');
+        setFoto('');
+        setSelectedImage(null);
+        setError(null);
+    };
+
+    const handleEdit = (item: AlatBerat) => {
+        setSelectedAlatBerat(item);
+        setIsAddMode(false);
+        setNamaAlat(item.nama_alat);
+        setJenis(item.jenis);
+        setKapasitas(item.kapasitas);
+        setDeskripsi(item.deskripsi);
+        setHargaSewa(String(item.harga_sewa_per_hari));
+        setStatus(item.status);
+        setFoto(item.foto);
+        setSelectedImage(item.foto);
+        setModalVisible(true);
+    };
+
+    const handleAdd = () => {
+        setSelectedAlatBerat(null);
+        setIsAddMode(true);
+        resetForm();
+        setModalVisible(true);
+    };
+
+    const handleDelete = (item: AlatBerat) => {
+        setSelectedAlatBerat(item);
+        setDeleteModalVisible(true);
+    };
+
+    const handleConfirmDelete = async (confirmed: boolean) => {
+        if (confirmed && selectedAlatBerat) {
+            try {
+                await api.delete(`/alat-berat/${selectedAlatBerat.id}`);
+
+                setAlatBeratList(prev => prev.filter(item => item.id !== selectedAlatBerat.id));
+                
+                showToast('Data alat berat berhasil dihapus! 🗑️', 'success');
+                
+                if (!isAddMode) {
+                    setModalVisible(false);
+                }
+            } catch (error) {
+                console.error('❌ Error deleting alat berat:', error);
+                const errorMessage = axios.isAxiosError(error) 
+                    ? error.response?.data?.message || error.message 
+                    : 'Gagal menghapus data dari server';
+                showToast(errorMessage, 'error');
+            }
+        }
+        setDeleteModalVisible(false);
+        setSelectedAlatBerat(null);
+    };
+
+    const handleCloseModal = () => {
+        setModalVisible(false);
+        setShowStatusDropdown(false);
+        setShowJenisDropdown(false);
+        resetForm();
+    };
+
+    const selectStatus = (selectedStatus: string) => {
+        setStatus(selectedStatus);
+        setShowStatusDropdown(false);
+    };
+
+    const selectJenis = (selectedJenis: string) => {
+        setJenis(selectedJenis);
+        setShowJenisDropdown(false);
+    };
+
+    const handleRefresh = () => {
+        fetchAlatBerat();
+    };
+
+    // Search alat berat
+    const searchAlatBerat = async (query: string) => {
+        if (!query.trim()) {
+            fetchAlatBerat();
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const response = await api.get(`/alat-berat/search?q=${encodeURIComponent(query)}`);
+            const data = response.data;
+            
+            let dataArray = [];
+            if (data.success && Array.isArray(data.data)) {
+                dataArray = data.data;
+            } else if (Array.isArray(data)) {
+                dataArray = data;
+            } else {
+                dataArray = [];
+            }
+
             const transformedData: AlatBerat[] = dataArray.map((item: any) => ({
                 id: item.id_alat?.toString() || item.id?.toString() || Math.random().toString(),
                 nama_alat: item.nama_alat || 'Nama alat tidak tersedia',
@@ -108,92 +575,70 @@ export default function KelolaAlatBerat() {
                 foto: item.foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400',
             }));
 
-            console.log('🔄 Transformed data:', transformedData);
             setAlatBeratList(transformedData);
 
         } catch (error) {
-            console.error('❌ Error fetching alat berat:', error);
-            setError(error instanceof Error ? error.message : 'Terjadi kesalahan saat mengambil data');
-            // Gunakan data fallback
-            setAlatBeratList(INITIAL_ALAT_BERAT);
+            console.error('❌ Error searching alat berat:', error);
+            showToast('Gagal melakukan pencarian', 'error');
+            fetchAlatBerat();
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Request permission untuk image picker
-    const requestPermissions = async () => {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-            Alert.alert('Permission denied', 'Sorry, we need camera roll permissions to make this work!');
-            return false;
-        }
-        return true;
-    };
-
-    // Pick image dari galeri (atau kamera jika diinginkan)
-    const pickImage = async () => {
-        const hasPermission = await requestPermissions();
-        if (!hasPermission) return;
-
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 1,
-        });
-
-        if (!result.canceled) {
-            const localUri = result.assets[0].uri;
-            setSelectedImage(localUri);
-            // Upload image ke server dan dapatkan URL
-            await uploadImage(localUri);
-        }
-    };
-
-    // Fungsi upload image ke backend (asumsi endpoint /upload-foto)
-    const uploadImage = async (localUri: string) => {
-        setIsUploading(true);
+    // Filter by status
+    const filterByStatus = async (status: string) => {
+        setIsLoading(true);
         try {
-            const formData = new FormData();
-            formData.append('foto', {
-                uri: localUri,
-                type: 'image/jpeg', // Sesuaikan dengan tipe image
-                name: 'foto.jpg',
-            } as any);
-
-            const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/upload-foto' : 'http://127.0.0.1:8000/api/upload-foto';
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                    // 'Authorization': `Bearer ${token}`, // Jika butuh auth
-                },
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                const uploadedUrl = result.url || result.data?.url; // Sesuaikan dengan response backend
-                setFoto(uploadedUrl);
-                console.log('✅ Image uploaded:', uploadedUrl);
-                Alert.alert('Sukses', 'Foto berhasil diupload!');
+            const response = await api.get(`/alat-berat/status/${encodeURIComponent(status)}`);
+            const data = response.data;
+            
+            let dataArray = [];
+            if (data.success && Array.isArray(data.data)) {
+                dataArray = data.data;
+            } else if (Array.isArray(data)) {
+                dataArray = data;
             } else {
-                throw new Error('Upload gagal');
+                dataArray = [];
             }
+
+            const transformedData: AlatBerat[] = dataArray.map((item: any) => ({
+                id: item.id_alat?.toString() || item.id?.toString() || Math.random().toString(),
+                nama_alat: item.nama_alat || 'Nama alat tidak tersedia',
+                jenis: item.jenis || 'Lainnya',
+                kapasitas: item.kapasitas || '-',
+                deskripsi: item.deskripsi || 'Deskripsi tidak tersedia',
+                harga_sewa_per_hari: Number(item.harga_sewa_per_hari) || item.harga_sewa || 0,
+                status: item.status || 'Tersedia',
+                foto: item.foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400',
+            }));
+
+            setAlatBeratList(transformedData);
+
         } catch (error) {
-            console.error('❌ Upload error:', error);
-            Alert.alert('Error', 'Gagal mengupload foto. Silakan coba lagi.');
-            setSelectedImage(null);
+            console.error('❌ Error filtering by status:', error);
+            showToast('Gagal memfilter data', 'error');
+            fetchAlatBerat();
         } finally {
-            setIsUploading(false);
+            setIsLoading(false);
         }
     };
 
-    // Fetch data saat component mount
     useEffect(() => {
         fetchAlatBerat();
     }, []);
+
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            if (searchQuery.trim()) {
+                searchAlatBerat(searchQuery);
+            } else {
+                fetchAlatBerat();
+            }
+        }, 500);
+
+        return () => clearTimeout(timeoutId);
+    }, [searchQuery]);
 
     const getCurrentDate = () => {
         const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -227,212 +672,19 @@ export default function KelolaAlatBerat() {
         }).format(number).replace('Rp', 'RP.');
     };
 
-    const handleEdit = (item: AlatBerat) => {
-        setSelectedAlatBerat(item);
-        setIsAddMode(false);
-        setNamaAlat(item.nama_alat);
-        setJenis(item.jenis);
-        setKapasitas(item.kapasitas);
-        setDeskripsi(item.deskripsi);
-        setHargaSewa(String(item.harga_sewa_per_hari));
-        setStatus(item.status);
-        setFoto(item.foto);
-        setSelectedImage(null); // Reset local image
-        setModalVisible(true);
-    };
-
-    const handleAdd = () => {
-        setSelectedAlatBerat(null);
-        setIsAddMode(true);
-        resetForm();
-        setModalVisible(true);
-    };
-
-    const resetForm = () => {
-        setNamaAlat('');
-        setJenis('Excavator');
-        setKapasitas('');
-        setDeskripsi('');
-        setHargaSewa('');
-        setStatus('Tersedia');
-        setFoto('');
-        setSelectedImage(null);
-    };
-
-    const handleDelete = (item: AlatBerat) => {
-        setSelectedAlatBerat(item);
-        setDeleteModalVisible(true);
-    };
-
-    const handleConfirmDelete = async (confirmed: boolean) => {
-        if (confirmed && selectedAlatBerat) {
-            try {
-                console.log('🗑️ Deleting alat berat:', selectedAlatBerat.id);
-                const apiUrl = Platform.OS === 'android' ? `http://10.0.2.2:8000/api/alat-berat/${selectedAlatBerat.id}` : `http://127.0.0.1:8000/api/alat-berat/${selectedAlatBerat.id}`;
-                const response = await fetch(apiUrl, {
-                    method: 'DELETE',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                    },
-                });
-
-                if (response.ok) {
-                    // Hapus dari state lokal
-                    setAlatBeratList(prev => prev.filter(item => item.id !== selectedAlatBerat.id));
-                    console.log('✅ Unit Alat Berat dihapus:', selectedAlatBerat.id);
-                    Alert.alert('Sukses', 'Data berhasil dihapus');
-                    if (!isAddMode) {
-                        setModalVisible(false);
-                    }
-                } else {
-                    throw new Error('Gagal menghapus data');
-                }
-            } catch (error) {
-                console.error('❌ Error deleting alat berat:', error);
-                Alert.alert('Error', 'Gagal menghapus data dari server');
-            }
-        }
-        setDeleteModalVisible(false);
-        setSelectedAlatBerat(null);
-    };
-
-    const validateForm = (): boolean => {
-        if (!nama_alat.trim() || !jenis.trim() || !kapasitas.trim() || !deskripsi.trim() || !harga_sewa_per_hari.trim() || !status.trim()) {
-            Alert.alert('Error', 'Semua field harus diisi dengan benar!');
-            return false;
-        }
-        return true;
-    };
-
-    const handleUpdate = async () => {
-        if (!validateForm()) return;
-        if (selectedAlatBerat) {
-            try {
-                const updateData = {
-                    nama_alat: nama_alat,
-                    jenis: jenis,
-                    kapasitas: kapasitas,
-                    deskripsi: deskripsi,
-                    harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
-                    status: status,
-                    foto: foto, // Gunakan URL yang sudah diupload
-                };
-
-                console.log('📤 Update data:', updateData);
-                const apiUrl = Platform.OS === 'android' ? `http://10.0.2.2:8000/api/alat-berat/${selectedAlatBerat.id}` : `http://127.0.0.1:8000/api/alat-berat/${selectedAlatBerat.id}`;
-                const response = await fetch(apiUrl, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify(updateData),
-                });
-
-                if (response.ok) {
-                    // Update state lokal
-                    setAlatBeratList(prev => prev.map(item =>
-                        item.id === selectedAlatBerat.id
-                            ? {
-                                ...item,
-                                nama_alat,
-                                jenis,
-                                kapasitas,
-                                deskripsi,
-                                harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
-                                status,
-                                foto,
-                            }
-                            : item
-                    ));
-                    console.log('✅ Data diupdate:', selectedAlatBerat.id);
-                    Alert.alert('Sukses', 'Data berhasil diupdate');
-                    setModalVisible(false);
-                } else {
-                    throw new Error('Gagal mengupdate data');
-                }
-            } catch (error) {
-                console.error('❌ Error updating alat berat:', error);
-                Alert.alert('Error', 'Gagal mengupdate data di server');
-            }
-        }
-    };
-
-    const handleSave = async () => {
-        if (!validateForm()) return;
-
-        try {
-            const newItemData = {
-                nama_alat: nama_alat,
-                jenis: jenis,
-                kapasitas: kapasitas,
-                deskripsi: deskripsi,
-                harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
-                status: status,
-                foto: foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400', // Default jika tidak ada foto baru
-            };
-
-            console.log('📤 Save data:', newItemData);
-            const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/alat-berat' : 'http://127.0.0.1:8000/api/alat-berat';
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify(newItemData),
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                console.log('✅ Save result:', result);
-
-                // Refresh data setelah berhasil menambah
-                fetchAlatBerat();
-
-                Alert.alert('Sukses', 'Data berhasil ditambahkan');
-                setModalVisible(false);
-            } else {
-                throw new Error('Gagal menambahkan data');
-            }
-        } catch (error) {
-            console.error('❌ Error adding alat berat:', error);
-            Alert.alert('Error', 'Gagal menambahkan data ke server');
-        }
-    };
-
-    const handleClear = () => {
-        if (selectedAlatBerat) {
-            handleDelete(selectedAlatBerat);
-        }
-    };
-
-    const handleCloseModal = () => {
-        setModalVisible(false);
-        resetForm(); // Reset form saat close
-    };
-
-    const selectStatus = (selectedStatus: string) => {
-        setStatus(selectedStatus);
-        setShowStatusDropdown(false);
-    };
-
-    const selectJenis = (selectedJenis: string) => {
-        setJenis(selectedJenis);
-        setShowJenisDropdown(false);
-    };
-
-    // Refresh data
-    const handleRefresh = () => {
-        fetchAlatBerat();
-    };
-
     return (
         <>
             <Stack.Screen options={{ headerShown: false }} />
             <View style={styles.container}>
                 <SideBar />
+
+                {/* Toast Component */}
+                <Toast
+                    visible={toastVisible}
+                    message={toastMessage}
+                    type={toastType}
+                    onHide={() => setToastVisible(false)}
+                />
 
                 {/* Main Content */}
                 <View style={styles.mainContent}>
@@ -467,6 +719,37 @@ export default function KelolaAlatBerat() {
                             <Text style={styles.addButtonText}>Tambahkan</Text>
                             <Text style={styles.addButtonIcon}>+</Text>
                         </TouchableOpacity>
+                    </View>
+
+                    {/* Filter by Status */}
+                    <View style={styles.filterContainer}>
+                        <Text style={styles.filterLabel}>Filter by Status:</Text>
+                        <View style={styles.filterButtons}>
+                            <TouchableOpacity 
+                                style={styles.filterButton} 
+                                onPress={() => filterByStatus('Tersedia')}
+                            >
+                                <Text style={styles.filterButtonText}>Tersedia</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={styles.filterButton} 
+                                onPress={() => filterByStatus('Disewa')}
+                            >
+                                <Text style={styles.filterButtonText}>Disewa</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={styles.filterButton} 
+                                onPress={() => filterByStatus('Perawatan')}
+                            >
+                                <Text style={styles.filterButtonText}>Perawatan</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={styles.filterButton} 
+                                onPress={fetchAlatBerat}
+                            >
+                                <Text style={styles.filterButtonText}>Semua</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     {/* Debug Info */}
@@ -513,16 +796,22 @@ export default function KelolaAlatBerat() {
                                             {/* Status Badge */}
                                             <View style={[
                                                 styles.statusBadge,
-                                                item.status === 'Tersedia' ? styles.statusAvailable : styles.statusUnavailable
+                                                item.status === 'Tersedia' ? styles.statusAvailable : 
+                                                item.status === 'Disewa' ? styles.statusRented :
+                                                styles.statusMaintenance
                                             ]}>
                                                 <Text style={styles.statusText}>{item.status}</Text>
                                             </View>
 
-                                            {/* Image */}
+                                            {/* Image dengan error handling */}
                                             <Image
                                                 source={{ uri: item.foto }}
                                                 style={styles.cardImage}
-                                                onError={() => console.log('❌ Image load error:', item.foto)}
+                                                onError={(e) => {
+                                                    console.log('❌ Image load error:', item.foto);
+                                                }}
+                                                onLoad={() => console.log('✅ Image loaded:', item.foto)}
+                                                defaultSource={{ uri: 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400' }}
                                             />
 
                                             {/* Content */}
@@ -550,12 +839,20 @@ export default function KelolaAlatBerat() {
                                                         <Text style={styles.priceLabel}>Harga per hari:</Text>
                                                         <Text style={styles.priceValue}>{formatRupiah(item.harga_sewa_per_hari)}</Text>
                                                     </View>
-                                                    <TouchableOpacity
-                                                        style={styles.editIconButton}
-                                                        onPress={() => handleEdit(item)}
-                                                    >
-                                                        <Edit2 color="#FDB022" size={20} />
-                                                    </TouchableOpacity>
+                                                    <View style={styles.actionButtons}>
+                                                        <TouchableOpacity
+                                                            style={styles.editIconButton}
+                                                            onPress={() => handleEdit(item)}
+                                                        >
+                                                            <Edit2 color="#FDB022" size={20} />
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity
+                                                            style={styles.deleteIconButton}
+                                                            onPress={() => handleDelete(item)}
+                                                        >
+                                                            <Trash2 color="#EF4444" size={20} />
+                                                        </TouchableOpacity>
+                                                    </View>
                                                 </View>
                                             </View>
                                         </View>
@@ -664,21 +961,26 @@ export default function KelolaAlatBerat() {
                                                 onPress={pickImage}
                                                 disabled={isUploading}
                                             >
-                                                {selectedImage || foto ? (
-                                                    <Image
-                                                        source={{ uri: selectedImage || foto }}
-                                                        style={styles.previewImage}
-                                                        resizeMode="cover"
-                                                    />
-                                                ) : (
-                                                    <View style={styles.placeholderContainer}>
-                                                        <Camera color="#F59E0B" size={24} />
-                                                        <Text style={styles.placeholderText}>Pilih Foto</Text>
-                                                    </View>
-                                                )}
+                                            {selectedImage ? (
+                                                <Image
+                                                    source={{ 
+                                                        uri: selectedImage.startsWith('data:image') 
+                                                            ? selectedImage  // Jika base64, gunakan langsung
+                                                            : selectedImage  // Jika URI, gunakan URI
+                                                    }}
+                                                    style={styles.previewImage}
+                                                    resizeMode="cover"
+                                                    onError={() => console.log('❌ Preview image error')}
+                                                />
+                                            ) : (
+                                                <View style={styles.placeholderContainer}>
+                                                    <Camera color="#F59E0B" size={24} />
+                                                    <Text style={styles.placeholderText}>Pilih Foto</Text>
+                                                </View>
+                                            )}
                                                 {isUploading && (
                                                     <View style={styles.uploadingOverlay}>
-                                                        <Text style={styles.uploadingText}>Mengupload...</Text>
+                                                        <Text style={styles.uploadingText}>Menyimpan...</Text>
                                                     </View>
                                                 )}
                                             </TouchableOpacity>
@@ -727,7 +1029,7 @@ export default function KelolaAlatBerat() {
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={styles.clearButton}
-                                            onPress={handleClear}
+                                            onPress={() => handleDelete(selectedAlatBerat!)}
                                         >
                                             <Text style={styles.clearButtonText}>Hapus</Text>
                                             <View style={styles.buttonIconContainer}>
@@ -760,10 +1062,16 @@ export default function KelolaAlatBerat() {
                                     <Text style={styles.dropdownText}>Tersedia</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={[styles.dropdownItem, { borderBottomWidth: 0 }]}
-                                    onPress={() => selectStatus('Tidak Tersedia')}
+                                    style={styles.dropdownItem}
+                                    onPress={() => selectStatus('Disewa')}
                                 >
-                                    <Text style={styles.dropdownText}>Tidak Tersedia</Text>
+                                    <Text style={styles.dropdownText}>Disewa</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.dropdownItem, { borderBottomWidth: 0 }]}
+                                    onPress={() => selectStatus('Perawatan')}
+                                >
+                                    <Text style={styles.dropdownText}>Perawatan</Text>
                                 </TouchableOpacity>
                             </View>
                         </TouchableOpacity>
@@ -855,6 +1163,7 @@ export default function KelolaAlatBerat() {
     );
 }
 
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -899,7 +1208,7 @@ const styles = StyleSheet.create({
     },
     searchRow: {
         flexDirection: 'row',
-        marginBottom: 20,
+        marginBottom: 15,
         gap: 15,
     },
     searchContainer: {
@@ -917,6 +1226,32 @@ const styles = StyleSheet.create({
         fontFamily: 'Poppins_400Regular',
         fontSize: 14,
         color: '#333',
+    },
+    filterContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+        gap: 15,
+    },
+    filterLabel: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 14,
+        color: '#333',
+    },
+    filterButtons: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    filterButton: {
+        backgroundColor: '#FDB022',
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 8,
+    },
+    filterButtonText: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 12,
+        color: COLORS.white,
     },
     refreshButton: {
         marginTop: 10,
@@ -1025,9 +1360,12 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
     statusAvailable: {
-        backgroundColor: '#3B82F6',
+        backgroundColor: '#10B981',
     },
-    statusUnavailable: {
+    statusRented: {
+        backgroundColor: '#F59E0B',
+    },
+    statusMaintenance: {
         backgroundColor: '#EF4444',
     },
     statusText: {
@@ -1093,11 +1431,23 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#F59E0B',
     },
+    actionButtons: {
+        flexDirection: 'row',
+        gap: 8,
+    },
     editIconButton: {
         width: 40,
         height: 40,
         borderRadius: 8,
         backgroundColor: '#FFF4E6',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    deleteIconButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 8,
+        backgroundColor: '#FEE2E2',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1413,5 +1763,43 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#999',
         textAlign: 'center',
+    },
+    // Toast Styles
+    toastContainer: {
+        position: 'absolute',
+        top: 50,
+        left: 20,
+        right: 20,
+        padding: 16,
+        borderRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
+        zIndex: 9999,
+    },
+    successToast: {
+        backgroundColor: '#10B981',
+    },
+    errorToast: {
+        backgroundColor: '#EF4444',
+    },
+    warningToast: {
+        backgroundColor: '#F59E0B',
+    },
+    toastContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    toastText: {
+        color: '#fff',
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 14,
+        flex: 1,
     },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,13 +11,24 @@ import {
   Dimensions,
   StatusBar,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { COLORS } from '../../../constants/Colors';
 
-// Product interface and data
+// Product interface berdasarkan struktur AlatBerat
 export interface Product {
+  id_alat: string;
+  nama_alat: string;
+  foto: string;
+  harga_sewa_per_hari: number;
+  status: string;
+  jenis: string;
+  kapasitas?: string;
+  deskripsi?: string;
+  // Fields untuk kompatibilitas dengan UI existing
   id: string;
   name: string;
   image: string;
@@ -29,74 +40,15 @@ export interface Product {
   category: string;
 }
 
-export const products: Product[] = [
-  {
-    id: '1',
-    name: 'Excavator Caterpillar 3200D',
-    image: 'https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/bfea/564f/04fbd48ded688b16d060f50826d834a8?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=qoWqP35~z1Moit1wyhoaXC9dMb7wCHPojQy~l3uuG3Vv32CrSn-ckTaSlAQZIHz6DFi9a8L~L~I0EqqP~OcmUSPgLgqanCQEXIcMoGXW8~cWZpQ1VmtsoPUqHBcgKHLoqTbwYqvbvPyn0WWnMamIvkikbcsXixjIJaUfGIMb8V5-sBDCXMNnyT3eDgLODT5ESYcqcQ1JRIzQRklBtjZxA9oGjcmSshLfiEUkgCjJuZEBWWFPk3FK4jW~eZIub475KF2dM6zSCZ-gv7g~JDJRSmRHf2IPv8KoVZNPFtj18Ox1O30zITQnyGP2jlbdRP1d1NGWV9-25Udfr~miS6D9mQ__',
-    rating: 4.4,
-    location: 'Jakarta',
-    price: 'RP. 800.000/hari',
-    isFavorite: true,
-    isAvailable: true,
-    category: 'Excavator',
-  },
-  {
-    id: '2',
-    name: 'Excavator Hitachiin HZ8900',
-    image: 'https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/bfea/564f/04fbd48ded688b16d060f50826d834a8?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=qoWqP35~z1Moit1wyhoaXC9dMb7wCHPojQy~l3uuG3Vv32CrSn-ckTaSlAQZIHz6DFi9a8L~L~I0EqqP~OcmUSPgLgqanCQEXIcMoGXW8~cWZpQ1VmtsoPUqHBcgKHLoqTbwYqvbvPyn0WWnMamIvkikbcsXixjIJaUfGIMb8V5-sBDCXMNnyT3eDgLODT5ESYcqcQ1JRIzQRklBtjZxA9oGjcmSshLfiEUkgCjJuZEBWWFPk3FK4jW~eZIub475KF2dM6zSCZ-gv7g~JDJRSmRHf2IPv8KoVZNPFtj18Ox1O30zITQnyGP2jlbdRP1d1NGWV9-25Udfr~miS6D9mQ__',
-    rating: 4.0,
-    location: 'Jakarta',
-    price: 'RP. 780.000/hari',
-    isFavorite: false,
-    isAvailable: true,
-    category: 'Excavator',
-  },
-  {
-    id: '3',
-    name: 'Dump Truck Hino D7000',
-    image: 'https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/bfea/564f/04fbd48ded688b16d060f50826d834a8?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=qoWqP35~z1Moit1wyhoaXC9dMb7wCHPojQy~l3uuG3Vv32CrSn-ckTaSlAQZIHz6DFi9a8L~L~I0EqqP~OcmUSPgLgqanCQEXIcMoGXW8~cWZpQ1VmtsoPUqHBcgKHLoqTbwYqvbvPyn0WWnMamIvkikbcsXixjIJaUfGIMb8V5-sBDCXMNnyT3eDgLODT5ESYcqcQ1JRIzQRklBtjZxA9oGjcmSshLfiEUkgCjJuZEBWWFPk3FK4jW~eZIub475KF2dM6zSCZ-gv7g~JDJRSmRHf2IPv8KoVZNPFtj18Ox1O30zITQnyGP2jlbdRP1d1NGWV9-25Udfr~miS6D9mQ__',
-    rating: 4.4,
-    location: 'Jakarta',
-    price: 'RP. 500.000/hari',
-    isFavorite: false,
-    isAvailable: true,
-    category: 'Truck',
-  },
-  {
-    id: '4',
-    name: 'Tower Crane Liebherr',
-    image: 'https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/bfea/564f/04fbd48ded688b16d060f50826d834a8?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=qoWqP35~z1Moit1wyhoaXC9dMb7wCHPojQy~l3uuG3Vv32CrSn-ckTaSlAQZIHz6DFi9a8L~L~I0EqqP~OcmUSPgLgqanCQEXIcMoGXW8~cWZpQ1VmtsoPUqHBcgKHLoqTbwYqvbvPyn0WWnMamIvkikbcsXixjIJaUfGIMb8V5-sBDCXMNnyT3eDgLODT5ESYcqcQ1JRIzQRklBtjZxA9oGjcmSshLfiEUkgCjJuZEBWWFPk3FK4jW~eZIub475KF2dM6zSCZ-gv7g~JDJRSmRHf2IPv8KoVZNPFtj18Ox1O30zITQnyGP2jlbdRP1d1NGWV9-25Udfr~miS6D9mQ__',
-    rating: 4.0,
-    location: 'Jakarta',
-    price: 'RP. 1.500.000/hari',
-    isFavorite: false,
-    isAvailable: false,
-    category: 'Crane',
-  },
-  {
-    id: '5',
-    name: 'Bulldozer Komatsu',
-    image: 'https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/bfea/564f/04fbd48ded688b16d060f50826d834a8?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=qoWqP35~z1Moit1wyhoaXC9dMb7wCHPojQy~l3uuG3Vv32CrSn-ckTaSlAQZIHz6DFi9a8L~L~I0EqqP~OcmUSPgLgqanCQEXIcMoGXW8~cWZpQ1VmtsoPUqHBcgKHLoqTbwYqvbvPyn0WWnMamIvkikbcsXixjIJaUfGIMb8V5-sBDCXMNnyT3eDgLODT5ESYcqcQ1JRIzQRklBtjZxA9oGjcmSshLfiEUkgCjJuZEBWWFPk3FK4jW~eZIub475KF2dM6zSCZ-gv7g~JDJRSmRHf2IPv8KoVZNPFtj18Ox1O30zITQnyGP2jlbdRP1d1NGWV9-25Udfr~miS6D9mQ__',
-    rating: 4.7,
-    location: 'Jakarta',
-    price: 'RP. 780.000/hari',
-    isFavorite: false,
-    isAvailable: true,
-    category: 'Bulldozer',
-  },
-  {
-    id: '6',
-    name: 'Bulldozer LiuGong',
-    image: 'https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/bfea/564f/04fbd48ded688b16d060f50826d834a8?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=qoWqP35~z1Moit1wyhoaXC9dMb7wCHPojQy~l3uuG3Vv32CrSn-ckTaSlAQZIHz6DFi9a8L~L~I0EqqP~OcmUSPgLgqanCQEXIcMoGXW8~cWZpQ1VmtsoPUqHBcgKHLoqTbwYqvbvPyn0WWnMamIvkikbcsXixjIJaUfGIMb8V5-sBDCXMNnyT3eDgLODT5ESYcqcQ1JRIzQRklBtjZxA9oGjcmSshLfiEUkgCjJuZEBWWFPk3FK4jW~eZIub475KF2dM6zSCZ-gv7g~JDJRSmRHf2IPv8KoVZNPFtj18Ox1O30zITQnyGP2jlbdRP1d1NGWV9-25Udfr~miS6D9mQ__',
-    rating: 4.9,
-    location: 'Jakarta',
-    price: 'RP. 1.600.000/hari',
-    isFavorite: false,
-    isAvailable: true,
-    category: 'Bulldozer',
-  },
-];
+// API Response Type
+interface ApiResponse {
+  success: boolean;
+  data: any[];
+  message?: string;
+}
+
+// API Base URL - sesuaikan dengan IP Laravel Anda
+const API_BASE_URL = 'http://192.168.1.6:8000/api';
 
 // Product Card Component
 const { width } = Dimensions.get('window');
@@ -109,6 +61,8 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onToggleFavorite }) => {
+  const [imageError, setImageError] = useState(false);
+
   const handlePress = () => {
     if (product.isAvailable) {
       onPress(product);
@@ -118,6 +72,10 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onToggleFav
   const handleFavoritePress = (e: any) => {
     e.stopPropagation();
     onToggleFavorite(product.id);
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
   };
 
   return (
@@ -132,11 +90,26 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onToggleFav
     >
       {/* Image Section */}
       <View style={styles.imageContainer}>
-        <Image source={{ uri: product.image }} style={styles.image} />
+        {!imageError && product.foto ? (
+          <Image 
+            source={{ uri: product.foto }} 
+            style={styles.image}
+            onError={handleImageError}
+          />
+        ) : (
+          <View style={[styles.image, styles.placeholderImage]}>
+            <MaterialCommunityIcons 
+              name="tools" 
+              size={32} 
+              color={COLORS.textSecondary} 
+            />
+            <Text style={styles.placeholderText}>Alat Berat</Text>
+          </View>
+        )}
         
         {/* Category Badge */}
         <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{product.category}</Text>
+          <Text style={styles.categoryText}>{product.jenis}</Text>
         </View>
         
         {/* Favorite Button */}
@@ -163,7 +136,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onToggleFav
       <View style={styles.infoContainer}>
         {/* Product Name */}
         <Text style={styles.name} numberOfLines={2}>
-          {product.name}
+          {product.nama_alat}
         </Text>
         
         {/* Rating and Location */}
@@ -177,6 +150,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onToggleFav
             <Text style={styles.detailText}>{product.location}</Text>
           </View>
         </View>
+        
+        {/* Kapasitas jika ada */}
+        {product.kapasitas && (
+          <Text style={styles.kapasitasText}>Kapasitas: {product.kapasitas}</Text>
+        )}
         
         {/* Divider */}
         <View style={styles.divider} />
@@ -256,12 +234,171 @@ export default function KatalogScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [productList, setProductList] = useState<Product[]>(products);
+  const [productList, setProductList] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Extract unique categories
-  const categories = Array.from(new Set(products.map(product => product.category)));
+  // Extract unique categories dari product list
+  const categories = Array.from(new Set(productList
+    .map(product => product.jenis)
+    .filter(Boolean)
+  ));
 
-  // Toggle favorite status
+  // Transform data dari API ke format yang diharapkan UI
+  const transformProductData = (apiData: any[]): Product[] => {
+    return apiData.map(item => ({
+      // Data dari API
+      id_alat: item.id_alat?.toString() || item.id?.toString() || Math.random().toString(),
+      nama_alat: item.nama_alat || item.name || 'Nama Alat',
+      foto: item.foto || item.image || '',
+      harga_sewa_per_hari: item.harga_sewa_per_hari || 0,
+      status: item.status || 'Tersedia',
+      jenis: item.jenis || item.category || 'Umum',
+      kapasitas: item.kapasitas,
+      deskripsi: item.deskripsi,
+      
+      // Fields untuk kompatibilitas UI
+      id: item.id_alat?.toString() || item.id?.toString() || Math.random().toString(),
+      name: item.nama_alat || item.name || 'Nama Alat',
+      image: item.foto || item.image || '',
+      rating: 4.5, // Default rating
+      location: 'Jakarta', // Default location
+      price: `Rp ${Number(item.harga_sewa_per_hari || 0).toLocaleString('id-ID')}/hari`,
+      isFavorite: false, // Default not favorite
+      isAvailable: item.status === 'Tersedia',
+      category: item.jenis || item.category || 'Umum'
+    }));
+  };
+
+  // Fetch products dari API AlatBerat
+  const fetchProducts = async () => {
+    try {
+      console.log('🔄 Fetching alat berat from:', `${API_BASE_URL}/alat-berat`);
+      
+      const response = await fetch(`${API_BASE_URL}/alat-berat`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result: ApiResponse = await response.json();
+      console.log('✅ Alat berat fetched successfully:', result.data?.length);
+
+      if (result.success && result.data) {
+        const transformedData = transformProductData(result.data);
+        setProductList(transformedData);
+      } else {
+        Alert.alert('Error', result.message || 'Gagal memuat data alat berat');
+        // Fallback ke data dummy
+        setProductList(getDummyProducts());
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching alat berat:', error);
+      Alert.alert(
+        'Koneksi Gagal', 
+        'Tidak dapat terhubung ke server. Pastikan server Laravel berjalan.'
+      );
+      
+      // Fallback ke data dummy jika fetch gagal
+      setProductList(getDummyProducts());
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Data dummy sebagai fallback
+  const getDummyProducts = (): Product[] => [
+    {
+      id_alat: '1',
+      nama_alat: 'Excavator Caterpillar 3200D',
+      foto: 'https://via.placeholder.com/300x200/4A90E2/FFFFFF?text=Excavator',
+      harga_sewa_per_hari: 800000,
+      status: 'Tersedia',
+      jenis: 'Excavator',
+      kapasitas: '2.5 Ton',
+      deskripsi: 'Excavator dengan kapasitas besar untuk proyek konstruksi',
+      id: '1',
+      name: 'Excavator Caterpillar 3200D',
+      image: 'https://via.placeholder.com/300x200/4A90E2/FFFFFF?text=Excavator',
+      rating: 4.4,
+      location: 'Jakarta',
+      price: 'Rp 800.000/hari',
+      isFavorite: true,
+      isAvailable: true,
+      category: 'Excavator',
+    },
+    {
+      id_alat: '2',
+      nama_alat: 'Dump Truck Hino D7000',
+      foto: 'https://via.placeholder.com/300x200/7ED321/FFFFFF?text=Dump+Truck',
+      harga_sewa_per_hari: 500000,
+      status: 'Tersedia',
+      jenis: 'Truck',
+      kapasitas: '10 Ton',
+      deskripsi: 'Dump truck untuk angkut material berat',
+      id: '2',
+      name: 'Dump Truck Hino D7000',
+      image: 'https://via.placeholder.com/300x200/7ED321/FFFFFF?text=Dump+Truck',
+      rating: 4.2,
+      location: 'Bekasi',
+      price: 'Rp 500.000/hari',
+      isFavorite: false,
+      isAvailable: true,
+      category: 'Truck',
+    },
+    {
+      id_alat: '3',
+      nama_alat: 'Bulldozer Komatsu D65',
+      foto: 'https://via.placeholder.com/300x200/FF6B6B/FFFFFF?text=Bulldozer',
+      harga_sewa_per_hari: 1200000,
+      status: 'Disewa',
+      jenis: 'Bulldozer',
+      kapasitas: '15 Ton',
+      deskripsi: 'Bulldozer untuk pekerjaan tanah',
+      id: '3',
+      name: 'Bulldozer Komatsu D65',
+      image: 'https://via.placeholder.com/300x200/FF6B6B/FFFFFF?text=Bulldozer',
+      rating: 4.7,
+      location: 'Tangerang',
+      price: 'Rp 1.200.000/hari',
+      isFavorite: false,
+      isAvailable: false,
+      category: 'Bulldozer',
+    },
+    {
+      id_alat: '4',
+      nama_alat: 'Crane Liebherr LTM 1100',
+      foto: 'https://via.placeholder.com/300x200/9B59B6/FFFFFF?text=Crane',
+      harga_sewa_per_hari: 2500000,
+      status: 'Tersedia',
+      jenis: 'Crane',
+      kapasitas: '100 Ton',
+      deskripsi: 'Crane mobile untuk angkat beban berat',
+      id: '4',
+      name: 'Crane Liebherr LTM 1100',
+      image: 'https://via.placeholder.com/300x200/9B59B6/FFFFFF?text=Crane',
+      rating: 4.8,
+      location: 'Jakarta',
+      price: 'Rp 2.500.000/hari',
+      isFavorite: true,
+      isAvailable: true,
+      category: 'Crane',
+    },
+  ];
+
+  // Load data saat component mount
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  // Pull to refresh
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchProducts();
+  };
+
+  // Toggle favorite status (local only untuk sekarang)
   const handleToggleFavorite = (productId: string) => {
     setProductList(prevProducts => 
       prevProducts.map(product => 
@@ -274,8 +411,8 @@ export default function KatalogScreen() {
 
   // Filter products based on search, category, and favorites
   const filteredProducts = productList.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'Semua' || product.category === selectedCategory;
+    const matchesSearch = product.nama_alat.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'Semua' || product.jenis === selectedCategory;
     const matchesFavorites = !showFavoritesOnly || product.isFavorite;
     
     return matchesSearch && matchesCategory && matchesFavorites;
@@ -286,14 +423,35 @@ export default function KatalogScreen() {
       router.push({
         pathname: '/user/formsewa',
         params: {
-          productId: product.id,
-          productName: product.name,
-          productImage: product.image,
+          productId: product.id_alat,
+          productName: product.nama_alat,
+          productImage: product.foto,
           productPrice: product.price,
+          productCategory: product.jenis,
+          hargaSewa: product.harga_sewa_per_hari.toString(),
+          kapasitas: product.kapasitas || '',
+          deskripsi: product.deskripsi || '',
         }
       });
+    } else {
+      Alert.alert(
+        'Tidak Tersedia',
+        `Alat berat ${product.nama_alat} sedang tidak tersedia untuk disewa.`
+      );
     }
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Memuat alat berat...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -303,6 +461,7 @@ export default function KatalogScreen() {
         translucent={false}
       />
       
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
           <Text style={styles.logoText}>ST</Text>
@@ -315,7 +474,7 @@ export default function KatalogScreen() {
         <View style={styles.searchInputWrapper}>
           <MaterialIcons name="search" size={20} color={COLORS.textSecondary} style={styles.searchIcon} />
           <TextInput
-            placeholder="cari kebutuhan anda..."
+            placeholder="cari alat berat..."
             placeholderTextColor={COLORS.textSecondary}
             style={styles.searchInput}
             value={searchQuery}
@@ -338,19 +497,26 @@ export default function KatalogScreen() {
       </View>
 
       {/* Category Filter */}
-      <CategoryFilter
-        categories={categories}
-        selectedCategory={selectedCategory}
-        onSelectCategory={setSelectedCategory}
-      />
+      {categories.length > 0 && (
+        <CategoryFilter
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+        />
+      )}
 
       {/* Results Info */}
       <View style={styles.resultsInfo}>
         <Text style={styles.resultsText}>
-          Menampilkan {filteredProducts.length} produk
+          Menampilkan {filteredProducts.length} alat berat
           {selectedCategory !== 'Semua' && ` dalam kategori ${selectedCategory}`}
           {showFavoritesOnly && ' favorit'}
         </Text>
+        
+        {/* Refresh Button */}
+        <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
+          <MaterialIcons name="refresh" size={16} color={COLORS.primary} />
+        </TouchableOpacity>
       </View>
 
       {/* Products List */}
@@ -363,14 +529,26 @@ export default function KatalogScreen() {
             onToggleFavorite={handleToggleFavorite}
           />
         )}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id_alat}
         numColumns={2}
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={[
+          styles.listContainer,
+          filteredProducts.length === 0 && styles.emptyListContainer
+        ]}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <MaterialCommunityIcons name="magnify" size={48} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>Tidak ada produk yang ditemukan</Text>
+            <Text style={styles.emptyText}>
+              {loading ? 'Memuat...' : 'Tidak ada alat berat yang ditemukan'}
+            </Text>
+            {!loading && (
+              <TouchableOpacity onPress={fetchProducts} style={styles.retryButton}>
+                <Text style={styles.retryText}>Coba Lagi</Text>
+              </TouchableOpacity>
+            )}
           </View>
         }
       />
@@ -480,6 +658,9 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
   resultsInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     marginBottom: 12,
   },
@@ -487,10 +668,17 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
     fontSize: 12,
     color: COLORS.textSecondary,
+    flex: 1,
+  },
+  refreshButton: {
+    padding: 4,
   },
   listContainer: {
     paddingHorizontal: 12,
     paddingBottom: 20,
+  },
+  emptyListContainer: {
+    flexGrow: 1,
   },
   emptyContainer: {
     flex: 1,
@@ -505,8 +693,32 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: 'center',
   },
+  retryButton: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+  },
+  retryText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+    color: COLORS.white,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  loadingText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 12,
+  },
   
-  // Product Card Styles - IMPROVED
+  // Product Card Styles
   card: {
     width: cardWidth,
     backgroundColor: COLORS.white,
@@ -529,6 +741,18 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+    backgroundColor: COLORS.lightGray,
+  },
+  placeholderImage: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  placeholderText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    marginTop: 4,
   },
   categoryBadge: {
     position: 'absolute',
@@ -582,13 +806,13 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     lineHeight: 16,
     marginBottom: 8,
-    height: 32, // Untuk 2 baris
+    height: 32,
   },
   detailsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   detailItem: {
     flexDirection: 'row',
@@ -601,6 +825,12 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginLeft: 4,
     lineHeight: 12,
+  },
+  kapasitasText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
   },
   divider: {
     height: 1,

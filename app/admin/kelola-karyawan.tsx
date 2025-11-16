@@ -1,38 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Search, Edit2, Trash2, X, Check, Calendar } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
 
-// Mock data fallback
+// Mock data fallback sesuai struktur database
 const INITIAL_EMPLOYEES = [
     {
-        id: '1',
-        namaLengkap: 'Argara Bhumi Tara',
+        id_petugas: '1',
+        nama_petugas: 'Argara Bhumi Tara',
         role: 'Karyawan',
-        noTelp: '0823487322123',
+        no_telp: '0823487322123',
         email: 'Argar2187@gmail.com',
+        tempat_lahir: 'Jakarta',
+        tanggal_lahir: '1999-10-17',
+        alamat: 'Jl. Mawar III Jakarta Pusat',
+        status: 'aktif'
     },
     {
-        id: '2',
-        namaLengkap: 'Budi Santoso',
-        role: 'Karyawan',
-        noTelp: '0812345678901',
+        id_petugas: '2',
+        nama_petugas: 'Budi Santoso',
+        role: 'Petugas',
+        no_telp: '0812345678901',
         email: 'budi.santoso@gmail.com',
+        tempat_lahir: 'Bandung',
+        tanggal_lahir: '1995-05-15',
+        alamat: 'Jl. Merdeka No. 123 Bandung',
+        status: 'aktif'
     },
 ];
 
 type Employee = {
-    id: string;
-    namaLengkap: string;
+    id_petugas: string;
+    nama_petugas: string;
     role: string;
-    noTelp: string;
+    no_telp: string;
     email: string;
-    tempatLahir?: string;
-    tanggalLahir?: string;
+    tempat_lahir?: string;
+    tanggal_lahir?: string;
     alamat?: string;
+    status?: string;
 };
 
 interface ApiResponse {
@@ -49,27 +57,29 @@ export default function KelolaKaryawan() {
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
     const [isAddMode, setIsAddMode] = useState(false);
     const [showRoleDropdown, setShowRoleDropdown] = useState(false);
-    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showStatusDropdown, setShowStatusDropdown] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     // Form states
-    const [namaLengkap, setNamaLengkap] = useState('');
+    const [nama_petugas, setNamaPetugas] = useState('');
     const [email, setEmail] = useState('');
-    const [tempatLahir, setTempatLahir] = useState('');
+    const [tempat_lahir, setTempatLahir] = useState('');
     const [alamat, setAlamat] = useState('');
-    const [tanggalLahir, setTanggalLahir] = useState('');
-    const [date, setDate] = useState(new Date());
-    const [noTelp, setNoTelp] = useState('');
+    const [tanggal_lahir, setTanggalLahir] = useState('');
+    const [no_telp, setNoTelp] = useState('');
     const [role, setRole] = useState('Karyawan');
+    const [status, setStatus] = useState('aktif'); // Default ke 'aktif'
+
+    const API_BASE = 'http://localhost:8000/api';
 
     // Fetch data dari API
     const fetchEmployees = async () => {
         setIsLoading(true);
         setError(null);
         try {
-            console.log('Fetching employees from API...');
-            const response = await fetch('http://127.0.0.1:8000/api/petugas', {
+            console.log('🔄 Fetching employees from API...');
+            const response = await fetch(`${API_BASE}/petugas`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -77,33 +87,36 @@ export default function KelolaKaryawan() {
                 },
             });
 
-            console.log('Response status:', response.status);
+            console.log('📡 Response status:', response.status);
 
             if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ Server response:', errorText);
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const data: ApiResponse = await response.json();
-            console.log('API Response:', data);
+            console.log('✅ API Response:', data);
 
             if (data.success && data.data) {
-                // Transform data dari API ke format yang sesuai
+                // Transform data dari API ke format yang sesuai dengan struktur database
                 const transformedData: Employee[] = data.data.map((item: any) => ({
-                    id: item.id?.toString() || Math.random().toString(),
-                    namaLengkap: item.nama_petugas || item.nama_petugas || 'Nama tidak tersedia',
-                    role: item.role || item.jabatan || 'Karyawan',
-                    noTelp: item.no_telp || item.telepon || item.phone || 'Tidak ada telepon',
+                    id_petugas: item.id_petugas?.toString() || Math.random().toString(),
+                    nama_petugas: item.nama_petugas || 'Nama tidak tersedia',
+                    role: item.role || 'Karyawan',
+                    no_telp: item.no_telp || 'Tidak ada telepon',
                     email: item.email || 'Email tidak tersedia',
-                    tempatLahir: item.tempat_lahir || item.tempatLahir || '',
-                    tanggalLahir: item.tanggal_lahir || item.tanggalLahir || '',
+                    tempat_lahir: item.tempat_lahir || '',
+                    tanggal_lahir: item.tanggal_lahir || '',
                     alamat: item.alamat || '',
+                    status: item.status || 'aktif'
                 }));
                 setEmployees(transformedData);
             } else {
                 throw new Error(data.message || 'Gagal mengambil data petugas');
             }
         } catch (error) {
-            console.error('Error fetching employees:', error);
+            console.error('❌ Error fetching employees:', error);
             setError(error instanceof Error ? error.message : 'Terjadi kesalahan saat mengambil data');
             // Tetap gunakan data fallback
             setEmployees(INITIAL_EMPLOYEES);
@@ -136,41 +149,81 @@ export default function KelolaKaryawan() {
 
     const currentDate = getCurrentDate();
 
-    // Format date ke DD/MM/YYYY
-    const formatDate = (dateObj: Date) => {
-        return dateObj.toLocaleDateString('id-ID', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        });
+    // Format date ke YYYY-MM-DD untuk database
+    const formatDateForDB = (dateString: string) => {
+        if (!dateString) return '';
+        // Jika date string sudah dalam format YYYY-MM-DD, return langsung
+        if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            return dateString;
+        }
+        // Convert dari DD/MM/YYYY ke YYYY-MM-DD
+        const parts = dateString.split('/');
+        if (parts.length === 3) {
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return dateString;
     };
 
-    // Update tanggalLahir string saat date berubah
-    const onDateChange = (event: any, selectedDate?: Date) => {
-        const currentDate = selectedDate || date;
-        setShowDatePicker(Platform.OS === 'ios');
-        setDate(currentDate);
-        setTanggalLahir(formatDate(currentDate));
+    // Format date ke DD/MM/YYYY untuk display
+    const formatDateForDisplay = (dateString: string) => {
+        if (!dateString) return '';
+        try {
+            // Jika format sudah YYYY-MM-DD
+            if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('id-ID', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+            }
+            return dateString;
+        } catch (error) {
+            return '';
+        }
+    };
+
+    // Format date ke YYYY-MM-DD untuk input type="date"
+    const formatDateForInput = (dateString: string) => {
+        if (!dateString) return '';
+        try {
+            // Jika format sudah YYYY-MM-DD, return langsung
+            if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                return dateString;
+            }
+            // Convert dari DD/MM/YYYY ke YYYY-MM-DD
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+            // Coba parse sebagai Date object
+            const date = new Date(dateString);
+            if (!isNaN(date.getTime())) {
+                return date.toISOString().split('T')[0];
+            }
+            return '';
+        } catch (error) {
+            return '';
+        }
     };
 
     const filteredEmployees = employees.filter(employee =>
-        employee.namaLengkap.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        employee.nama_petugas.toLowerCase().includes(searchQuery.toLowerCase()) ||
         employee.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        employee.noTelp.includes(searchQuery)
+        employee.no_telp.includes(searchQuery)
     );
 
     const handleEdit = (employee: Employee) => {
         setSelectedEmployee(employee);
         setIsAddMode(false);
-        setNamaLengkap(employee.namaLengkap);
+        setNamaPetugas(employee.nama_petugas);
         setEmail(employee.email);
-        setTempatLahir(employee.tempatLahir || '');
+        setTempatLahir(employee.tempat_lahir || '');
         setAlamat(employee.alamat || '');
-        const parsedDate = employee.tanggalLahir ? new Date(employee.tanggalLahir.split('/').reverse().join('-')) : new Date();
-        setDate(parsedDate);
-        setTanggalLahir(employee.tanggalLahir || '');
-        setNoTelp(employee.noTelp);
+        setTanggalLahir(employee.tanggal_lahir || '');
+        setNoTelp(employee.no_telp);
         setRole(employee.role || 'Karyawan');
+        setStatus(employee.status || 'aktif'); // Default ke 'aktif'
         setModalVisible(true);
     };
 
@@ -182,15 +235,14 @@ export default function KelolaKaryawan() {
     };
 
     const resetForm = () => {
-        setNamaLengkap('');
+        setNamaPetugas('');
         setEmail('');
         setTempatLahir('');
         setAlamat('');
-        const defaultDate = new Date();
-        setDate(defaultDate);
         setTanggalLahir('');
         setNoTelp('');
         setRole('Karyawan');
+        setStatus('aktif'); // Reset ke 'aktif'
     };
 
     const handleDelete = (employee: Employee) => {
@@ -202,7 +254,7 @@ export default function KelolaKaryawan() {
         if (confirmed && selectedEmployee) {
             try {
                 // Delete dari API
-                const response = await fetch(`http://127.0.0.1:8000/api/petugas/${selectedEmployee.id}`, {
+                const response = await fetch(`${API_BASE}/petugas/${selectedEmployee.id_petugas}`, {
                     method: 'DELETE',
                     headers: {
                         'Accept': 'application/json',
@@ -212,14 +264,16 @@ export default function KelolaKaryawan() {
 
                 if (response.ok) {
                     // Hapus dari state lokal
-                    setEmployees(prev => prev.filter(emp => emp.id !== selectedEmployee.id));
-                    console.log('Karyawan dihapus:', selectedEmployee.id);
+                    setEmployees(prev => prev.filter(emp => emp.id_petugas !== selectedEmployee.id_petugas));
+                    console.log('✅ Karyawan dihapus:', selectedEmployee.id_petugas);
                     Alert.alert('Sukses', 'Data berhasil dihapus');
                 } else {
+                    const errorText = await response.text();
+                    console.error('❌ Server response:', errorText);
                     throw new Error('Gagal menghapus data');
                 }
             } catch (error) {
-                console.error('Error deleting employee:', error);
+                console.error('❌ Error deleting employee:', error);
                 Alert.alert('Error', 'Gagal menghapus data dari server');
             }
         }
@@ -228,10 +282,26 @@ export default function KelolaKaryawan() {
     };
 
     const validateForm = (): boolean => {
-        if (!namaLengkap.trim() || !email.trim() || !tempatLahir.trim() || !alamat.trim() || !tanggalLahir.trim() || !noTelp.trim() || !role.trim()) {
-            Alert.alert('Error', 'Semua field harus diisi!');
+        if (!nama_petugas.trim()) {
+            Alert.alert('Error', 'Nama lengkap harus diisi!');
             return false;
         }
+        if (!email.trim()) {
+            Alert.alert('Error', 'Email harus diisi!');
+            return false;
+        }
+        if (!no_telp.trim()) {
+            Alert.alert('Error', 'Nomor telepon harus diisi!');
+            return false;
+        }
+        
+        // Validasi email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            Alert.alert('Error', 'Format email tidak valid!');
+            return false;
+        }
+        
         return true;
     };
 
@@ -240,16 +310,19 @@ export default function KelolaKaryawan() {
         if (selectedEmployee) {
             try {
                 const updateData = {
-                    nama: namaLengkap,
+                    nama_petugas: nama_petugas,
                     email: email,
-                    tempat_lahir: tempatLahir,
+                    tempat_lahir: tempat_lahir,
                     alamat: alamat,
-                    tanggal_lahir: tanggalLahir,
-                    no_telp: noTelp,
+                    tanggal_lahir: formatDateForDB(tanggal_lahir),
+                    no_telp: no_telp,
                     role: role,
+                    status: status, // Sudah dalam format 'aktif'/'nonaktif'
                 };
 
-                const response = await fetch(`http://127.0.0.1:8000/api/petugas/${selectedEmployee.id}`, {
+                console.log('📤 Data update yang dikirim:', updateData);
+
+                const response = await fetch(`${API_BASE}/petugas/${selectedEmployee.id_petugas}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -258,31 +331,48 @@ export default function KelolaKaryawan() {
                     body: JSON.stringify(updateData),
                 });
 
-                if (response.ok) {
-                    // Update state lokal
-                    setEmployees(prev => prev.map(emp =>
-                        emp.id === selectedEmployee.id
-                            ? {
-                                ...emp,
-                                namaLengkap,
-                                email,
-                                tempatLahir,
-                                alamat,
-                                tanggalLahir,
-                                noTelp,
-                                role,
-                            }
-                            : emp
-                    ));
-                    console.log('Data diupdate:', selectedEmployee.id);
-                    Alert.alert('Sukses', 'Data berhasil diupdate');
-                    setModalVisible(false);
-                } else {
-                    throw new Error('Gagal mengupdate data');
+                console.log('📡 Response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Server response:', errorText);
+                    let errorMessage = `HTTP error! status: ${response.status}`;
+                    
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        errorMessage = errorData.message || errorMessage;
+                    } catch (e) {
+                        errorMessage = errorText || errorMessage;
+                    }
+                    
+                    throw new Error(errorMessage);
                 }
+
+                const result = await response.json();
+                console.log('✅ Response data:', result);
+                
+                // Update state lokal
+                setEmployees(prev => prev.map(emp =>
+                    emp.id_petugas === selectedEmployee.id_petugas
+                        ? {
+                            ...emp,
+                            nama_petugas,
+                            email,
+                            tempat_lahir,
+                            alamat,
+                            tanggal_lahir: formatDateForDB(tanggal_lahir),
+                            no_telp,
+                            role,
+                            status,
+                        }
+                        : emp
+                ));
+                console.log('✅ Data diupdate:', selectedEmployee.id_petugas);
+                Alert.alert('Sukses', 'Data berhasil diupdate');
+                setModalVisible(false);
             } catch (error) {
-                console.error('Error updating employee:', error);
-                Alert.alert('Error', 'Gagal mengupdate data di server');
+                console.error('💥 Error updating employee:', error);
+                Alert.alert('Error', error instanceof Error ? error.message : 'Gagal mengupdate data di server');
             }
         }
     };
@@ -292,16 +382,19 @@ export default function KelolaKaryawan() {
 
         try {
             const newEmployeeData = {
-                nama: namaLengkap,
+                nama_petugas: nama_petugas,
                 email: email,
-                tempat_lahir: tempatLahir,
+                tempat_lahir: tempat_lahir,
                 alamat: alamat,
-                tanggal_lahir: tanggalLahir,
-                no_telp: noTelp,
+                tanggal_lahir: formatDateForDB(tanggal_lahir),
+                no_telp: no_telp,
                 role: role,
+                status: status, // Sudah dalam format 'aktif'/'nonaktif'
             };
 
-            const response = await fetch('http://127.0.0.1:8000/api/petugas', {
+            console.log('📤 Data yang dikirim:', newEmployeeData);
+
+            const response = await fetch(`${API_BASE}/petugas`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -310,29 +403,45 @@ export default function KelolaKaryawan() {
                 body: JSON.stringify(newEmployeeData),
             });
 
-            if (response.ok) {
-                const result = await response.json();
-                // Tambahkan ke state lokal
-                const newEmployee: Employee = {
-                    id: result.data?.id || String(employees.length + 1),
-                    namaLengkap,
-                    email,
-                    tempatLahir,
-                    alamat,
-                    tanggalLahir,
-                    noTelp,
-                    role,
-                };
-                setEmployees(prev => [...prev, newEmployee]);
-                console.log('Data baru ditambahkan:', newEmployee);
-                Alert.alert('Sukses', 'Data berhasil ditambahkan');
-                setModalVisible(false);
-            } else {
-                throw new Error('Gagal menambahkan data');
+            console.log('📡 Response status:', response.status);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ Server response:', errorText);
+                let errorMessage = `HTTP error! status: ${response.status}`;
+                
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = errorData.message || errorMessage;
+                } catch (e) {
+                    errorMessage = errorText || errorMessage;
+                }
+                
+                throw new Error(errorMessage);
             }
+
+            const result = await response.json();
+            console.log('✅ Response data:', result);
+            
+            // Tambahkan ke state lokal
+            const newEmployee: Employee = {
+                id_petugas: result.data?.id_petugas || String(employees.length + 1),
+                nama_petugas,
+                email,
+                tempat_lahir,
+                alamat,
+                tanggal_lahir: formatDateForDB(tanggal_lahir),
+                no_telp,
+                role,
+                status,
+            };
+            setEmployees(prev => [...prev, newEmployee]);
+            console.log('✅ Data baru ditambahkan:', newEmployee);
+            Alert.alert('Sukses', 'Data berhasil ditambahkan');
+            setModalVisible(false);
         } catch (error) {
-            console.error('Error adding employee:', error);
-            Alert.alert('Error', 'Gagal menambahkan data ke server');
+            console.error('💥 Error adding employee:', error);
+            Alert.alert('Error', error instanceof Error ? error.message : 'Gagal menambahkan data ke server');
         }
     };
 
@@ -350,9 +459,22 @@ export default function KelolaKaryawan() {
         setShowRoleDropdown(false);
     };
 
+    // Handler untuk pilih status dari dropdown - PERBAIKAN DI SINI
+    const selectStatus = (selectedStatus: string) => {
+        // Simpan dalam format yang sesuai database ('aktif'/'nonaktif')
+        const dbStatus = selectedStatus === 'Aktif' ? 'aktif' : 'nonaktif';
+        setStatus(dbStatus);
+        setShowStatusDropdown(false);
+    };
+
     // Refresh data
     const handleRefresh = () => {
         fetchEmployees();
+    };
+
+    // Helper untuk menampilkan status di UI
+    const getStatusDisplay = (statusValue: string) => {
+        return statusValue === 'aktif' ? 'Aktif' : 'Nonaktif';
     };
 
     return (
@@ -431,15 +553,18 @@ export default function KelolaKaryawan() {
                                         <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Email</Text>
                                     </View>
                                     <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.8 }]}>
+                                        <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Status</Text>
+                                    </View>
+                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.8 }]}>
                                         <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Aksi</Text>
                                     </View>
                                 </View>
 
                                 {/* Table Body */}
                                 {filteredEmployees.map((employee, index) => (
-                                    <View key={employee.id} style={styles.tableRow}>
+                                    <View key={employee.id_petugas} style={styles.tableRow}>
                                         <View style={[styles.tableCell, { flex: 1.5, backgroundColor: '#F5EFE7', alignItems: 'flex-start' }]}>
-                                            <Text style={styles.employeeName}>{employee.namaLengkap}</Text>
+                                            <Text style={styles.employeeName}>{employee.nama_petugas}</Text>
                                         </View>
 
                                         <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
@@ -447,11 +572,22 @@ export default function KelolaKaryawan() {
                                         </View>
 
                                         <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
-                                            <Text style={styles.employeePhone}>{employee.noTelp}</Text>
+                                            <Text style={styles.employeePhone}>{employee.no_telp}</Text>
                                         </View>
 
                                         <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1.5, backgroundColor: '#F5EFE7' }]}>
                                             <Text style={styles.employeeEmail}>{employee.email}</Text>
+                                        </View>
+
+                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8, backgroundColor: '#F5EFE7' }]}>
+                                            <View style={[
+                                                styles.statusBadge,
+                                                employee.status === 'aktif' ? styles.statusActive : styles.statusInactive
+                                            ]}>
+                                                <Text style={styles.statusText}>
+                                                    {getStatusDisplay(employee.status || 'aktif')}
+                                                </Text>
+                                            </View>
                                         </View>
 
                                         <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8, backgroundColor: '#F5EFE7' }]}>
@@ -503,17 +639,17 @@ export default function KelolaKaryawan() {
                                 <View style={styles.formContainer}>
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Nama Lengkap</Text>
+                                            <Text style={styles.label}>Nama Lengkap *</Text>
                                             <TextInput
                                                 style={styles.input}
-                                                value={namaLengkap}
-                                                onChangeText={setNamaLengkap}
+                                                value={nama_petugas}
+                                                onChangeText={setNamaPetugas}
                                                 placeholder="Eggy Johns"
                                                 placeholderTextColor="#999"
                                             />
                                         </View>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Email</Text>
+                                            <Text style={styles.label}>Email *</Text>
                                             <TextInput
                                                 style={styles.input}
                                                 value={email}
@@ -521,6 +657,7 @@ export default function KelolaKaryawan() {
                                                 placeholder="Eggy10@gmail.com"
                                                 placeholderTextColor="#999"
                                                 keyboardType="email-address"
+                                                autoCapitalize="none"
                                             />
                                         </View>
                                     </View>
@@ -530,7 +667,7 @@ export default function KelolaKaryawan() {
                                             <Text style={styles.label}>Tempat Lahir</Text>
                                             <TextInput
                                                 style={styles.input}
-                                                value={tempatLahir}
+                                                value={tempat_lahir}
                                                 onChangeText={setTempatLahir}
                                                 placeholder="Jakarta"
                                                 placeholderTextColor="#999"
@@ -553,24 +690,33 @@ export default function KelolaKaryawan() {
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>Tanggal Lahir</Text>
-                                            {/* Manual Input with Optional Picker */}
-                                            <View style={styles.dateInputContainer}>
-                                                <TextInput
-                                                    style={[styles.input, { flex: 1, paddingRight: 10 }]}
-                                                    value={tanggalLahir}
-                                                    onChangeText={setTanggalLahir}
-                                                    placeholder="17/10/1999"
-                                                    placeholderTextColor="#999"
-                                                    keyboardType="numeric"
+                                            {/* Solusi terbaik untuk date input */}
+                                            <View style={styles.dateInputWrapper}>
+                                                <input
+                                                    type="date"
+                                                    value={formatDateForInput(tanggal_lahir)}
+                                                    onChange={(e) => setTanggalLahir(e.target.value)}
+                                                    style={styles.webDateInput}
+                                                    max={new Date().toISOString().split('T')[0]}
                                                 />
-                                                <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-                                                    <Calendar color="#F59E0B" size={20} />
-                                                </TouchableOpacity>
                                             </View>
                                         </View>
                                         <View style={styles.formGroup}>
+                                            <Text style={styles.label}>No. Telp *</Text>
+                                            <TextInput
+                                                style={styles.input}
+                                                value={no_telp}
+                                                onChangeText={setNoTelp}
+                                                placeholder="0172631291286821"
+                                                placeholderTextColor="#999"
+                                                keyboardType="phone-pad"
+                                            />
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.formRow}>
+                                        <View style={styles.formGroup}>
                                             <Text style={styles.label}>Role</Text>
-                                            {/* Custom Dropdown untuk Role */}
                                             <TouchableOpacity
                                                 style={styles.selectInput}
                                                 onPress={() => setShowRoleDropdown(true)}
@@ -579,36 +725,21 @@ export default function KelolaKaryawan() {
                                                 <Text style={styles.selectArrow}>▼</Text>
                                             </TouchableOpacity>
                                         </View>
-                                    </View>
-
-                                    <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>No. Telp</Text>
-                                            <TextInput
-                                                style={styles.input}
-                                                value={noTelp}
-                                                onChangeText={setNoTelp}
-                                                placeholder="0172631291286821"
-                                                placeholderTextColor="#999"
-                                                keyboardType="phone-pad"
-                                            />
+                                            <Text style={styles.label}>Status</Text>
+                                            <TouchableOpacity
+                                                style={styles.selectInput}
+                                                onPress={() => setShowStatusDropdown(true)}
+                                            >
+                                                <Text style={styles.selectText}>
+                                                    {getStatusDisplay(status)}
+                                                </Text>
+                                                <Text style={styles.selectArrow}>▼</Text>
+                                            </TouchableOpacity>
                                         </View>
-                                        <View style={styles.formGroup} />
                                     </View>
                                 </View>
                             </ScrollView>
-
-                            {/* DateTimePicker */}
-                            {showDatePicker && (
-                                <DateTimePicker
-                                    testID="dateTimePicker"
-                                    value={date}
-                                    mode="date"
-                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                    onChange={onDateChange}
-                                    maximumDate={new Date()}
-                                />
-                            )}
 
                             {/* Footer Modal - Buttons */}
                             <View style={styles.modalFooter}>
@@ -641,35 +772,70 @@ export default function KelolaKaryawan() {
                             </View>
                         </View>
                     </View>
+                </Modal>
 
-                    {/* Custom Modal untuk Dropdown Role */}
-                    <Modal
-                        animationType="fade"
-                        transparent={true}
-                        visible={showRoleDropdown}
-                        onRequestClose={() => setShowRoleDropdown(false)}
+                {/* Custom Modal untuk Dropdown Role */}
+                <Modal
+                    animationType="fade"
+                    transparent={true}
+                    visible={showRoleDropdown}
+                    onRequestClose={() => setShowRoleDropdown(false)}
+                >
+                    <TouchableOpacity
+                        style={styles.dropdownOverlay}
+                        activeOpacity={1}
+                        onPress={() => setShowRoleDropdown(false)}
                     >
-                        <TouchableOpacity
-                            style={styles.dropdownOverlay}
-                            activeOpacity={1}
-                            onPress={() => setShowRoleDropdown(false)}
-                        >
-                            <View style={styles.dropdownContent}>
-                                <TouchableOpacity
-                                    style={styles.dropdownItem}
-                                    onPress={() => selectRole('Karyawan')}
-                                >
-                                    <Text style={styles.dropdownText}>Karyawan</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.dropdownItem}
-                                    onPress={() => selectRole('Petugas')}
-                                >
-                                    <Text style={styles.dropdownText}>Petugas</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </TouchableOpacity>
-                    </Modal>
+                        <View style={styles.dropdownContent}>
+                            <TouchableOpacity
+                                style={styles.dropdownItem}
+                                onPress={() => selectRole('Karyawan')}
+                            >
+                                <Text style={styles.dropdownText}>Karyawan</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.dropdownItem}
+                                onPress={() => selectRole('Petugas')}
+                            >
+                                <Text style={styles.dropdownText}>Petugas</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.dropdownItem}
+                                onPress={() => selectRole('Admin')}
+                            >
+                                <Text style={styles.dropdownText}>Admin</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
+
+                {/* Custom Modal untuk Dropdown Status */}
+                <Modal
+                    animationType="fade"
+                    transparent={true}
+                    visible={showStatusDropdown}
+                    onRequestClose={() => setShowStatusDropdown(false)}
+                >
+                    <TouchableOpacity
+                        style={styles.dropdownOverlay}
+                        activeOpacity={1}
+                        onPress={() => setShowStatusDropdown(false)}
+                    >
+                        <View style={styles.dropdownContent}>
+                            <TouchableOpacity
+                                style={styles.dropdownItem}
+                                onPress={() => selectStatus('Aktif')}
+                            >
+                                <Text style={styles.dropdownText}>Aktif</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.dropdownItem}
+                                onPress={() => selectStatus('Nonaktif')}
+                            >
+                                <Text style={styles.dropdownText}>Nonaktif</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </TouchableOpacity>
                 </Modal>
 
                 {/* Delete Confirmation Modal */}
@@ -904,6 +1070,22 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: COLORS.darkGray,
     },
+    statusBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+    },
+    statusActive: {
+        backgroundColor: '#DCFCE7',
+    },
+    statusInactive: {
+        backgroundColor: '#FEE2E2',
+    },
+    statusText: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 12,
+        color: COLORS.darkGray,
+    },
     actionButtons: {
         flexDirection: 'row',
         gap: 8,
@@ -973,13 +1155,16 @@ const styles = StyleSheet.create({
     },
     formContainer: {
         gap: 20,
+        width: '100%',
     },
     formRow: {
         flexDirection: 'row',
         gap: 20,
+        width: '100%',
     },
     formGroup: {
         flex: 1,
+        minWidth: 0, // Penting untuk mencegah overflow
     },
     label: {
         fontFamily: 'Poppins_500Medium',
@@ -997,16 +1182,24 @@ const styles = StyleSheet.create({
         fontFamily: 'Poppins_400Regular',
         fontSize: 13,
         color: COLORS.darkGray,
+        width: '100%',
     },
-    dateInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    // Solusi terbaik untuk date input
+    dateInputWrapper: {
+        width: '100%',
+    },
+    webDateInput: {
+        width: '100%',
+        padding: '12px 15px',
+        border: '1.5px solid #F59E0B',
+        borderRadius: '8px',
+        fontSize: '13px',
+        fontFamily: 'Poppins, sans-serif',
+        color: COLORS.darkGray,
         backgroundColor: COLORS.white,
-        borderWidth: 1.5,
-        borderColor: '#F59E0B',
-        borderRadius: 8,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
+        minHeight: '48px',
+        boxSizing: 'border-box',
+        outline: 'none',
     },
     textArea: {
         minHeight: 80,
@@ -1022,6 +1215,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        width: '100%',
     },
     selectText: {
         fontFamily: 'Poppins_400Regular',
@@ -1083,7 +1277,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: COLORS.white,
     },
-    // Styles baru untuk Custom Dropdown
+    // Styles untuk Custom Dropdown
     dropdownOverlay: {
         flex: 1,
         justifyContent: 'center',

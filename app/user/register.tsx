@@ -1,3 +1,4 @@
+// screens/RegisterScreen.tsx
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -24,34 +25,42 @@ const COLORS = {
   yellow: '#FDCB41',
 };
 
-// Type untuk form state
 type FormState = {
+  email: string;
   username: string;
   password: string;
-  email: string;
-  fullName: string;
-  companyName: string;
-  companyAddress: string;
+  confirmPassword: string;
+  full_name: string;
+  company_name: string;
+  company_address: string;
   phone: string;
-  idCardNumber: string;
+  id_card_number: string;
 };
+
+const API_BASE_URL = 'http://192.168.1.6:8000/api';
 
 export default function RegisterScreen() {
   const [formState, setFormState] = useState<FormState>({
+    email: '',
     username: '',
     password: '',
-    email: '',
-    fullName: '',
-    companyName: '',
-    companyAddress: '',
+    confirmPassword: '',
+    full_name: '',
+    company_name: '',
+    company_address: '',
     phone: '',
-    idCardNumber: '',
+    id_card_number: '',
   });
   const [idCardFileName, setIdCardFileName] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState<string>('');
 
   const handleInputChange = (name: keyof FormState, value: string): void => {
     setFormState((prevState) => ({ ...prevState, [name]: value }));
+    
+    if (name === 'password' || name === 'confirmPassword') {
+      setPasswordError('');
+    }
   };
 
   const handlePickDocument = (): void => {
@@ -59,31 +68,68 @@ export default function RegisterScreen() {
     setIdCardFileName('KTP_1234567890.jpg');
   };
 
-  const handleRegister = async (): Promise<void> => {
-    if (!formState.username.trim() || !formState.password.trim() || !formState.email.trim()) {
-      Alert.alert('Error', 'Harap isi semua field yang wajib diisi');
-      return;
+  const validateForm = (): boolean => {
+    if (!formState.email.trim() || 
+        !formState.username.trim() || 
+        !formState.password.trim() || 
+        !formState.confirmPassword.trim() || 
+        !formState.full_name.trim()) {
+      Alert.alert('Error', 'Semua field yang wajib diisi harus dilengkapi');
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formState.email)) {
+      Alert.alert('Error', 'Format email tidak valid');
+      return false;
     }
 
     if (formState.password.length < 6) {
       Alert.alert('Error', 'Password harus minimal 6 karakter');
-      return;
+      return false;
     }
+
+    if (formState.password !== formState.confirmPassword) {
+      setPasswordError('Password dan Confirm Password tidak sama');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleRegister = async (): Promise<void> => {
+    if (!validateForm()) return;
 
     setIsLoading(true);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      if (formState.username && formState.password.length >= 6 && formState.email) {
-        console.log('User registration successful');
+      const { confirmPassword, ...submitData } = formState;
+
+      const response = await fetch(`${API_BASE_URL}/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(submitData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        Alert.alert('Sukses', 'Registrasi berhasil!');
         router.replace('/user/dashboarduser');
       } else {
-        Alert.alert('Registrasi Gagal', 'Harap periksa kembali data yang dimasukkan');
-        setIsLoading(false);
+        Alert.alert('Error', data.message || 'Registrasi gagal');
       }
-    } catch (error) {
-      Alert.alert('Error', 'Terjadi kesalahan saat registrasi');
+
+    } catch (error: any) {
+      console.error('Error:', error);
+      Alert.alert(
+        'Koneksi Gagal', 
+        'Tidak bisa terhubung ke server. Pastikan server berjalan dan koneksi internet stabil.'
+      );
+    } finally {
       setIsLoading(false);
     }
   };
@@ -95,18 +141,28 @@ export default function RegisterScreen() {
   const renderInput = (
     label: string, 
     name: keyof FormState, 
-    props?: any
+    props?: any,
+    isRequired: boolean = false
   ) => (
     <View style={styles.inputWrapper}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.label}>
+        {label} {isRequired && <Text style={styles.required}>*</Text>}
+      </Text>
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          name === 'company_address' && styles.textArea,
+          passwordError && (name === 'password' || name === 'confirmPassword') && styles.inputError
+        ]}
         value={formState[name]}
         onChangeText={(val: string) => handleInputChange(name, val)}
         placeholderTextColor="#978D8D"
         editable={!isLoading}
         {...props}
       />
+      {passwordError && (name === 'confirmPassword') && (
+        <Text style={styles.errorText}>{passwordError}</Text>
+      )}
     </View>
   );
 
@@ -117,9 +173,7 @@ export default function RegisterScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          // Hilangkan keyboardDismissMode agar tidak ada conflict
         >
-          {/* Header Section */}
           <View style={styles.headerContainer}>
             <Text style={styles.title}>Welcome!</Text>
             <Text style={styles.subtitle}>
@@ -127,40 +181,61 @@ export default function RegisterScreen() {
             </Text>
           </View>
 
-          {/* Form Section */}
           <View style={styles.formContainer}>
-            {renderInput('Username', 'username', { 
-              autoCapitalize: 'none',
-              returnKeyType: 'next'
-            })}
-            {renderInput('Password', 'password', { 
-              secureTextEntry: true,
-              returnKeyType: 'next'
-            })}
             {renderInput('Email', 'email', { 
               keyboardType: 'email-address',
               autoCapitalize: 'none',
-              returnKeyType: 'next'
-            })}
-            {renderInput('Full Name', 'fullName', {
-              returnKeyType: 'next'
-            })}
-            {renderInput('Company Name', 'companyName', {
-              returnKeyType: 'next'
-            })}
-            {renderInput('Company Address', 'companyAddress', {
-              returnKeyType: 'next'
-            })}
-            {renderInput('Phone Number', 'phone', { 
-              keyboardType: 'phone-pad',
-              returnKeyType: 'next'
-            })}
-            {renderInput('ID Card Number', 'idCardNumber', {
-              keyboardType: 'number-pad',
-              returnKeyType: 'done'
+              returnKeyType: 'next',
+              placeholder: 'contoh@email.com'
+            }, true)}
+
+            {renderInput('Username', 'username', { 
+              autoCapitalize: 'none',
+              returnKeyType: 'next',
+              placeholder: 'Masukkan username'
+            }, true)}
+
+            {renderInput('Password', 'password', { 
+              secureTextEntry: true,
+              returnKeyType: 'next',
+              placeholder: 'Minimal 6 karakter'
+            }, true)}
+
+            {renderInput('Confirm Password', 'confirmPassword', { 
+              secureTextEntry: true,
+              returnKeyType: 'next',
+              placeholder: 'Ketik ulang password'
+            }, true)}
+
+            {renderInput('Full Name', 'full_name', {
+              returnKeyType: 'next',
+              placeholder: 'Nama lengkap'
+            }, true)}
+
+            {renderInput('Company Name', 'company_name', {
+              returnKeyType: 'next',
+              placeholder: 'Nama perusahaan (opsional)'
             })}
 
-            {/* File Input untuk ID Card */}
+            {renderInput('Company Address', 'company_address', {
+              multiline: true,
+              numberOfLines: 4,
+              returnKeyType: 'next',
+              placeholder: 'Alamat perusahaan (opsional)',
+            })}
+
+            {renderInput('Phone Number', 'phone', { 
+              keyboardType: 'phone-pad',
+              returnKeyType: 'next',
+              placeholder: 'Nomor telepon (opsional)'
+            })}
+
+            {renderInput('ID Card Number', 'id_card_number', {
+              keyboardType: 'number-pad',
+              returnKeyType: 'done',
+              placeholder: 'Nomor KTP (opsional)'
+            })}
+
             <View style={styles.inputWrapper}>
               <Text style={styles.label}>ID Card Photo</Text>
               <TouchableOpacity 
@@ -177,10 +252,8 @@ export default function RegisterScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Spacer untuk beri ruang di bawah */}
             <View style={styles.spacer} />
 
-            {/* Register Button */}
             <TouchableOpacity 
               style={[
                 styles.registerButton,
@@ -196,7 +269,6 @@ export default function RegisterScreen() {
               )}
             </TouchableOpacity>
 
-            {/* Login Link */}
             <TouchableOpacity 
               style={styles.loginContainer}
               onPress={handleLogin}
@@ -207,7 +279,6 @@ export default function RegisterScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Extra spacer untuk pastikan cukup ruang */}
             <View style={styles.extraSpacer} />
           </View>
         </ScrollView>
@@ -254,9 +325,9 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
     paddingTop: 40,
-    paddingBottom: 60, // Tambah padding bottom lebih banyak
+    paddingBottom: 60,
     paddingHorizontal: 25,
-    minHeight: 800, // Fixed height yang cukup
+    minHeight: 800,
   },
   inputWrapper: {
     marginBottom: 20,
@@ -266,6 +337,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#FFFFFF',
     marginBottom: 8,
+  },
+  required: {
+    color: '#FF4757',
   },
   input: {
     backgroundColor: 'rgba(243, 159, 41, 0.25)',
@@ -277,6 +351,19 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
     fontSize: 14,
     color: '#FFFFFF',
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  inputError: {
+    borderColor: '#FF4757',
+  },
+  errorText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: '#FF4757',
+    marginTop: 4,
   },
   fileInput: {
     backgroundColor: 'rgba(243, 159, 41, 0.25)',
