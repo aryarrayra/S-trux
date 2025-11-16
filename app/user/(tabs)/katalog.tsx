@@ -17,6 +17,7 @@ import {
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { COLORS } from '../../../constants/Colors';
+import {API_BASE_URL} from '../../../constants/ApiConfig';
 
 // Product interface berdasarkan struktur AlatBerat
 export interface Product {
@@ -48,7 +49,6 @@ interface ApiResponse {
 }
 
 // API Base URL - sesuaikan dengan IP Laravel Anda
-const API_BASE_URL = 'http://192.168.1.6:8000/api';
 
 // Product Card Component
 const { width } = Dimensions.get('window');

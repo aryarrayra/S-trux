@@ -4,8 +4,8 @@ import { Search, Edit2, Trash2, X, Camera, Plus, CheckCircle, XCircle, AlertCirc
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import axios from 'axios';
-import { COLORS } from '@/constants/Colors';
-import SideBar from '@/components/admin/SideBar';
+import { COLORS } from '../../constants/Colors';
+import SideBar from '../../components/admin/SideBar';
 import { Stack } from 'expo-router';
 
 // Mock data untuk Alat Berat (fallback)
