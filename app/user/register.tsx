@@ -12,6 +12,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
+import {API_BASE_URL} from '../../constants/ApiConfig';
+
 
 const COLORS = {
   primary: '#F39F29',
@@ -36,8 +38,6 @@ type FormState = {
   phone: string;
   id_card_number: string;
 };
-
-const API_BASE_URL = 'http://192.168.1.6:8000/api';
 
 export default function RegisterScreen() {
   const [formState, setFormState] = useState<FormState>({

@@ -16,6 +16,8 @@ import {
 } from 'react-native';
 import { User, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { API_BASE_URL } from '../../constants/ApiConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { height, width } = Dimensions.get('window');
 
@@ -47,37 +49,118 @@ export default function UserLoginScreen() {
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password harus minimal 6 karakter');
-      return;
-    }
-
     setIsLoading(true);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('🔵 Sending login request to:', `${API_BASE_URL}/user/login`);
       
-      if (username && password.length >= 6) {
-        console.log('User login successful');
+      const response = await fetch(`${API_BASE_URL}/user/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          username: username.trim(),
+          password: password.trim(),
+        }),
+      });
+
+      console.log('🟡 Response status:', response.status);
+      console.log('🟡 Response ok:', response.ok);
+      
+      // Baca response sebagai text dulu untuk melihat apa yang sebenarnya dikembalikan
+      const rawResponse = await response.text();
+      console.log('🟡 Raw response:', rawResponse);
+      
+      // Coba parse JSON, jika gagal kita tahu masalahnya
+      let data;
+      try {
+        data = JSON.parse(rawResponse);
+        console.log('🟢 JSON parse successful:', data);
+      } catch (parseError) {
+        console.log('🔴 JSON parse error:', parseError.message);
+        
+        // Jika response mengandung HTML, kemungkinan 404 atau server error
+        if (rawResponse.includes('<!DOCTYPE') || rawResponse.includes('<html')) {
+          throw new Error('Server mengembalikan halaman HTML. Endpoint mungkin tidak ditemukan (404).');
+        } else if (rawResponse.includes('Not Found') || response.status === 404) {
+          throw new Error('Endpoint login tidak ditemukan (404). Periksa route di Laravel.');
+        } else {
+          throw new Error(`Format response tidak valid: ${rawResponse.substring(0, 100)}`);
+        }
+      }
+
+      // Jika sampai sini, JSON parse berhasil
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      // Jika login berhasil
+      if (data.success) {
+        console.log('✅ User login successful');
+        console.log('📦 Data received:', data.data);
+        
+        // SIMPAN DATA USER KE ASYNC STORAGE
+        try {
+          // Simpan token jika ada
+          if (data.data.token) {
+            await AsyncStorage.setItem('userToken', data.data.token);
+            console.log('💾 Token saved');
+          }
+          
+          // Simpan user data
+          if (data.data.user) {
+            await AsyncStorage.setItem('userData', JSON.stringify(data.data.user));
+            console.log('💾 User data saved:', data.data.user);
+          }
+          
+          // Simpan pelanggan data
+          if (data.data.pelanggan) {
+            await AsyncStorage.setItem('pelangganData', JSON.stringify(data.data.pelanggan));
+            console.log('💾 Pelanggan data saved:', data.data.pelanggan);
+          }
+          
+          // Simpan semua data untuk backup
+          await AsyncStorage.setItem('loginResponse', JSON.stringify(data.data));
+          console.log('💾 All login data saved');
+          
+        } catch (storageError) {
+          console.log('🔴 Error saving to storage:', storageError);
+          throw new Error('Gagal menyimpan data login');
+        }
         
         setIsTransitioning(true);
         
-        // Fade out seluruh container login
         Animated.timing(containerAnim, {
           toValue: 0,
           duration: 200,
           useNativeDriver: true,
         }).start(() => {
-          // Setelah login view menghilang, mulai animasi titik oranye
           startOrangeAnimation();
         });
         
       } else {
-        Alert.alert('Login Gagal', 'Username atau password salah');
+        Alert.alert('Login Gagal', data.message || 'Username atau password salah');
         setIsLoading(false);
       }
     } catch (error) {
-      Alert.alert('Error', 'Terjadi kesalahan saat login');
+      console.log('🔴 Login error:', error.message);
+      
+      if (error.message.includes('HTML') || error.message.includes('404')) {
+        Alert.alert(
+          'Endpoint Tidak Ditemukan', 
+          'Pastikan route login sudah ditambahkan di routes/api.php:\n\nRoute::post("/user/login", [PelangganController::class, "login"]);'
+        );
+      } else if (error.message.includes('Network request failed')) {
+        Alert.alert(
+          'Koneksi Gagal', 
+          `Tidak dapat terhubung ke server.\n\nPastikan:\n1. URL API benar: ${API_BASE_URL}\n2. Server Laravel berjalan\n3. Koneksi internet stabil`
+        );
+      } else {
+        Alert.alert('Error', error.message || 'Terjadi kesalahan saat login');
+      }
+      
       setIsLoading(false);
     }
   };
@@ -85,9 +168,7 @@ export default function UserLoginScreen() {
   const startOrangeAnimation = () => {
     // Animasi titik kecil -> membesar memenuhi layar -> fade out
     Animated.sequence([
-      // Zoom in dan fade out bersamaan
       Animated.parallel([
-        // Zoom in dari titik kecil ke besar
         Animated.timing(orangeAnim, {
           toValue: 1,
           duration: 800,
@@ -118,12 +199,12 @@ export default function UserLoginScreen() {
   // Interpolasi untuk animasi titik oranye
   const orangeEllipseScale = orangeAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, Math.max(width, height) * 2], // Dari titik kecil -> sangat besar
+    outputRange: [0, Math.max(width, height) * 2],
   });
 
   const orangeEllipseOpacity = orangeAnim.interpolate({
     inputRange: [0, 0.7, 1],
-    outputRange: [1, 0.8, 0], // Tetap terlihat -> mulai fade out -> hilang
+    outputRange: [1, 0.8, 0],
   });
 
   return (
@@ -182,7 +263,7 @@ export default function UserLoginScreen() {
                       style={styles.input}
                       value={username}
                       onChangeText={setUsername}
-                      placeholder=""
+                      placeholder="Masukkan username"
                       placeholderTextColor={COLORS.lightGray}
                       autoCapitalize="none"
                       autoComplete="username"
@@ -205,7 +286,7 @@ export default function UserLoginScreen() {
                       value={password}
                       onChangeText={setPassword}
                       secureTextEntry={!showPassword}
-                      placeholder=""
+                      placeholder="Masukkan password"
                       placeholderTextColor={COLORS.lightGray}
                       editable={!isLoading && !isTransitioning}
                       returnKeyType="done"
@@ -292,15 +373,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
-  // Animasi Titik Oranye
   orangeEllipse: {
     position: 'absolute',
-    width: 1, // Mulai dari titik sangat kecil
+    width: 1,
     height: 1,
     borderRadius: 0.5,
     backgroundColor: '#F39F29',
     alignSelf: 'center',
-    top: height / 2, // Posisi di tengah layar
+    top: height / 2,
     left: width / 2,
     zIndex: 10,
   },

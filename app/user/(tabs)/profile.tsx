@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   Image,
   TouchableOpacity,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,34 +24,10 @@ import {
   LogOut,
 } from 'lucide-react-native';
 import { COLORS } from '../../../constants/Colors';
-
-const profileInfo = [
-  {
-    icon: User,
-    label: 'Nama Lengkap',
-    value: 'Acong Jayaraya',
-  },
-  {
-    icon: Mail,
-    label: 'Email',
-    value: 'acongjayaraya98@gmail.com',
-  },
-  {
-    icon: Phone,
-    label: 'Nomor Telepon',
-    value: '08791827216729',
-  },
-  {
-    icon: Building2,
-    label: 'Perusahaan',
-    value: 'PT Acong Makmur Jayaraya',
-  },
-  {
-    icon: MapPin,
-    label: 'Alamat',
-    value: 'Bekasi, Jawa Barat',
-  },
-];
+import { API_BASE_URL } from '../../../constants/ApiConfig';
+import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 
 const InfoRow = ({
   icon: Icon,
@@ -66,14 +44,186 @@ const InfoRow = ({
     </View>
     <View>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+      <Text style={styles.infoValue}>{value || '-'}</Text>
     </View>
   </View>
 );
 
 export default function ProfileScreen() {
+  const [userData, setUserData] = useState(null);
+  const [pelangganData, setPelangganData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [profileInfo, setProfileInfo] = useState([]);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Refresh data ketika screen focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadProfileData();
+    }, [])
+  );
+
+  useEffect(() => {
+    loadProfileData();
+  }, []);
+
+  const loadProfileData = async () => {
+    try {
+      setIsLoading(true);
+      
+      console.log('🔄 Loading profile data...');
+      
+      // AMBIL DATA DARI ASYNC STORAGE
+      const storedUserData = await AsyncStorage.getItem('userData');
+      const storedPelangganData = await AsyncStorage.getItem('pelangganData');
+      
+      console.log('📦 Stored User Data:', storedUserData);
+      console.log('📦 Stored Pelanggan Data:', storedPelangganData);
+
+      let user = null;
+      let pelanggan = null;
+
+      if (storedUserData) {
+        user = JSON.parse(storedUserData);
+        setUserData(user);
+      }
+
+      if (storedPelangganData) {
+        pelanggan = JSON.parse(storedPelangganData);
+        setPelangganData(pelanggan);
+      }
+
+      // UPDATE PROFILE INFO DENGAN DATA REAL
+      const updatedProfileInfo = [
+        {
+          icon: User,
+          label: 'Nama Lengkap',
+          value: pelanggan?.nama_pelanggan || user?.name || 'Tidak ada data',
+        },
+        {
+          icon: Mail,
+          label: 'Email',
+          value: user?.email || pelanggan?.email || 'Tidak ada data',
+        },
+        {
+          icon: Phone,
+          label: 'Nomor Telepon',
+          value: pelanggan?.no_telp || 'Tidak ada data',
+        },
+        {
+          icon: Building2,
+          label: 'Perusahaan',
+          value: pelanggan?.company_name || 'Tidak ada data',
+        },
+        {
+          icon: MapPin,
+          label: 'Alamat',
+          value: pelanggan?.alamat || 'Tidak ada data',
+        },
+      ];
+      
+      setProfileInfo(updatedProfileInfo);
+      
+      console.log('✅ Profile data loaded successfully');
+      console.log('👤 User:', user);
+      console.log('🏢 Pelanggan:', pelanggan);
+      
+    } catch (error) {
+      console.log('🔴 Error loading profile data:', error);
+      // Fallback ke mock data jika error
+      setProfileInfo(getMockProfileInfo());
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Refresh data manually
+  const refreshData = () => {
+    setRefreshKey(prev => prev + 1);
+    loadProfileData();
+  };
+
+  // Fallback mock data
+  const getMockProfileInfo = () => [
+    {
+      icon: User,
+      label: 'Nama Lengkap',
+      value: 'Data tidak tersedia',
+    },
+    {
+      icon: Mail,
+      label: 'Email',
+      value: 'Data tidak tersedia',
+    },
+    {
+      icon: Phone,
+      label: 'Nomor Telepon',
+      value: 'Data tidak tersedia',
+    },
+    {
+      icon: Building2,
+      label: 'Perusahaan',
+      value: 'Data tidak tersedia',
+    },
+    {
+      icon: MapPin,
+      label: 'Alamat',
+      value: 'Data tidak tersedia',
+    },
+  ];
+
+  const handleEditProfile = () => {
+    router.push({
+      pathname: '/user/editprofile',
+      params: { onGoBack: 'refresh' } // Kirim parameter untuk trigger refresh
+    });
+  };
+
+  const handleTermsAndConditions = () => {
+    router.push('/user/termsandconditions');
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Konfirmasi Logout',
+      'Apakah Anda yakin ingin keluar?',
+      [
+        {
+          text: 'Batal',
+          style: 'cancel',
+        },
+        {
+          text: 'Keluar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // HAPUS SEMUA DATA DARI STORAGE
+              await AsyncStorage.multiRemove(['userToken', 'userData', 'pelangganData']);
+              console.log('✅ Data cleared from storage');
+              router.replace('/user/login');
+            } catch (error) {
+              console.log('🔴 Logout error:', error);
+              router.replace('/user/login');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Memuat data profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']} key={refreshKey}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.logoContainer}>
@@ -107,15 +257,23 @@ export default function ProfileScreen() {
                   <Camera size={11} color={COLORS.black} />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.profileName}>Acong Jayaraya</Text>
-              <Text style={styles.profileEmail}>acongjay98@gmail.com</Text>
+              <Text style={styles.profileName}>
+                {pelangganData?.nama_pelanggan || userData?.name || 'Pengguna'}
+              </Text>
+              <Text style={styles.profileEmail}>
+                {userData?.email || pelangganData?.email || 'email@example.com'}
+              </Text>
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>10</Text>
+                  <Text style={styles.statValue}>
+                    {pelangganData?.total_sewa || '0'}
+                  </Text>
                   <Text style={styles.statLabel}>total sewa</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={[styles.statValue, { color: COLORS.historyCompleted }]}>2,780</Text>
+                  <Text style={[styles.statValue, { color: COLORS.historyCompleted }]}>
+                    {pelangganData?.poin || '0'}
+                  </Text>
                   <Text style={styles.statLabel}>poin</Text>
                 </View>
               </View>
@@ -126,18 +284,26 @@ export default function ProfileScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>Informasi profil</Text>
-              <TouchableOpacity style={styles.editButton}>
+              <TouchableOpacity 
+                style={styles.editButton} 
+                onPress={handleEditProfile}
+              >
                 <Edit size={16} color={COLORS.primary} />
                 <Text style={styles.editText}>edit</Text>
               </TouchableOpacity>
             </View>
             {profileInfo.map((item, index) => (
-              <InfoRow key={index} icon={item.icon} label={item.label} value={item.value} />
+              <InfoRow 
+                key={index} 
+                icon={item.icon} 
+                label={item.label} 
+                value={item.value} 
+              />
             ))}
           </View>
 
           {/* T&C Card */}
-          <TouchableOpacity style={styles.card}>
+          <TouchableOpacity style={styles.card} onPress={handleTermsAndConditions}>
             <View style={styles.tncRow}>
               <View style={styles.infoIconContainer}>
                 <FileText size={24} color={COLORS.white} />
@@ -150,8 +316,16 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
 
+          {/* Refresh Button */}
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={refreshData}
+          >
+            <Text style={styles.refreshText}>Refresh Data</Text>
+          </TouchableOpacity>
+
           {/* Logout Button */}
-          <TouchableOpacity style={styles.logoutButton}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <LogOut size={14} color={COLORS.historyCancelled} />
             <Text style={styles.logoutText}>Keluar</Text>
           </TouchableOpacity>
@@ -167,6 +341,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: COLORS.black,
+    marginTop: 10,
   },
   header: {
     paddingHorizontal: 20,
@@ -222,7 +407,7 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     borderWidth: 3,
-    borderColor: '#29F3C0', // This color is from figma but not in constants
+    borderColor: '#29F3C0',
   },
   cameraButton: {
     position: 'absolute',
@@ -342,6 +527,18 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
     fontSize: 10,
     color: COLORS.black,
+  },
+  refreshButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  refreshText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: COLORS.white,
   },
   logoutButton: {
     backgroundColor: COLORS.cancelledButtonBg,
