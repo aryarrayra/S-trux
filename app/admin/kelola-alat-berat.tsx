@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Image, Animated } from 'react-native';
 import { Search, Edit2, Trash2, X, Camera, Plus, CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import axios from 'axios';
 import { COLORS } from '../../constants/Colors';
 import SideBar from '../../components/admin/SideBar';
@@ -117,7 +116,7 @@ const Toast = ({ visible, message, type, onHide, duration = 4000 }: {
     if (!visible) return null;
 
     return (
-        <Animated.View 
+        <Animated.View
             style={[
                 styles.toastContainer,
                 getToastStyle(),
@@ -159,8 +158,10 @@ export default function KelolaAlatBerat() {
     const [deskripsi, setDeskripsi] = useState('');
     const [harga_sewa_per_hari, setHargaSewa] = useState('');
     const [status, setStatus] = useState('Tersedia');
-    const [foto, setFoto] = useState('');
-    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+    // Image states - DIPISAH UNTUK UPLOAD DAN PREVIEW
+    const [imageBase64, setImageBase64] = useState(''); // Pure base64 untuk upload ke DB (tanpa prefix)
+    const [previewUri, setPreviewUri] = useState<string | null>(null); // URI untuk preview (lokal atau prefixed base64)
     const [isUploading, setIsUploading] = useState(false);
 
     // Base URL untuk API
@@ -185,102 +186,64 @@ export default function KelolaAlatBerat() {
         setToastVisible(true);
     };
 
-// Solusi SIMPLE: Simpan URI asli tanpa copy
-const saveImage = async (localUri: string): Promise<string> => {
-    try {
-        // Langsung return URI asli tanpa copy
-        console.log('✅ Using original image URI:', localUri);
-        return localUri;
-        
-    } catch (error) {
-        console.error('❌ Error saving image:', error);
-        return localUri; // Tetap return URI asli meski error
-    }
-};
+    // Fungsi untuk check apakah string adalah base64
+    const isBase64 = (str: string): boolean => {
+        if (!str || typeof str !== 'string') return false;
+        return /^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$/g.test(str);
+    };
 
-// Fungsi untuk convert URI ke base64
-const uriToBase64 = async (uri: string): Promise<string> => {
-    try {
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64 = reader.result as string;
-                resolve(base64);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-    } catch (error) {
-        console.error('❌ Error converting URI to base64:', error);
-        throw new Error('Gagal mengkonversi gambar');
-    }
-};
+    // Di dalam pickImage - PERBAIKI UNTUK BASE64 DAN PREVIEW LOCAL + OPTIMASI SIZE
+    const pickImage = async () => {
+        try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                showToast('Izin akses galeri diperlukan', 'error');
+                return;
+            }
 
-// Di dalam pickImage - PERBAIKI
-const pickImage = async () => {
-    try {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-            showToast('Izin akses galeri diperlukan', 'error');
-            return;
-        }
+            let result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.3, // TURUNIN quality untuk ukuran lebih kecil
+                base64: true, // IMPORTANT: Enable base64
+            });
 
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.7, // Kurangi quality untuk ukuran file lebih kecil
-            base64: true, // IMPORTANT: Enable base64
-        });
-
-        if (!result.canceled && result.assets[0]) {
-            const asset = result.assets[0];
-            setSelectedImage(asset.uri);
-            
-            showToast('Mengkonversi gambar...', 'warning');
-            setIsUploading(true);
-            
-            try {
-                let imageData = asset.uri;
-                
-                // Jika base64 tersedia, gunakan langsung
-                if (asset.base64) {
-                    imageData = `data:image/jpeg;base64,${asset.base64}`;
-                    console.log('✅ Using base64 from ImagePicker');
-                } else {
-                    // Fallback: convert URI ke base64
-                    imageData = await uriToBase64(asset.uri);
-                    console.log('✅ Converted URI to base64');
+            if (!result.canceled && result.assets[0]) {
+                const asset = result.assets[0];
+                // Validasi ukuran base64 (max 1MB approx)
+                const base64Size = asset.base64 ? (asset.base64.length * 3 / 4) : 0; // Approx bytes
+                if (base64Size > 1000000) { // 1MB limit
+                    showToast('Foto terlalu besar! Pilih yang lebih kecil.', 'warning');
+                    return;
                 }
-                
-                setFoto(imageData); // Simpan sebagai base64 string
+
+                // Set preview URI lokal untuk tampilan cepat
+                setPreviewUri(asset.uri);
+                // Set pure base64 untuk upload (tanpa prefix)
+                setImageBase64(asset.base64 || '');
+
+                console.log('✅ Image picked: URI=', asset.uri, 'Base64 length=', asset.base64?.length, 'Size ~', base64Size, 'bytes');
                 showToast('Gambar berhasil dipilih!', 'success');
-            } catch (error) {
-                console.error('❌ Conversion failed:', error);
-                showToast('Gagal mengkonversi gambar', 'error');
-                setSelectedImage(null);
-            } finally {
                 setIsUploading(false);
             }
+        } catch (error) {
+            console.error('❌ Error picking image:', error);
+            showToast('Gagal memilih gambar', 'error');
+            setIsUploading(false);
         }
-    } catch (error) {
-        console.error('❌ Error picking image:', error);
-        showToast('Gagal memilih gambar', 'error');
-        setIsUploading(false);
-    }
-};
+    };
 
     // Fetch data dari API
     const fetchAlatBerat = async () => {
         setIsLoading(true);
         setError(null);
+
         try {
             console.log('🔄 Fetching alat berat from API...');
             const response = await api.get('/alat-berat');
-
             const data = response.data;
+
             console.log('✅ API Response data:', data);
 
             let dataArray = [];
@@ -295,18 +258,23 @@ const pickImage = async () => {
 
             console.log('📦 Data array to process:', dataArray);
 
-            // Transform data - HANDLE FOTO DENGAN BENAR
+            // Transform data - HANDLE FOTO DENGAN BENAR (prefix base64 jika perlu)
             const transformedData: AlatBerat[] = dataArray.map((item: any) => {
                 let fotoUrl = item.foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400';
-                
+
+                // Jika foto adalah base64 murni dari DB, tambahkan prefix
+                if (isBase64(item.foto)) {
+                    fotoUrl = `data:image/jpeg;base64,${item.foto}`;
+                }
                 // Jika foto adalah path lokal, gunakan langsung
-                if (item.foto && item.foto.startsWith('file://')) {
+                else if (item.foto && item.foto.startsWith('file://')) {
                     fotoUrl = item.foto;
                 }
                 // Jika foto adalah path assets, gunakan langsung
                 else if (item.foto && item.foto.includes('assets/')) {
                     fotoUrl = item.foto;
                 }
+                // Jika sudah prefixed base64 atau URL eksternal, gunakan langsung
 
                 return {
                     id: item.id_alat?.toString() || item.id?.toString() || Math.random().toString(),
@@ -322,11 +290,10 @@ const pickImage = async () => {
 
             console.log('🔄 Transformed data:', transformedData);
             setAlatBeratList(transformedData);
-
         } catch (error) {
             console.error('❌ Error fetching alat berat:', error);
-            const errorMessage = axios.isAxiosError(error) 
-                ? error.response?.data?.message || error.message 
+            const errorMessage = axios.isAxiosError(error)
+                ? (error.response?.data?.message || error.message)
                 : 'Terjadi kesalahan saat mengambil data';
             setError(errorMessage);
             setAlatBeratList(INITIAL_ALAT_BERAT);
@@ -364,11 +331,13 @@ const pickImage = async () => {
         return true;
     };
 
-    // HANDLE SAVE - VERSI BARU (simpan path lokal)
-    const handleSave = async () => {
+    // HANDLE SAVE - VERSI BARU (FormData + retry + detail error) - FIXED TS ERROR
+    const handleSave = async (retryCount = 0) => {
         if (!validateForm()) return;
 
         try {
+            setIsUploading(true);
+
             const newItemData = {
                 nama_alat: nama_alat.trim(),
                 jenis: jenis.trim(),
@@ -376,47 +345,94 @@ const pickImage = async () => {
                 deskripsi: deskripsi.trim(),
                 harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
                 status: status,
-                foto: foto, // Simpan path lokal
+                foto: imageBase64, // Pure base64 untuk simpan di DB
             };
 
             console.log('📤 Saving data:', newItemData);
-            
-            const response = await api.post('/alat-berat', newItemData);
+            console.log('📤 Payload size (bytes):', JSON.stringify(newItemData).length);
+            console.log('📤 Base64 preview (first 100 chars):', imageBase64?.substring(0, 100));
+
+            // Ganti ke FormData buat handle foto lebih aman
+            const formData = new FormData();
+            formData.append('nama_alat', newItemData.nama_alat);
+            formData.append('jenis', newItemData.jenis);
+            formData.append('kapasitas', newItemData.kapasitas);
+            formData.append('deskripsi', newItemData.deskripsi);
+            formData.append('harga_sewa_per_hari', newItemData.harga_sewa_per_hari.toString());
+            formData.append('status', newItemData.status);
+
+            if (imageBase64 && previewUri) {
+                formData.append('foto', {
+                    uri: previewUri,
+                    type: 'image/jpeg',
+                    name: 'foto.jpg',
+                } as any);
+            }
+
+            const response = await api.post('/alat-berat', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+                timeout: 30000, // Naikin timeout
+            });
+
             console.log('✅ Save response:', response.data);
 
             // Refresh data
             await fetchAlatBerat();
-
             showToast('Data alat berat berhasil ditambahkan! 🎉', 'success');
-            
             setModalVisible(false);
             resetForm();
+        } catch (error: any) { // FIXED: Explicitly type as any untuk TS
+            console.error('❌ Full error object:', error);
+            const responseStatus = error.response?.status; // FIXED: Assign dengan optional chaining
+            const responseData = error.response?.data; // FIXED: Assign dengan optional chaining
 
-        } catch (error) {
-            console.error('❌ Error saving alat berat:', error);
-            
+            console.error('❌ Response status:', responseStatus);
+            console.error('❌ Response data:', responseData);
+
             let errorMessage = 'Gagal menambahkan data alat berat';
+
             if (axios.isAxiosError(error)) {
-                if (error.response?.data?.message) {
-                    errorMessage = error.response.data.message;
-                }
-                if (error.response?.data?.errors) {
-                    const errors = error.response.data.errors;
-                    const firstError = Object.values(errors)[0];
-                    errorMessage = Array.isArray(firstError) ? firstError[0] : String(firstError);
-                    console.error('Validation errors:', errors);
+                if (responseStatus === 413) {
+                    errorMessage = 'Foto terlalu besar! Coba pilih yang lebih kecil.';
+                } else if (responseStatus === 422) {
+                    // FIXED: Type assertion untuk errors sebagai Record<string, string[]>
+                    const errors = responseData?.errors as Record<string, string[]> | undefined;
+                    if (errors) {
+                        const firstErrorArray = Object.values(errors)[0];
+                        if (firstErrorArray && Array.isArray(firstErrorArray)) {
+                            errorMessage = firstErrorArray[0] || 'Validasi gagal';
+                        } else {
+                            errorMessage = 'Validasi gagal';
+                        }
+                    } else {
+                        errorMessage = 'Validasi gagal';
+                    }
+                } else if (responseStatus === 500) {
+                    errorMessage = 'Server error. Cek log Laravel.';
+                } else if (responseStatus === 0 || error.code === 'ECONNABORTED') {
+                    errorMessage = 'Timeout. Coba lagi atau periksa koneksi.';
+                    if (retryCount < 1) { // Retry sekali
+                        setTimeout(() => handleSave(retryCount + 1), 1000);
+                        return;
+                    }
+                } else {
+                    errorMessage = responseData?.message || error.message;
                 }
             }
-            
+
             showToast(errorMessage, 'error');
+        } finally {
+            setIsUploading(false);
         }
     };
 
-    // HANDLE UPDATE - VERSI BARU
-    const handleUpdate = async () => {
+    // HANDLE UPDATE - VERSI BARU (mirip handleSave) - FIXED TS ERROR
+    const handleUpdate = async (retryCount = 0) => {
         if (!validateForm() || !selectedAlatBerat) return;
 
         try {
+            setIsUploading(true);
+
             const updateData = {
                 nama_alat: nama_alat.trim(),
                 jenis: jenis.trim(),
@@ -424,38 +440,81 @@ const pickImage = async () => {
                 deskripsi: deskripsi.trim(),
                 harga_sewa_per_hari: parseInt(harga_sewa_per_hari),
                 status: status,
-                foto: foto,
+                foto: imageBase64 || null, // Kirim base64 baru jika ada, null untuk keep foto lama
             };
 
             console.log('📤 Updating data:', updateData);
-            
-            const response = await api.put(`/alat-berat/${selectedAlatBerat.id}`, updateData);
+
+            // FormData untuk update juga
+            const formData = new FormData();
+            formData.append('nama_alat', updateData.nama_alat);
+            formData.append('jenis', updateData.jenis);
+            formData.append('kapasitas', updateData.kapasitas);
+            formData.append('deskripsi', updateData.deskripsi);
+            formData.append('harga_sewa_per_hari', updateData.harga_sewa_per_hari.toString());
+            formData.append('status', updateData.status);
+
+            if (imageBase64 && previewUri) {
+                formData.append('foto', {
+                    uri: previewUri,
+                    type: 'image/jpeg',
+                    name: 'foto.jpg',
+                } as any);
+            }
+
+            const response = await api.put(`/alat-berat/${selectedAlatBerat.id}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+                timeout: 30000,
+            });
+
             console.log('✅ Update response:', response.data);
 
             // Refresh data
             await fetchAlatBerat();
-
             showToast('Data alat berat berhasil diupdate! ✅', 'success');
-            
             setModalVisible(false);
+        } catch (error: any) { // FIXED: Explicitly type as any untuk TS
+            console.error('❌ Full error object:', error);
+            const responseStatus = error.response?.status; // FIXED: Assign dengan optional chaining
+            const responseData = error.response?.data; // FIXED: Assign dengan optional chaining
 
-        } catch (error) {
-            console.error('❌ Error updating alat berat:', error);
-            
+            console.error('❌ Response status:', responseStatus);
+            console.error('❌ Response data:', responseData);
+
             let errorMessage = 'Gagal mengupdate data alat berat';
+
             if (axios.isAxiosError(error)) {
-                if (error.response?.data?.message) {
-                    errorMessage = error.response.data.message;
-                }
-                if (error.response?.data?.errors) {
-                    const errors = error.response.data.errors;
-                    const firstError = Object.values(errors)[0];
-                    errorMessage = Array.isArray(firstError) ? firstError[0] : String(firstError);
-                    console.error('Validation errors:', errors);
+                if (responseStatus === 413) {
+                    errorMessage = 'Foto terlalu besar! Coba pilih yang lebih kecil.';
+                } else if (responseStatus === 422) {
+                    // FIXED: Type assertion untuk errors sebagai Record<string, string[]>
+                    const errors = responseData?.errors as Record<string, string[]> | undefined;
+                    if (errors) {
+                        const firstErrorArray = Object.values(errors)[0];
+                        if (firstErrorArray && Array.isArray(firstErrorArray)) {
+                            errorMessage = firstErrorArray[0] || 'Validasi gagal';
+                        } else {
+                            errorMessage = 'Validasi gagal';
+                        }
+                    } else {
+                        errorMessage = 'Validasi gagal';
+                    }
+                } else if (responseStatus === 500) {
+                    errorMessage = 'Server error. Cek log Laravel.';
+                } else if (responseStatus === 0 || error.code === 'ECONNABORTED') {
+                    errorMessage = 'Timeout. Coba lagi atau periksa koneksi.';
+                    if (retryCount < 1) {
+                        setTimeout(() => handleUpdate(retryCount + 1), 1000);
+                        return;
+                    }
+                } else {
+                    errorMessage = responseData?.message || error.message;
                 }
             }
-            
+
             showToast(errorMessage, 'error');
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -467,8 +526,8 @@ const pickImage = async () => {
         setDeskripsi('');
         setHargaSewa('');
         setStatus('Tersedia');
-        setFoto('');
-        setSelectedImage(null);
+        setImageBase64(''); // Reset base64
+        setPreviewUri(null); // Reset preview
         setError(null);
     };
 
@@ -481,8 +540,8 @@ const pickImage = async () => {
         setDeskripsi(item.deskripsi);
         setHargaSewa(String(item.harga_sewa_per_hari));
         setStatus(item.status);
-        setFoto(item.foto);
-        setSelectedImage(item.foto);
+        setImageBase64(''); // Mulai kosong, user bisa ganti
+        setPreviewUri(item.foto); // Preview foto lama (sudah prefixed jika base64)
         setModalVisible(true);
     };
 
@@ -502,18 +561,15 @@ const pickImage = async () => {
         if (confirmed && selectedAlatBerat) {
             try {
                 await api.delete(`/alat-berat/${selectedAlatBerat.id}`);
-
                 setAlatBeratList(prev => prev.filter(item => item.id !== selectedAlatBerat.id));
-                
                 showToast('Data alat berat berhasil dihapus! 🗑️', 'success');
-                
                 if (!isAddMode) {
                     setModalVisible(false);
                 }
-            } catch (error) {
+            } catch (error: any) { // FIXED: Explicitly type as any
                 console.error('❌ Error deleting alat berat:', error);
-                const errorMessage = axios.isAxiosError(error) 
-                    ? error.response?.data?.message || error.message 
+                const errorMessage = axios.isAxiosError(error)
+                    ? (error.response?.data?.message || error.message)
                     : 'Gagal menghapus data dari server';
                 showToast(errorMessage, 'error');
             }
@@ -551,10 +607,11 @@ const pickImage = async () => {
         }
 
         setIsLoading(true);
+
         try {
             const response = await api.get(`/alat-berat/search?q=${encodeURIComponent(query)}`);
             const data = response.data;
-            
+
             let dataArray = [];
             if (data.success && Array.isArray(data.data)) {
                 dataArray = data.data;
@@ -572,12 +629,11 @@ const pickImage = async () => {
                 deskripsi: item.deskripsi || 'Deskripsi tidak tersedia',
                 harga_sewa_per_hari: Number(item.harga_sewa_per_hari) || item.harga_sewa || 0,
                 status: item.status || 'Tersedia',
-                foto: item.foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400',
+                foto: isBase64(item.foto) ? `data:image/jpeg;base64,${item.foto}` : (item.foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400'),
             }));
 
             setAlatBeratList(transformedData);
-
-        } catch (error) {
+        } catch (error: any) { // FIXED: Explicitly type as any
             console.error('❌ Error searching alat berat:', error);
             showToast('Gagal melakukan pencarian', 'error');
             fetchAlatBerat();
@@ -589,10 +645,11 @@ const pickImage = async () => {
     // Filter by status
     const filterByStatus = async (status: string) => {
         setIsLoading(true);
+
         try {
             const response = await api.get(`/alat-berat/status/${encodeURIComponent(status)}`);
             const data = response.data;
-            
+
             let dataArray = [];
             if (data.success && Array.isArray(data.data)) {
                 dataArray = data.data;
@@ -610,12 +667,11 @@ const pickImage = async () => {
                 deskripsi: item.deskripsi || 'Deskripsi tidak tersedia',
                 harga_sewa_per_hari: Number(item.harga_sewa_per_hari) || item.harga_sewa || 0,
                 status: item.status || 'Tersedia',
-                foto: item.foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400',
+                foto: isBase64(item.foto) ? `data:image/jpeg;base64,${item.foto}` : (item.foto || 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400'),
             }));
 
             setAlatBeratList(transformedData);
-
-        } catch (error) {
+        } catch (error: any) { // FIXED: Explicitly type as any
             console.error('❌ Error filtering by status:', error);
             showToast('Gagal memfilter data', 'error');
             fetchAlatBerat();
@@ -643,6 +699,7 @@ const pickImage = async () => {
     const getCurrentDate = () => {
         const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
         const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
         const now = new Date();
         const dayName = days[now.getDay()];
         const date = now.getDate();
@@ -677,7 +734,6 @@ const pickImage = async () => {
             <Stack.Screen options={{ headerShown: false }} />
             <View style={styles.container}>
                 <SideBar />
-
                 {/* Toast Component */}
                 <Toast
                     visible={toastVisible}
@@ -685,7 +741,6 @@ const pickImage = async () => {
                     type={toastType}
                     onHide={() => setToastVisible(false)}
                 />
-
                 {/* Main Content */}
                 <View style={styles.mainContent}>
                     {/* Header */}
@@ -702,7 +757,6 @@ const pickImage = async () => {
                             </TouchableOpacity>
                         </View>
                     </View>
-
                     {/* Search Bar & Add Button */}
                     <View style={styles.searchRow}>
                         <View style={styles.searchContainer}>
@@ -720,38 +774,36 @@ const pickImage = async () => {
                             <Text style={styles.addButtonIcon}>+</Text>
                         </TouchableOpacity>
                     </View>
-
                     {/* Filter by Status */}
                     <View style={styles.filterContainer}>
                         <Text style={styles.filterLabel}>Filter by Status:</Text>
                         <View style={styles.filterButtons}>
-                            <TouchableOpacity 
-                                style={styles.filterButton} 
+                            <TouchableOpacity
+                                style={styles.filterButton}
                                 onPress={() => filterByStatus('Tersedia')}
                             >
                                 <Text style={styles.filterButtonText}>Tersedia</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity 
-                                style={styles.filterButton} 
+                            <TouchableOpacity
+                                style={styles.filterButton}
                                 onPress={() => filterByStatus('Disewa')}
                             >
                                 <Text style={styles.filterButtonText}>Disewa</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity 
-                                style={styles.filterButton} 
+                            <TouchableOpacity
+                                style={styles.filterButton}
                                 onPress={() => filterByStatus('Perawatan')}
                             >
                                 <Text style={styles.filterButtonText}>Perawatan</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity 
-                                style={styles.filterButton} 
-                                onPress={fetchAlatBerat}
+                            <TouchableOpacity
+                                style={styles.filterButton}
+                                onPress={() => fetchAlatBerat()} // FIXED: Wrap in arrow function to avoid event param
                             >
                                 <Text style={styles.filterButtonText}>Semua</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
-
                     {/* Debug Info */}
                     <View style={styles.debugContainer}>
                         <Text style={styles.debugText}>
@@ -759,23 +811,20 @@ const pickImage = async () => {
                             {error && ` | Error: ${error}`}
                         </Text>
                     </View>
-
                     {/* Loading & Error State */}
                     {isLoading && (
                         <View style={styles.loadingContainer}>
                             <Text style={styles.loadingText}>Memuat data alat berat...</Text>
                         </View>
                     )}
-
                     {error && !isLoading && (
                         <View style={styles.errorContainer}>
                             <Text style={styles.errorText}>Error: {error}</Text>
-                            <TouchableOpacity style={styles.retryButton} onPress={fetchAlatBerat}>
+                            <TouchableOpacity style={styles.retryButton} onPress={() => fetchAlatBerat()}> {/* FIXED: Wrap in arrow function */}
                                 <Text style={styles.retryButtonText}>Coba Lagi</Text>
                             </TouchableOpacity>
                         </View>
                     )}
-
                     {/* Card Grid */}
                     {!isLoading && !error && (
                         <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
@@ -796,13 +845,12 @@ const pickImage = async () => {
                                             {/* Status Badge */}
                                             <View style={[
                                                 styles.statusBadge,
-                                                item.status === 'Tersedia' ? styles.statusAvailable : 
-                                                item.status === 'Disewa' ? styles.statusRented :
-                                                styles.statusMaintenance
+                                                item.status === 'Tersedia' ? styles.statusAvailable :
+                                                    item.status === 'Disewa' ? styles.statusRented :
+                                                        styles.statusMaintenance
                                             ]}>
                                                 <Text style={styles.statusText}>{item.status}</Text>
                                             </View>
-
                                             {/* Image dengan error handling */}
                                             <Image
                                                 source={{ uri: item.foto }}
@@ -813,14 +861,12 @@ const pickImage = async () => {
                                                 onLoad={() => console.log('✅ Image loaded:', item.foto)}
                                                 defaultSource={{ uri: 'https://images.unsplash.com/photo-1558618047-3c8c98e967b7?w=400' }}
                                             />
-
                                             {/* Content */}
                                             <View style={styles.cardContent}>
                                                 <Text style={styles.cardTitle}>{item.nama_alat}</Text>
                                                 <Text style={styles.cardDescription} numberOfLines={2}>
                                                     {item.deskripsi}
                                                 </Text>
-
                                                 {/* Info Row */}
                                                 <View style={styles.infoRow}>
                                                     <View style={styles.infoItem}>
@@ -832,7 +878,6 @@ const pickImage = async () => {
                                                         <Text style={styles.infoText}>{item.kapasitas}</Text>
                                                     </View>
                                                 </View>
-
                                                 {/* Price & Actions */}
                                                 <View style={styles.cardFooter}>
                                                     <View>
@@ -862,7 +907,6 @@ const pickImage = async () => {
                         </ScrollView>
                     )}
                 </View>
-
                 {/* Add/Edit Modal */}
                 <Modal
                     animationType="fade"
@@ -885,7 +929,6 @@ const pickImage = async () => {
                                     <Text style={styles.modalTimeText}>{currentDate.time}</Text>
                                 </View>
                             </View>
-
                             {/* Content Modal */}
                             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
                                 <View style={styles.formContainer}>
@@ -913,7 +956,6 @@ const pickImage = async () => {
                                             </TouchableOpacity>
                                         </View>
                                     </View>
-
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>Kapasitas</Text>
@@ -937,7 +979,6 @@ const pickImage = async () => {
                                             />
                                         </View>
                                     </View>
-
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>Status</Text>
@@ -961,23 +1002,19 @@ const pickImage = async () => {
                                                 onPress={pickImage}
                                                 disabled={isUploading}
                                             >
-                                            {selectedImage ? (
-                                                <Image
-                                                    source={{ 
-                                                        uri: selectedImage.startsWith('data:image') 
-                                                            ? selectedImage  // Jika base64, gunakan langsung
-                                                            : selectedImage  // Jika URI, gunakan URI
-                                                    }}
-                                                    style={styles.previewImage}
-                                                    resizeMode="cover"
-                                                    onError={() => console.log('❌ Preview image error')}
-                                                />
-                                            ) : (
-                                                <View style={styles.placeholderContainer}>
-                                                    <Camera color="#F59E0B" size={24} />
-                                                    <Text style={styles.placeholderText}>Pilih Foto</Text>
-                                                </View>
-                                            )}
+                                                {previewUri ? (
+                                                    <Image
+                                                        source={{ uri: previewUri }}
+                                                        style={styles.previewImage}
+                                                        resizeMode="cover"
+                                                        onError={() => console.log('❌ Preview image error')}
+                                                    />
+                                                ) : (
+                                                    <View style={styles.placeholderContainer}>
+                                                        <Camera color="#F59E0B" size={24} />
+                                                        <Text style={styles.placeholderText}>Pilih Foto</Text>
+                                                    </View>
+                                                )}
                                                 {isUploading && (
                                                     <View style={styles.uploadingOverlay}>
                                                         <Text style={styles.uploadingText}>Menyimpan...</Text>
@@ -986,7 +1023,6 @@ const pickImage = async () => {
                                             </TouchableOpacity>
                                         </View>
                                     </View>
-
                                     <View style={styles.formRow}>
                                         <View style={[styles.formGroup, { flex: 2 }]}>
                                             <Text style={styles.label}>Deskripsi</Text>
@@ -1003,13 +1039,13 @@ const pickImage = async () => {
                                     </View>
                                 </View>
                             </ScrollView>
-
                             {/* Footer Modal - Buttons */}
                             <View style={styles.modalFooter}>
                                 {isAddMode ? (
                                     <TouchableOpacity
                                         style={styles.saveButton}
-                                        onPress={handleSave}
+                                        onPress={() => handleSave()} // FIXED: Wrap in arrow function to ignore event
+                                        disabled={isUploading}
                                     >
                                         <Text style={styles.saveButtonText}>Simpan</Text>
                                         <View style={styles.buttonIconContainer}>
@@ -1020,7 +1056,8 @@ const pickImage = async () => {
                                     <>
                                         <TouchableOpacity
                                             style={styles.updateButton}
-                                            onPress={handleUpdate}
+                                            onPress={() => handleUpdate()} // FIXED: Wrap in arrow function to ignore event
+                                            disabled={isUploading}
                                         >
                                             <Text style={styles.updateButtonText}>Update</Text>
                                             <View style={styles.buttonIconContainer}>
@@ -1041,7 +1078,6 @@ const pickImage = async () => {
                             </View>
                         </View>
                     </View>
-
                     {/* Dropdown Modal untuk Status */}
                     <Modal
                         animationType="fade"
@@ -1076,7 +1112,6 @@ const pickImage = async () => {
                             </View>
                         </TouchableOpacity>
                     </Modal>
-
                     {/* Dropdown Modal untuk Jenis */}
                     <Modal
                         animationType="fade"
@@ -1124,7 +1159,6 @@ const pickImage = async () => {
                         </TouchableOpacity>
                     </Modal>
                 </Modal>
-
                 {/* Delete Confirmation Modal */}
                 <Modal
                     animationType="fade"
@@ -1162,7 +1196,6 @@ const pickImage = async () => {
         </>
     );
 }
-
 
 const styles = StyleSheet.create({
     container: {

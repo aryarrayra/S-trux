@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Search, Edit2, Trash2, X, Check, Calendar } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
@@ -49,9 +50,11 @@ interface ApiResponse {
     message?: string;
 }
 
+const STORAGE_KEY = 'employees_data';
+
 export default function KelolaKaryawan() {
     const [searchQuery, setSearchQuery] = useState('');
-    const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
+    const [employees, setEmployees] = useState<Employee[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -72,6 +75,15 @@ export default function KelolaKaryawan() {
     const [status, setStatus] = useState('aktif'); // Default ke 'aktif'
 
     const API_BASE = 'http://localhost:8000/api';
+
+    // Save to storage
+    const saveToStorage = async (data: Employee[]) => {
+        try {
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        } catch (e) {
+            console.error('Failed to save to storage:', e);
+        }
+    };
 
     // Fetch data dari API
     const fetchEmployees = async () => {
@@ -112,22 +124,44 @@ export default function KelolaKaryawan() {
                     status: item.status || 'aktif'
                 }));
                 setEmployees(transformedData);
+                // Save to storage on successful fetch
+                await saveToStorage(transformedData);
             } else {
                 throw new Error(data.message || 'Gagal mengambil data petugas');
             }
         } catch (error) {
             console.error('❌ Error fetching employees:', error);
             setError(error instanceof Error ? error.message : 'Terjadi kesalahan saat mengambil data');
-            // Tetap gunakan data fallback
-            setEmployees(INITIAL_EMPLOYEES);
+            // Do not overwrite local data on error
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Fetch data saat component mount
+    // Initialize data on mount
     useEffect(() => {
-        fetchEmployees();
+        const initData = async () => {
+            try {
+                const stored = await AsyncStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    const parsedData = JSON.parse(stored);
+                    setEmployees(parsedData);
+                    console.log('📦 Loaded from storage:', parsedData);
+                } else {
+                    // First time or no data, fetch from API
+                    console.log('🌐 No stored data, fetching from API...');
+                    await fetchEmployees();
+                    return;
+                }
+            } catch (e) {
+                console.error('Failed to load from storage:', e);
+                // Fallback to fetch
+                await fetchEmployees();
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        initData();
     }, []);
 
     const getCurrentDate = () => {
@@ -264,7 +298,10 @@ export default function KelolaKaryawan() {
 
                 if (response.ok) {
                     // Hapus dari state lokal
-                    setEmployees(prev => prev.filter(emp => emp.id_petugas !== selectedEmployee.id_petugas));
+                    const updatedEmployees = employees.filter(emp => emp.id_petugas !== selectedEmployee.id_petugas);
+                    setEmployees(updatedEmployees);
+                    // Save to storage
+                    await saveToStorage(updatedEmployees);
                     console.log('✅ Karyawan dihapus:', selectedEmployee.id_petugas);
                     Alert.alert('Sukses', 'Data berhasil dihapus');
                 } else {
@@ -294,14 +331,14 @@ export default function KelolaKaryawan() {
             Alert.alert('Error', 'Nomor telepon harus diisi!');
             return false;
         }
-        
+
         // Validasi email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             Alert.alert('Error', 'Format email tidak valid!');
             return false;
         }
-        
+
         return true;
     };
 
@@ -332,27 +369,27 @@ export default function KelolaKaryawan() {
                 });
 
                 console.log('📡 Response status:', response.status);
-                
+
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('❌ Server response:', errorText);
                     let errorMessage = `HTTP error! status: ${response.status}`;
-                    
+
                     try {
                         const errorData = JSON.parse(errorText);
                         errorMessage = errorData.message || errorMessage;
                     } catch (e) {
                         errorMessage = errorText || errorMessage;
                     }
-                    
+
                     throw new Error(errorMessage);
                 }
 
                 const result = await response.json();
                 console.log('✅ Response data:', result);
-                
+
                 // Update state lokal
-                setEmployees(prev => prev.map(emp =>
+                const updatedEmployees = employees.map(emp =>
                     emp.id_petugas === selectedEmployee.id_petugas
                         ? {
                             ...emp,
@@ -366,7 +403,10 @@ export default function KelolaKaryawan() {
                             status,
                         }
                         : emp
-                ));
+                );
+                setEmployees(updatedEmployees);
+                // Save to storage
+                await saveToStorage(updatedEmployees);
                 console.log('✅ Data diupdate:', selectedEmployee.id_petugas);
                 Alert.alert('Sukses', 'Data berhasil diupdate');
                 setModalVisible(false);
@@ -404,25 +444,25 @@ export default function KelolaKaryawan() {
             });
 
             console.log('📡 Response status:', response.status);
-            
+
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('❌ Server response:', errorText);
                 let errorMessage = `HTTP error! status: ${response.status}`;
-                
+
                 try {
                     const errorData = JSON.parse(errorText);
                     errorMessage = errorData.message || errorMessage;
                 } catch (e) {
                     errorMessage = errorText || errorMessage;
                 }
-                
+
                 throw new Error(errorMessage);
             }
 
             const result = await response.json();
             console.log('✅ Response data:', result);
-            
+
             // Tambahkan ke state lokal
             const newEmployee: Employee = {
                 id_petugas: result.data?.id_petugas || String(employees.length + 1),
@@ -435,7 +475,10 @@ export default function KelolaKaryawan() {
                 role,
                 status,
             };
-            setEmployees(prev => [...prev, newEmployee]);
+            const updatedEmployees = [...employees, newEmployee];
+            setEmployees(updatedEmployees);
+            // Save to storage
+            await saveToStorage(updatedEmployees);
             console.log('✅ Data baru ditambahkan:', newEmployee);
             Alert.alert('Sukses', 'Data berhasil ditambahkan');
             setModalVisible(false);
@@ -535,7 +578,13 @@ export default function KelolaKaryawan() {
                     )}
 
                     {/* Table */}
-                    {!isLoading && !error && (
+                    {!isLoading && !error && employees.length === 0 && (
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>Tidak ada data karyawan</Text>
+                        </View>
+                    )}
+
+                    {!isLoading && !error && employees.length > 0 && (
                         <ScrollView style={styles.tableContainer}>
                             <View style={styles.table}>
                                 {/* Table Header */}
@@ -1004,6 +1053,15 @@ const styles = StyleSheet.create({
         fontFamily: 'Poppins_500Medium',
         fontSize: 14,
         color: COLORS.white,
+    },
+    emptyContainer: {
+        padding: 40,
+        alignItems: 'center',
+    },
+    emptyText: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 16,
+        color: COLORS.gray,
     },
     tableContainer: {
         flex: 1,
