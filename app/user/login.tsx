@@ -43,127 +43,144 @@ export default function UserLoginScreen() {
   const orangeAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) {
-      Alert.alert('Error', 'Harap isi username dan password');
-      return;
+const handleLogin = async () => {
+  if (!username.trim() || !password.trim()) {
+    Alert.alert('Error', 'Harap isi username dan password');
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    console.log('🔵 Sending login request to:', `${API_BASE_URL}/user/login`);
+    
+    const response = await fetch(`${API_BASE_URL}/user/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        username: username.trim(),
+        password: password.trim(),
+      }),
+    });
+
+    console.log('🟡 Response status:', response.status);
+    
+    const rawResponse = await response.text();
+    console.log('🟡 Raw response:', rawResponse);
+    
+    let data;
+    try {
+      data = JSON.parse(rawResponse);
+      console.log('🟢 JSON parse successful:', data);
+    } catch (parseError) {
+      console.log('🔴 JSON parse error:', parseError.message);
+      if (rawResponse.includes('<!DOCTYPE') || rawResponse.includes('<html')) {
+        throw new Error('Server mengembalikan halaman HTML. Endpoint mungkin tidak ditemukan (404).');
+      } else {
+        throw new Error(`Format response tidak valid: ${rawResponse.substring(0, 100)}`);
+      }
     }
 
-    setIsLoading(true);
+    if (!response.ok) {
+      throw new Error(data.message || `HTTP error! status: ${response.status}`);
+    }
 
-    try {
-      console.log('🔵 Sending login request to:', `${API_BASE_URL}/user/login`);
+    // Jika login berhasil
+    if (data.success) {
+      console.log('✅ User login successful');
+      console.log('📦 Full response data:', data);
       
-      const response = await fetch(`${API_BASE_URL}/user/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          username: username.trim(),
-          password: password.trim(),
-        }),
-      });
-
-      console.log('🟡 Response status:', response.status);
-      console.log('🟡 Response ok:', response.ok);
-      
-      // Baca response sebagai text dulu untuk melihat apa yang sebenarnya dikembalikan
-      const rawResponse = await response.text();
-      console.log('🟡 Raw response:', rawResponse);
-      
-      // Coba parse JSON, jika gagal kita tahu masalahnya
-      let data;
+      // SIMPAN DATA KE ASYNC STORAGE - PERBAIKI BAGIAN INI
       try {
-        data = JSON.parse(rawResponse);
-        console.log('🟢 JSON parse successful:', data);
-      } catch (parseError) {
-        console.log('🔴 JSON parse error:', parseError.message);
-        
-        // Jika response mengandung HTML, kemungkinan 404 atau server error
-        if (rawResponse.includes('<!DOCTYPE') || rawResponse.includes('<html')) {
-          throw new Error('Server mengembalikan halaman HTML. Endpoint mungkin tidak ditemukan (404).');
-        } else if (rawResponse.includes('Not Found') || response.status === 404) {
-          throw new Error('Endpoint login tidak ditemukan (404). Periksa route di Laravel.');
+        // Debug: lihat struktur data yang diterima
+        console.log('🔍 Data structure:', {
+          hasToken: !!data.data?.token,
+          hasUser: !!data.data?.user,
+          hasPelanggan: !!data.data?.pelanggan,
+          fullData: data.data
+        });
+
+        // Simpan token - coba berbagai kemungkinan key
+        if (data.data?.token) {
+          await AsyncStorage.setItem('userToken', data.data.token);
+          console.log('💾 Token saved:', data.data.token.substring(0, 20) + '...');
+        } else if (data.data?.access_token) {
+          await AsyncStorage.setItem('userToken', data.data.access_token);
+          console.log('💾 Access token saved');
         } else {
-          throw new Error(`Format response tidak valid: ${rawResponse.substring(0, 100)}`);
-        }
-      }
-
-      // Jika sampai sini, JSON parse berhasil
-      if (!response.ok) {
-        throw new Error(data.message || `HTTP error! status: ${response.status}`);
-      }
-
-      // Jika login berhasil
-      if (data.success) {
-        console.log('✅ User login successful');
-        console.log('📦 Data received:', data.data);
-        
-        // SIMPAN DATA USER KE ASYNC STORAGE
-        try {
-          // Simpan token jika ada
-          if (data.data.token) {
-            await AsyncStorage.setItem('userToken', data.data.token);
-            console.log('💾 Token saved');
-          }
-          
-          // Simpan user data
-          if (data.data.user) {
-            await AsyncStorage.setItem('userData', JSON.stringify(data.data.user));
-            console.log('💾 User data saved:', data.data.user);
-          }
-          
-          // Simpan pelanggan data
-          if (data.data.pelanggan) {
-            await AsyncStorage.setItem('pelangganData', JSON.stringify(data.data.pelanggan));
-            console.log('💾 Pelanggan data saved:', data.data.pelanggan);
-          }
-          
-          // Simpan semua data untuk backup
-          await AsyncStorage.setItem('loginResponse', JSON.stringify(data.data));
-          console.log('💾 All login data saved');
-          
-        } catch (storageError) {
-          console.log('🔴 Error saving to storage:', storageError);
-          throw new Error('Gagal menyimpan data login');
+          console.log('⚠️ No token found in response, creating mock token');
+          // Fallback: buat token mock untuk testing
+          const mockToken = 'mock-token-' + Date.now();
+          await AsyncStorage.setItem('userToken', mockToken);
+          console.log('💾 Mock token saved for testing');
         }
         
-        setIsTransitioning(true);
+        // Simpan user data
+        if (data.data?.user) {
+          await AsyncStorage.setItem('userData', JSON.stringify(data.data.user));
+          console.log('💾 User data saved:', data.data.user);
+        }
         
-        Animated.timing(containerAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }).start(() => {
-          startOrangeAnimation();
+        // Simpan pelanggan data
+        if (data.data?.pelanggan) {
+          await AsyncStorage.setItem('pelangganData', JSON.stringify(data.data.pelanggan));
+          console.log('💾 Pelanggan data saved:', data.data.pelanggan);
+        }
+        
+        // Verifikasi data tersimpan
+        const storedToken = await AsyncStorage.getItem('userToken');
+        const storedUser = await AsyncStorage.getItem('userData');
+        const storedPelanggan = await AsyncStorage.getItem('pelangganData');
+        
+        console.log('✅ Storage verification:', {
+          token: storedToken ? 'Saved' : 'Missing',
+          user: storedUser ? 'Saved' : 'Missing',
+          pelanggan: storedPelanggan ? 'Saved' : 'Missing'
         });
         
-      } else {
-        Alert.alert('Login Gagal', data.message || 'Username atau password salah');
-        setIsLoading(false);
-      }
-    } catch (error) {
-      console.log('🔴 Login error:', error.message);
-      
-      if (error.message.includes('HTML') || error.message.includes('404')) {
-        Alert.alert(
-          'Endpoint Tidak Ditemukan', 
-          'Pastikan route login sudah ditambahkan di routes/api.php:\n\nRoute::post("/user/login", [PelangganController::class, "login"]);'
-        );
-      } else if (error.message.includes('Network request failed')) {
-        Alert.alert(
-          'Koneksi Gagal', 
-          `Tidak dapat terhubung ke server.\n\nPastikan:\n1. URL API benar: ${API_BASE_URL}\n2. Server Laravel berjalan\n3. Koneksi internet stabil`
-        );
-      } else {
-        Alert.alert('Error', error.message || 'Terjadi kesalahan saat login');
+      } catch (storageError) {
+        console.log('🔴 Error saving to storage:', storageError);
+        throw new Error('Gagal menyimpan data login');
       }
       
+      // Lanjutkan dengan animasi dan navigasi
+      setIsTransitioning(true);
+      
+      Animated.timing(containerAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        startOrangeAnimation();
+      });
+      
+    } else {
+      Alert.alert('Login Gagal', data.message || 'Username atau password salah');
       setIsLoading(false);
     }
-  };
+  } catch (error) {
+    console.log('🔴 Login error:', error.message);
+    
+    if (error.message.includes('HTML') || error.message.includes('404')) {
+      Alert.alert(
+        'Endpoint Tidak Ditemukan', 
+        'Pastikan route login sudah ditambahkan di routes/api.php:\n\nRoute::post("/user/login", [PelangganController::class, "login"]);'
+      );
+    } else if (error.message.includes('Network request failed')) {
+      Alert.alert(
+        'Koneksi Gagal', 
+        `Tidak dapat terhubung ke server.\n\nPastikan:\n1. URL API benar: ${API_BASE_URL}\n2. Server Laravel berjalan\n3. Koneksi internet stabil`
+      );
+    } else {
+      Alert.alert('Error', error.message || 'Terjadi kesalahan saat login');
+    }
+    
+    setIsLoading(false);
+  }
+};
 
   const startOrangeAnimation = () => {
     // Animasi titik kecil -> membesar memenuhi layar -> fade out

@@ -24,7 +24,6 @@ import {
   LogOut,
 } from 'lucide-react-native';
 import { COLORS } from '../../../constants/Colors';
-import { API_BASE_URL } from '../../../constants/ApiConfig';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -54,9 +53,7 @@ export default function ProfileScreen() {
   const [pelangganData, setPelangganData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [profileInfo, setProfileInfo] = useState([]);
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Refresh data ketika screen focus
   useFocusEffect(
     React.useCallback(() => {
       loadProfileData();
@@ -71,14 +68,8 @@ export default function ProfileScreen() {
     try {
       setIsLoading(true);
       
-      console.log('🔄 Loading profile data...');
-      
-      // AMBIL DATA DARI ASYNC STORAGE
       const storedUserData = await AsyncStorage.getItem('userData');
       const storedPelangganData = await AsyncStorage.getItem('pelangganData');
-      
-      console.log('📦 Stored User Data:', storedUserData);
-      console.log('📦 Stored Pelanggan Data:', storedPelangganData);
 
       let user = null;
       let pelanggan = null;
@@ -93,7 +84,6 @@ export default function ProfileScreen() {
         setPelangganData(pelanggan);
       }
 
-      // UPDATE PROFILE INFO DENGAN DATA REAL
       const updatedProfileInfo = [
         {
           icon: User,
@@ -124,26 +114,13 @@ export default function ProfileScreen() {
       
       setProfileInfo(updatedProfileInfo);
       
-      console.log('✅ Profile data loaded successfully');
-      console.log('👤 User:', user);
-      console.log('🏢 Pelanggan:', pelanggan);
-      
     } catch (error) {
-      console.log('🔴 Error loading profile data:', error);
-      // Fallback ke mock data jika error
       setProfileInfo(getMockProfileInfo());
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Refresh data manually
-  const refreshData = () => {
-    setRefreshKey(prev => prev + 1);
-    loadProfileData();
-  };
-
-  // Fallback mock data
   const getMockProfileInfo = () => [
     {
       icon: User,
@@ -173,10 +150,7 @@ export default function ProfileScreen() {
   ];
 
   const handleEditProfile = () => {
-    router.push({
-      pathname: '/user/editprofile',
-      params: { onGoBack: 'refresh' } // Kirim parameter untuk trigger refresh
-    });
+    router.push('/user/editprofile');
   };
 
   const handleTermsAndConditions = () => {
@@ -197,12 +171,9 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // HAPUS SEMUA DATA DARI STORAGE
               await AsyncStorage.multiRemove(['userToken', 'userData', 'pelangganData']);
-              console.log('✅ Data cleared from storage');
               router.replace('/user/login');
             } catch (error) {
-              console.log('🔴 Logout error:', error);
               router.replace('/user/login');
             }
           },
@@ -223,7 +194,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']} key={refreshKey}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.logoContainer}>
@@ -239,7 +210,6 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.contentContainer}>
-          {/* Profile Header Card */}
           <View style={styles.profileHeaderCard}>
             <LinearGradient
               colors={[COLORS.primary, COLORS.primaryGradientEnd]}
@@ -280,7 +250,6 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Profile Info Card */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>Informasi profil</Text>
@@ -302,7 +271,6 @@ export default function ProfileScreen() {
             ))}
           </View>
 
-          {/* T&C Card */}
           <TouchableOpacity style={styles.card} onPress={handleTermsAndConditions}>
             <View style={styles.tncRow}>
               <View style={styles.infoIconContainer}>
@@ -316,15 +284,6 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Refresh Button */}
-          <TouchableOpacity 
-            style={styles.refreshButton}
-            onPress={refreshData}
-          >
-            <Text style={styles.refreshText}>Refresh Data</Text>
-          </TouchableOpacity>
-
-          {/* Logout Button */}
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <LogOut size={14} color={COLORS.historyCancelled} />
             <Text style={styles.logoutText}>Keluar</Text>
@@ -527,18 +486,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
     fontSize: 10,
     color: COLORS.black,
-  },
-  refreshButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  refreshText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 12,
-    color: COLORS.white,
   },
   logoutButton: {
     backgroundColor: COLORS.cancelledButtonBg,

@@ -30,6 +30,7 @@ export default function EditProfileScreen() {
   });
   const [originalData, setOriginalData] = useState({});
   const [userToken, setUserToken] = useState('');
+  const [originalEmail, setOriginalEmail] = useState('');
 
   useEffect(() => {
     loadProfileData();
@@ -39,16 +40,9 @@ export default function EditProfileScreen() {
     try {
       setIsLoading(true);
       
-      console.log('🔵 Loading profile data for editing...');
-      
-      // Ambil data dari AsyncStorage
+      const storedToken = await AsyncStorage.getItem('userToken');
       const storedUserData = await AsyncStorage.getItem('userData');
       const storedPelangganData = await AsyncStorage.getItem('pelangganData');
-      const storedToken = await AsyncStorage.getItem('userToken');
-      
-      console.log('🟡 Token:', storedToken);
-      console.log('🟡 User data:', storedUserData);
-      console.log('🟡 Pelanggan data:', storedPelangganData);
 
       let user = null;
       let pelanggan = null;
@@ -63,9 +57,11 @@ export default function EditProfileScreen() {
 
       if (storedToken) {
         setUserToken(storedToken);
+      } else {
+        Alert.alert('Error', 'Token tidak ditemukan. Silakan login kembali.');
+        return;
       }
 
-      // Set form data dengan data real
       const currentFormData = {
         nama_lengkap: pelanggan?.nama_pelanggan || user?.name || '',
         email: user?.email || pelanggan?.email || '',
@@ -75,12 +71,10 @@ export default function EditProfileScreen() {
       };
 
       setFormData(currentFormData);
-      setOriginalData(currentFormData); // Simpan data original untuk compare
-      
-      console.log('✅ Form data loaded:', currentFormData);
+      setOriginalData(currentFormData);
+      setOriginalEmail(user?.email || pelanggan?.email || '');
       
     } catch (error) {
-      console.log('🔴 Error loading profile data:', error);
       Alert.alert('Error', 'Gagal memuat data profile');
     } finally {
       setIsLoading(false);
@@ -88,7 +82,6 @@ export default function EditProfileScreen() {
   };
 
   const handleSave = async () => {
-    // Validasi
     if (!formData.nama_lengkap.trim()) {
       Alert.alert('Error', 'Nama lengkap harus diisi');
       return;
@@ -99,7 +92,11 @@ export default function EditProfileScreen() {
       return;
     }
 
-    // Cek jika ada perubahan
+    if (!userToken) {
+      Alert.alert('Error', 'Token tidak ditemukan');
+      return;
+    }
+
     const hasChanges = JSON.stringify(formData) !== JSON.stringify(originalData);
     if (!hasChanges) {
       Alert.alert('Info', 'Tidak ada perubahan yang disimpan');
@@ -109,12 +106,8 @@ export default function EditProfileScreen() {
     setIsSaving(true);
 
     try {
-      console.log('🔵 Saving profile changes...');
-      console.log('📦 Data to save:', formData);
-      
-      // Panggil API untuk update profile
       const response = await fetch(`${API_BASE_URL}/user/profile/update`, {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -126,49 +119,38 @@ export default function EditProfileScreen() {
           no_telp: formData.no_telepon,
           company_name: formData.perusahaan,
           alamat: formData.alamat,
+          original_email: originalEmail,
         }),
       });
 
-      console.log('🟡 Response status:', response.status);
-
       const responseText = await response.text();
-      let data;
       
-      try {
-        data = JSON.parse(responseText);
-        console.log('🟢 JSON parse successful:', data);
-      } catch (parseError) {
-        console.log('🔴 JSON parse error:', parseError);
-        // Jika API belum ready, simpan ke local storage saja
-        await handleLocalSave();
-        return;
+      if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
+        throw new Error('Endpoint tidak ditemukan atau server error');
       }
 
+      const data = JSON.parse(responseText);
+
       if (response.ok && data.success) {
-        // Update data di AsyncStorage
-        await updateLocalStorage();
+        await updateLocalStorage(data.data);
         
         Alert.alert(
           'Berhasil',
           'Profile berhasil diperbarui',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.back(),
-            },
-          ]
+          [{ text: 'OK', onPress: () => router.back() }]
         );
       } else {
         throw new Error(data.message || 'Gagal memperbarui profile');
       }
 
     } catch (error) {
-      console.log('🔴 Error saving profile:', error);
-      
-      // Fallback: simpan ke local storage jika API error
-      try {
-        await handleLocalSave();
-      } catch (localError) {
+      if (error.message.includes('token') || error.message.includes('auth')) {
+        Alert.alert(
+          'Session Expired',
+          'Silakan login kembali',
+          [{ text: 'OK', onPress: () => router.replace('/user/login') }]
+        );
+      } else {
         Alert.alert('Error', error.message || 'Gagal memperbarui profile');
       }
     } finally {
@@ -176,63 +158,21 @@ export default function EditProfileScreen() {
     }
   };
 
-  // Fallback: simpan ke local storage jika API belum ready
-  const handleLocalSave = async () => {
-    console.log('🟡 Using local storage fallback...');
-    
-    // Update pelanggan data di AsyncStorage
-    const storedPelangganData = await AsyncStorage.getItem('pelangganData');
-    if (storedPelangganData) {
-      const pelanggan = JSON.parse(storedPelangganData);
-      const updatedPelanggan = {
-        ...pelanggan,
-        nama_pelanggan: formData.nama_lengkap,
-        email: formData.email,
-        no_telp: formData.no_telepon,
-        company_name: formData.perusahaan,
-        alamat: formData.alamat,
-      };
-      
-      await AsyncStorage.setItem('pelangganData', JSON.stringify(updatedPelanggan));
-      console.log('✅ Local storage updated');
-    }
-    
-    Alert.alert(
-      'Berhasil',
-      'Profile berhasil diperbarui (offline)',
-      [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]
-    );
-  };
-
-  // Update local storage setelah API success
-  const updateLocalStorage = async () => {
+  const updateLocalStorage = async (serverData) => {
     try {
-      const storedPelangganData = await AsyncStorage.getItem('pelangganData');
-      if (storedPelangganData) {
-        const pelanggan = JSON.parse(storedPelangganData);
-        const updatedPelanggan = {
-          ...pelanggan,
-          nama_pelanggan: formData.nama_lengkap,
-          email: formData.email,
-          no_telp: formData.no_telepon,
-          company_name: formData.perusahaan,
-          alamat: formData.alamat,
-        };
-        
-        await AsyncStorage.setItem('pelangganData', JSON.stringify(updatedPelanggan));
-        console.log('✅ Local storage synced');
+      if (serverData.user) {
+        await AsyncStorage.setItem('userData', JSON.stringify(serverData.user));
+      }
+      
+      if (serverData.pelanggan) {
+        await AsyncStorage.setItem('pelangganData', JSON.stringify(serverData.pelanggan));
       }
     } catch (error) {
-      console.log('🔴 Error updating local storage:', error);
+      throw error;
     }
   };
 
-  const updateFormData = (field: string, value: string) => {
+  const updateFormData = (field, value) => {
     setFormData(prev => ({
       ...prev,
       [field]: value,
@@ -240,21 +180,14 @@ export default function EditProfileScreen() {
   };
 
   const handleCancel = () => {
-    // Cek jika ada perubahan
     const hasChanges = JSON.stringify(formData) !== JSON.stringify(originalData);
     if (hasChanges) {
       Alert.alert(
         'Batal Edit',
         'Perubahan yang belum disimpan akan hilang. Yakin ingin keluar?',
         [
-          {
-            text: 'Tidak',
-            style: 'cancel',
-          },
-          {
-            text: 'Ya',
-            onPress: () => router.back(),
-          },
+          { text: 'Tidak', style: 'cancel' },
+          { text: 'Ya', onPress: () => router.back() },
         ]
       );
     } else {
@@ -280,12 +213,8 @@ export default function EditProfileScreen() {
         style={styles.keyboardAvoid}
       >
         <ScrollView showsVerticalScrollIndicator={false}>
-          {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={handleCancel}
-            >
+            <TouchableOpacity style={styles.backButton} onPress={handleCancel}>
               <ArrowLeft size={24} color={COLORS.black} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Edit Profile</Text>
@@ -293,7 +222,6 @@ export default function EditProfileScreen() {
           </View>
 
           <View style={styles.contentContainer}>
-            {/* Form */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Informasi Pribadi</Text>
               
@@ -366,12 +294,8 @@ export default function EditProfileScreen() {
               <Text style={styles.requiredNote}>* Wajib diisi</Text>
             </View>
 
-            {/* Save Button */}
             <TouchableOpacity 
-              style={[
-                styles.saveButton,
-                isSaving && styles.saveButtonDisabled
-              ]}
+              style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
               onPress={handleSave}
               disabled={isSaving}
             >
@@ -385,7 +309,6 @@ export default function EditProfileScreen() {
               )}
             </TouchableOpacity>
 
-            {/* Cancel Button */}
             <TouchableOpacity 
               style={styles.cancelButton}
               onPress={handleCancel}
@@ -444,11 +367,6 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.white,
     borderRadius: 10,
-    shadowColor: COLORS.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
     padding: 20,
     marginBottom: 20,
   },
@@ -495,11 +413,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
     marginBottom: 10,
   },
   saveButtonDisabled: {
