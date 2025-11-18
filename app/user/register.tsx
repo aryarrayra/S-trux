@@ -10,10 +10,12 @@ import {
   ActivityIndicator,
   TextInput,
   ScrollView,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
-import {API_BASE_URL} from '../../constants/ApiConfig';
-
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { API_BASE_URL } from '../../constants/ApiConfig';
 
 const COLORS = {
   primary: '#F39F29',
@@ -39,6 +41,13 @@ type FormState = {
   id_card_number: string;
 };
 
+type IdCardFile = {
+  uri: string;
+  name: string;
+  type: string;
+  size?: number;
+};
+
 export default function RegisterScreen() {
   const [formState, setFormState] = useState<FormState>({
     email: '',
@@ -51,7 +60,7 @@ export default function RegisterScreen() {
     phone: '',
     id_card_number: '',
   });
-  const [idCardFileName, setIdCardFileName] = useState<string>('');
+  const [idCardFile, setIdCardFile] = useState<IdCardFile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [passwordError, setPasswordError] = useState<string>('');
 
@@ -63,9 +72,195 @@ export default function RegisterScreen() {
     }
   };
 
-  const handlePickDocument = (): void => {
-    Alert.alert('Info', 'Fitur upload dokumen akan segera tersedia');
-    setIdCardFileName('KTP_1234567890.jpg');
+  const handlePickDocument = async (): Promise<void> => {
+    try {
+      // Request permission menggunakan API yang benar
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Izin Diperlukan', 
+          'Maaf, kami membutuhkan izin akses galeri untuk mengupload foto KTP.'
+        );
+        return;
+      }
+
+      // Launch image picker dengan API yang diperbarui
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [3, 2],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        
+        // Gunakan API FileSystem yang baru
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+          
+          if (!fileInfo.exists) {
+            Alert.alert('Error', 'File tidak ditemukan');
+            return;
+          }
+
+          // Check file size (max 5MB) - menggunakan properti size langsung
+          if (fileInfo.size && fileInfo.size > 5 * 1024 * 1024) {
+            Alert.alert('Error', 'Ukuran file terlalu besar. Maksimal 5MB');
+            return;
+          }
+
+          // Create file object
+          const fileName = `ktp_${Date.now()}.jpg`;
+          const fileType = 'image/jpeg';
+
+          const file: IdCardFile = {
+            uri: asset.uri,
+            name: fileName,
+            type: fileType,
+            size: fileInfo.size,
+          };
+
+          setIdCardFile(file);
+        } catch (fileError) {
+          console.error('Error getting file info:', fileError);
+          // Fallback: tetap set file meski tidak bisa dapat info
+          const fileName = `ktp_${Date.now()}.jpg`;
+          const file: IdCardFile = {
+            uri: asset.uri,
+            name: fileName,
+            type: 'image/jpeg',
+          };
+          setIdCardFile(file);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Terjadi kesalahan saat memilih gambar');
+    }
+  };
+
+  const takePhoto = async (): Promise<void> => {
+    try {
+      // Request camera permission
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Izin Diperlukan', 
+          'Maaf, kami membutuhkan izin kamera untuk mengambil foto KTP.'
+        );
+        return;
+      }
+
+      // Launch camera dengan API yang diperbarui
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [3, 2],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        
+        // Gunakan approach yang lebih sederhana tanpa getInfoAsync
+        const fileName = `ktp_${Date.now()}.jpg`;
+        const fileType = 'image/jpeg';
+
+        const file: IdCardFile = {
+          uri: asset.uri,
+          name: fileName,
+          type: fileType,
+        };
+
+        setIdCardFile(file);
+      }
+    } catch (error: any) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Terjadi kesalahan saat mengambil foto');
+    }
+  };
+
+  // Alternatif: Gunakan approach tanpa getInfoAsync untuk menghindari deprecation
+  const handleImagePickSimple = async (useCamera: boolean = false): Promise<void> => {
+    try {
+      // Request permissions
+      let permissionResult;
+      if (useCamera) {
+        permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      } else {
+        permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      }
+
+      if (permissionResult.status !== 'granted') {
+        Alert.alert(
+          'Izin Diperlukan', 
+          `Maaf, kami membutuhkan izin ${useCamera ? 'kamera' : 'galeri'} untuk ${useCamera ? 'mengambil foto' : 'memilih gambar'} KTP.`
+        );
+        return;
+      }
+
+      // Launch picker atau camera
+      const result = useCamera 
+        ? await ImagePicker.launchCameraAsync({
+            allowsEditing: true,
+            aspect: [3, 2],
+            quality: 0.8,
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [3, 2],
+            quality: 0.8,
+          });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        
+        // Simple approach tanpa getInfoAsync
+        const fileName = `ktp_${Date.now()}.${asset.uri.split('.').pop() || 'jpg'}`;
+        
+        const file: IdCardFile = {
+          uri: asset.uri,
+          name: fileName,
+          type: `image/${asset.uri.split('.').pop() || 'jpeg'}`,
+        };
+
+        setIdCardFile(file);
+        
+        // Beri feedback sukses
+        Alert.alert('Sukses', 'Foto KTP berhasil dipilih');
+      }
+    } catch (error: any) {
+      console.error(`Error ${useCamera ? 'taking photo' : 'picking image'}:`, error);
+      Alert.alert('Error', `Terjadi kesalahan saat ${useCamera ? 'mengambil foto' : 'memilih gambar'}`);
+    }
+  };
+
+  const showImagePickerOptions = (): void => {
+    Alert.alert(
+      'Pilih Foto KTP',
+      'Pilih metode untuk mendapatkan foto KTP',
+      [
+        {
+          text: 'Ambil Foto',
+          onPress: () => handleImagePickSimple(true),
+        },
+        {
+          text: 'Pilih dari Galeri',
+          onPress: () => handleImagePickSimple(false),
+        },
+        {
+          text: 'Batal',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const removeSelectedFile = (): void => {
+    setIdCardFile(null);
   };
 
   const validateForm = (): boolean => {
@@ -94,6 +289,11 @@ export default function RegisterScreen() {
       return false;
     }
 
+    if (!idCardFile) {
+      Alert.alert('Error', 'Foto KTP wajib diupload');
+      return false;
+    }
+
     return true;
   };
 
@@ -103,28 +303,52 @@ export default function RegisterScreen() {
     setIsLoading(true);
 
     try {
-      const { confirmPassword, ...submitData } = formState;
+      // Create FormData for file upload
+      const formData = new FormData();
 
-      const response = await fetch(`${API_BASE_URL}/register`, {
+      // Add text fields
+      Object.keys(formState).forEach(key => {
+        if (key !== 'confirmPassword') {
+          formData.append(key, formState[key as keyof FormState]);
+        }
+      });
+
+      // Add file - menggunakan approach yang lebih kompatibel
+      if (idCardFile) {
+        // Convert URI ke blob untuk kompatibilitas yang lebih baik
+        const file = {
+          uri: idCardFile.uri,
+          type: idCardFile.type,
+          name: idCardFile.name,
+        } as any;
+
+        formData.append('id_card_photo', file);
+      }
+
+      console.log('📤 Sending registration request...');
+
+      const response = await fetch(`${API_BASE_URL}/user/register`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Accept': 'application/json',
+          // Biarkan browser/formdata set Content-Type secara otomatis untuk multipart
         },
-        body: JSON.stringify(submitData),
+        body: formData,
       });
 
       const data = await response.json();
+      console.log('📥 Response received:', data);
 
       if (response.ok && data.success) {
         Alert.alert('Sukses', 'Registrasi berhasil!');
         router.replace('/user/dashboarduser');
       } else {
-        Alert.alert('Error', data.message || 'Registrasi gagal');
+        const errorMessage = data.message || data.errors?.id_card_photo?.[0] || 'Registrasi gagal';
+        Alert.alert('Error', errorMessage);
       }
 
     } catch (error: any) {
-      console.error('Error:', error);
+      console.error('❌ Error:', error);
       Alert.alert(
         'Koneksi Gagal', 
         'Tidak bisa terhubung ke server. Pastikan server berjalan dan koneksi internet stabil.'
@@ -237,19 +461,63 @@ export default function RegisterScreen() {
             })}
 
             <View style={styles.inputWrapper}>
-              <Text style={styles.label}>ID Card Photo</Text>
-              <TouchableOpacity 
-                style={styles.fileInput}
-                onPress={handlePickDocument}
-                disabled={isLoading}
-              >
-                <Text style={[
-                  styles.fileInputText,
-                  !idCardFileName && styles.fileInputPlaceholder
-                ]}>
-                  {idCardFileName || 'Pilih File...'}
-                </Text>
-              </TouchableOpacity>
+              <Text style={styles.label}>
+                ID Card Photo <Text style={styles.required}>*</Text>
+              </Text>
+              
+              {idCardFile ? (
+                <View style={styles.filePreviewContainer}>
+                  <View style={styles.filePreview}>
+                    <Image 
+                      source={{ uri: idCardFile.uri }} 
+                      style={styles.filePreviewImage}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.fileInfo}>
+                      <Text style={styles.fileName} numberOfLines={1}>
+                        {idCardFile.name}
+                      </Text>
+                      <TouchableOpacity 
+                        onPress={removeSelectedFile}
+                        style={styles.removeButton}
+                      >
+                        <Text style={styles.removeButtonText}>Hapus</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.fileInput}
+                  onPress={showImagePickerOptions}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.fileInputText}>
+                    Pilih Foto KTP...
+                  </Text>
+                  <Text style={styles.fileInputSubtext}>
+                    Tekan untuk memilih dari galeri atau ambil foto
+                  </Text>
+                </TouchableOpacity>
+              )}
+              
+              <View style={styles.fileInputButtons}>
+                <TouchableOpacity 
+                  style={[styles.secondaryButton, styles.cameraButton]}
+                  onPress={() => handleImagePickSimple(true)}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.secondaryButtonText}>Ambil Foto</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.secondaryButton, styles.galleryButton]}
+                  onPress={() => handleImagePickSimple(false)}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.secondaryButtonText}>Pilih dari Galeri</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.spacer} />
@@ -371,17 +639,92 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: '#F39F29',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 48,
+    paddingVertical: 16,
+    minHeight: 80,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   fileInputText: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 14,
     color: '#FFFFFF',
+    textAlign: 'center',
   },
-  fileInputPlaceholder: {
+  fileInputSubtext: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 10,
     color: '#978D8D',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  filePreviewContainer: {
+    marginBottom: 10,
+  },
+  filePreview: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(243, 159, 41, 0.25)',
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: '#F39F29',
+    padding: 12,
+    alignItems: 'center',
+  },
+  filePreviewImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  fileInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  fileName: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: '#FFFFFF',
+    flex: 1,
+    marginRight: 10,
+  },
+  removeButton: {
+    backgroundColor: '#FF4757',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+  },
+  removeButtonText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: '#FFFFFF',
+  },
+  fileInputButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    gap: 10,
+  },
+  secondaryButton: {
+    flex: 1,
+    backgroundColor: 'rgba(253, 203, 65, 0.3)',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraButton: {
+    borderColor: '#FDCB41',
+    borderWidth: 1,
+  },
+  galleryButton: {
+    borderColor: '#F39F29',
+    borderWidth: 1,
+  },
+  secondaryButtonText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: '#FFFFFF',
   },
   spacer: {
     height: 20,
