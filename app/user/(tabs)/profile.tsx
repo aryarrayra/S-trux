@@ -27,6 +27,8 @@ import { COLORS } from '../../../constants/Colors';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
+import { API_BASE_URL } from '../../../constants/ApiConfig';
 
 const InfoRow = ({
   icon: Icon,
@@ -53,6 +55,7 @@ export default function ProfileScreen() {
   const [pelangganData, setPelangganData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [profileInfo, setProfileInfo] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -115,6 +118,7 @@ export default function ProfileScreen() {
       setProfileInfo(updatedProfileInfo);
       
     } catch (error) {
+      console.error('Error loading profile data:', error);
       setProfileInfo(getMockProfileInfo());
     } finally {
       setIsLoading(false);
@@ -149,6 +153,158 @@ export default function ProfileScreen() {
     },
   ];
 
+const uploadProfilePhoto = async (imageUri: string) => {
+  if (!userData?.email) {
+    Alert.alert('Error', 'Data user tidak ditemukan');
+    return;
+  }
+
+  setIsUploading(true);
+
+  try {
+    const formData = new FormData();
+    
+    // Add user email
+    formData.append('email', userData.email);
+
+    // Add file - pastikan formatnya benar
+    const fileName = `profile_${Date.now()}.jpg`;
+    const file = {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: fileName,
+    } as any;
+
+    formData.append('foto_profil', file);
+
+    console.log('📤 Uploading profile photo...', {
+      email: userData.email,
+      fileName: fileName
+    });
+
+    const response = await fetch(`${API_BASE_URL}/upload-profile-photo`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+    console.log('📥 Upload response:', data);
+
+    if (response.ok && data.success) {
+      Alert.alert('Sukses', 'Foto profil berhasil diupdate!');
+      
+      // Update local storage dengan data terbaru
+      if (data.data?.foto_profil) {
+        const updatedPelangganData = {
+          ...pelangganData,
+          foto_profil: data.data.foto_profil
+        };
+        await AsyncStorage.setItem('pelangganData', JSON.stringify(updatedPelangganData));
+        setPelangganData(updatedPelangganData);
+        console.log('✅ Profile photo updated in local storage:', data.data.foto_profil);
+      }
+      
+    } else {
+      const errorMessage = data.message || 'Gagal mengupload foto profil';
+      Alert.alert('Error', errorMessage);
+    }
+
+  } catch (error: any) {
+    console.error('❌ Upload error:', error);
+    Alert.alert(
+      'Koneksi Gagal', 
+      'Tidak bisa terhubung ke server. Pastikan server berjalan dan koneksi internet stabil.'
+    );
+  } finally {
+    setIsUploading(false);
+  }
+};
+
+  const handlePickImage = async () => {
+    try {
+      // Request gallery permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Izin Diperlukan', 
+          'Maaf, kami membutuhkan izin akses galeri untuk mengubah foto profil.'
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        await uploadProfilePhoto(asset.uri);
+      }
+    } catch (error: any) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Terjadi kesalahan saat memilih gambar');
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      // Request camera permission
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Izin Diperlukan', 
+          'Maaf, kami membutuhkan izin kamera untuk mengambil foto profil.'
+        );
+        return;
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        await uploadProfilePhoto(asset.uri);
+      }
+    } catch (error: any) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Terjadi kesalahan saat mengambil foto');
+    }
+  };
+
+  const showImagePickerOptions = (): void => {
+    Alert.alert(
+      'Ubah Foto Profil',
+      'Pilih metode untuk mengubah foto profil',
+      [
+        {
+          text: 'Ambil Foto',
+          onPress: handleTakePhoto,
+        },
+        {
+          text: 'Pilih dari Galeri',
+          onPress: handlePickImage,
+        },
+        {
+          text: 'Batal',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
   const handleEditProfile = () => {
     router.push('/user/editprofile');
   };
@@ -181,6 +337,31 @@ export default function ProfileScreen() {
       ]
     );
   };
+
+  // Get profile photo URL dengan fallback ke default avatar
+const getProfilePhotoUrl = () => {
+  if (pelangganData?.foto_profil) {
+    console.log('📸 Current profile photo path:', pelangganData.foto_profil);
+    
+    // Jika foto_profil sudah full URL, gunakan langsung
+    if (pelangganData.foto_profil.startsWith('http')) {
+      return pelangganData.foto_profil;
+    }
+    
+    // Jika relative path (assets/images/...), buat full URL
+    if (pelangganData.foto_profil.startsWith('assets/')) {
+      const baseUrl = API_BASE_URL.replace('/api', '');
+      return `${baseUrl}/${pelangganData.foto_profil}`;
+    }
+    
+    // Fallback untuk path lainnya
+    return `${API_BASE_URL.replace('/api', '')}/${pelangganData.foto_profil}`;
+  }
+  
+  console.log('🖼️ Using default avatar');
+  // Fallback ke default avatar
+  return 'https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/be7e/389b/c8db882c474b7f5585b46df9d5a35c58?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=M8MJocKl7g96LpvLhk9FLDvA-Bx-rvNA~qqSAsKl5BgaNJw~XZcx4QCOKynIpqGW4f7W7khBssKh5IarPhhOAD-B1xOvM1TzAyGUVBx5JEb7Cc4KPs5el6Oe7pQ-ZjYug0iTASZ0od-zzOI3QZx8rUxhveD0nMCk8YArotnEo2~HZ0ZBFElajYjTPHPcNpPDRZ1BEwCCTp7dkJ4u5h4Z-W4OtfTxaFRf7RNCE2f6I7cWQEaQGbLEF6tMD7apOMlM4Z8HaNKt-28-X1ZamgTO7L9EhPf9USUSpQyg7JAMaqSoQlM05vbpDQF4FtRPDpzZbgljPiizIrVy49OI6CtSJg__';
+};
 
   if (isLoading) {
     return (
@@ -217,13 +398,21 @@ export default function ProfileScreen() {
             />
             <View style={styles.profileDetails}>
               <View style={styles.avatarContainer}>
-                <Image
-                  source={{
-                    uri: 'https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/be7e/389b/c8db882c474b7f5585b46df9d5a35c58?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=M8MJocKl7g96LpvLhk9FLDvA-Bx-rvNA~qqSAsKl5BgaNJw~XZcx4QCOKynIpqGW4f7W7khBssKh5IarPhhOAD-B1xOvM1TzAyGUVBx5JEb7Cc4KPs5el6Oe7pQ-ZjYug0iTASZ0od-zzOI3QZx8rUxhveD0nMCk8YArotnEo2~HZ0ZBFElajYjTPHPcNpPDRZ1BEwCCTp7dkJ4u5h4Z-W4OtfTxaFRf7RNCE2f6I7cWQEaQGbLEF6tMD7apOMlM4Z8HaNKt-28-X1ZamgTO7L9EhPf9USUSpQyg7JAMaqSoQlM05vbpDQF4FtRPDpzZbgljPiizIrVy49OI6CtSJg__',
-                  }}
-                  style={styles.avatar}
-                />
-                <TouchableOpacity style={styles.cameraButton}>
+                {isUploading ? (
+                  <View style={[styles.avatar, styles.uploadingAvatar]}>
+                    <ActivityIndicator size="small" color={COLORS.white} />
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: getProfilePhotoUrl() }}
+                    style={styles.avatar}
+                  />
+                )}
+                <TouchableOpacity 
+                  style={styles.cameraButton}
+                  onPress={showImagePickerOptions}
+                  disabled={isUploading}
+                >
                   <Camera size={11} color={COLORS.black} />
                 </TouchableOpacity>
               </View>
@@ -296,6 +485,7 @@ export default function ProfileScreen() {
   );
 }
 
+// Styles tetap sama seperti sebelumnya...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -366,7 +556,12 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     borderWidth: 3,
-    borderColor: '#29F3C0',
+    borderColor: '#f0f329ff',
+  },
+  uploadingAvatar: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.lightGray,
   },
   cameraButton: {
     position: 'absolute',

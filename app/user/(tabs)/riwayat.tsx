@@ -116,7 +116,7 @@ const HistoryCard = ({ item }: { item: HistoryItem }) => {
 
   const handleDetailPress = () => {
     router.push({
-      pathname: '/user/historysewa',
+      pathname: '/user/history',
       params: {
         transactionId: item.transactionId,
         itemName: item.title,

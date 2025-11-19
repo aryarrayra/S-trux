@@ -12,8 +12,8 @@ const TabBarIcon = ({ label, isFocused }) => {
         case 'Katalog':
             icon = <MaterialIcons name="search" size={24} color={iconColor} />;
             break;
-        case 'Favorit':
-            icon = <MaterialIcons name="favorite-outline" size={24} color={iconColor} />;
+        case 'Notification':
+            icon = <MaterialIcons name="notifications" size={24} color={iconColor} />;
             break;
         case 'Beranda':
             icon = <MaterialIcons name="home" size={24} color={iconColor} />;
@@ -108,9 +108,9 @@ export default function TabLayout() {
                 }}
             />
             <Tabs.Screen
-                name="favorit"
+                name="notification"
                 options={{
-                    tabBarLabel: 'Favorit',
+                    tabBarLabel: 'Notification',
                 }}
             />
             <Tabs.Screen
