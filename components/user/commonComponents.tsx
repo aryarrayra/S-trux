@@ -17,6 +17,7 @@ export const COLORS = {
   black: '#000000',
   textGray: '#978D8D',
   primary: '#29F3C0',
+  green: '#129002ff',
   inactiveGray: '#D9D9D9',
   orange: '#F39F29',
   yellow: '#FDCB41',

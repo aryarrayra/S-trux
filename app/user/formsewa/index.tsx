@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SafeAreaView, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
@@ -19,19 +19,92 @@ import { SuccessModal } from '@/components/user/SuccessModal';
 
 // Import utility functions
 import { formatDate, calculateDuration } from '@/utils/dateUtils';
+import { API_BASE_URL } from '@/constants/ApiConfig';
+
+// ✅ FUNGSI API CREATE PENYEWAAN
+const createPenyewaan = async (dataSewa) => {
+  // ✅ FUNGSI KONVERSI TANGGAL
+  const convertToBackendDate = (dateString: string): string => {
+    if (!dateString) return '';
+    
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString;
+    }
+    
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      console.warn('⚠️ Format tanggal tidak dikenali:', dateString);
+      return '';
+    }
+    
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  try {
+    const payload = {
+      id_pelanggan: dataSewa.idPelanggan,
+      id_alat: dataSewa.idAlat,
+      tanggal_sewa: convertToBackendDate(dataSewa.tanggalSewa),
+      tanggal_kembali: convertToBackendDate(dataSewa.tanggalKembali),
+      total_harga: parseFloat(dataSewa.totalHarga),
+      nama_proyek: dataSewa.namaProyek || '',
+      lokasi_proyek: dataSewa.lokasiProyek || '',
+      deskripsi_proyek: dataSewa.deskripsiProyek || '',
+      latitude: dataSewa.latitude ? parseFloat(dataSewa.latitude) : null,
+      longitude: dataSewa.longitude ? parseFloat(dataSewa.longitude) : null,
+      status_persetujuan: 'Menunggu',
+      status_sewa: 'Menunggu Persetujuan'
+    };
+
+    console.log('📤 Payload yang dikirim ke backend:', payload);
+
+    const response = await fetch(`${API_BASE_URL}/penyewaan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const responseData = await response.json();
+    console.log('📥 Response dari server:', responseData);
+    
+    if (!response.ok) {
+      if (responseData.errors) {
+        const errorMessages = Object.values(responseData.errors).flat().join(', ');
+        throw new Error(`Validasi gagal: ${errorMessages}`);
+      }
+      throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    if (responseData.success) {
+      return responseData.data;
+    } else {
+      throw new Error(responseData.message || 'Terjadi kesalahan tidak diketahui');
+    }
+  } catch (error) {
+    console.error('❌ Error creating penyewaan:', error);
+    throw error;
+  }
+};
 
 export default function SewaFormScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   
-  console.log('📦 Received params:', params); // Debug params
+  console.log('📦 Received params:', params);
 
   // State management
   const [currentStep, setCurrentStep] = useState(1);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
+  const [submissionResult, setSubmissionResult] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // ✅ STATE UNTUK LOADING
 
-  // Equipment data from catalog - dengan fallback yang lebih baik
+  // Equipment data from catalog
   const [selectedItem] = useState({
     id: params.productId as string || '1',
     name: params.productName as string || 'Excavator Caterpillar 3200D',
@@ -67,11 +140,68 @@ export default function SewaFormScreen() {
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
 
   // Step 3 state
-  const [uploadedDocuments, setUploadedDocuments] = useState<string[]>([]);
+  const [uploadedDocuments, setUploadedDocuments] = useState<any[]>([]);
 
   // Calculations
   const duration = calculateDuration(startDate, endDate);
   const totalCost = selectedItem.dailyRate * duration;
+
+  // ✅ FUNGSI FORMAT BACKEND
+  const formatDateForBackend = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // ✅ FUNGSI UNTUK MENDAPATKAN DATA SEWA YANG SUDAH DIKONVERSI
+  const getSewaDataForBackend = () => {
+    return {
+      idPelanggan: 1, // Ganti dengan ID user dari auth context
+      idAlat: parseInt(selectedItem.id),
+      tanggalSewa: formatDateForBackend(startDate),
+      tanggalKembali: formatDateForBackend(endDate),
+      totalHarga: totalCost,
+      namaProyek: projectName,
+      lokasiProyek: projectLocation,
+      deskripsiProyek: projectDescription,
+      latitude: latitude,
+      longitude: longitude
+    };
+  };
+
+  // ✅ VALIDASI STEP
+  const validateStep = (step: number): boolean => {
+    switch (step) {
+      case 1:
+        return true;
+      
+      case 2:
+        if (!projectLocation || projectLocation.trim() === '') {
+          Alert.alert(
+            'Lokasi Belum Dipilih', 
+            'Silakan pilih lokasi proyek terlebih dahulu.',
+            [{ text: 'OK' }]
+          );
+          return false;
+        }
+        if (!projectName || projectName.trim() === '') {
+          Alert.alert(
+            'Nama Proyek Belum Diisi', 
+            'Silakan isi nama proyek terlebih dahulu.',
+            [{ text: 'OK' }]
+          );
+          return false;
+        }
+        return true;
+      
+      case 3:
+        return true;
+      
+      default:
+        return true;
+    }
+  };
 
   // Event handlers
   const handleStartDateChange = (event: any, selectedDate?: Date) => {
@@ -107,18 +237,15 @@ export default function SewaFormScreen() {
     setUseCurrentLocation(false);
   };
 
-  // HAPUS simulated location dan biarkan Step2 yang handle real location
   const handleGetCurrentLocation = () => {
-    // Function ini sekarang hanya untuk trigger state change
-    // Real location handling dilakukan di Step2DetailProyek
     setUseCurrentLocation(true);
   };
 
   const handleNextStep = () => {
     if (currentStep < 3) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      setShowSuccessModal(true);
+      if (validateStep(currentStep)) {
+        setCurrentStep(currentStep + 1);
+      }
     }
   };
 
@@ -130,8 +257,78 @@ export default function SewaFormScreen() {
     }
   };
 
-  const handleDocumentUpload = (files: string[]) => {
+  const handleDocumentUpload = (files: any[]) => {
     setUploadedDocuments(files);
+  };
+
+  // ✅ HANDLE SUBMIT PENYEWAAN DARI TOMBOL FOOTER
+  const handleSubmitPenyewaan = async () => {
+    try {
+      // ✅ TAMPILKAN LOADING
+      setIsSubmitting(true);
+
+      // ✅ VALIDASI FINAL SEBELUM SUBMIT
+      if (!projectLocation || projectLocation.trim() === '') {
+        Alert.alert(
+          'Lokasi Belum Dipilih', 
+          'Silakan pilih lokasi proyek terlebih dahulu sebelum mengajukan penyewaan.',
+          [{ text: 'OK' }]
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (uploadedDocuments.length === 0) {
+        Alert.alert(
+          'Dokumen Belum Diupload', 
+          'Silakan upload dokumen terlebih dahulu sebelum mengajukan penyewaan.',
+          [{ text: 'OK' }]
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      console.log('🚀 Memulai submit penyewaan...');
+      console.log('📊 Data yang akan dikirim:', getSewaDataForBackend());
+
+      // Submit data penyewaan ke API
+      const penyewaanResult = await createPenyewaan(getSewaDataForBackend());
+      console.log('✅ Penyewaan berhasil:', penyewaanResult);
+
+      // ✅ SET STATE UNTUK MODAL
+      setSubmissionResult(penyewaanResult);
+      setShowSuccessModal(true);
+
+    } catch (error: any) {
+      console.error('❌ Gagal submit penyewaan:', error);
+      
+      let errorMessage = error.message || 'Terjadi kesalahan tidak diketahui';
+      
+      if (errorMessage.includes('Validasi gagal')) {
+        errorMessage = errorMessage.replace('Validasi gagal: ', '');
+        Alert.alert(
+          'Validasi Gagal', 
+          `Data yang dimasukkan tidak valid:\n\n${errorMessage}`
+        );
+      } else {
+        Alert.alert(
+          'Gagal Mengajukan Penyewaan', 
+          `${errorMessage}\n\nSilakan periksa data dan coba lagi.`
+        );
+      }
+    } finally {
+      // ✅ HILANGKAN LOADING
+      setIsSubmitting(false);
+    }
+  };
+
+  // ✅ HANDLE TOMBOL FOOTER (NEXT/SUBMIT)
+  const handleFooterAction = () => {
+    if (currentStep < 3) {
+      handleNextStep(); // Lanjut ke step berikutnya
+    } else {
+      handleSubmitPenyewaan(); // Submit penyewaan di step 3
+    }
   };
 
   const handleSuccessConfirm = () => {
@@ -181,6 +378,10 @@ export default function SewaFormScreen() {
       case 3:
         return (
           <Step3Dokumen
+            // ✅ KIRIM DATA YANG SUDAH DIKONVERSI
+            sewaData={getSewaDataForBackend()}
+            
+            // Props untuk UI/tampilan
             startDate={formatDate(startDate)}
             endDate={formatDate(endDate)}
             duration={duration}
@@ -194,6 +395,7 @@ export default function SewaFormScreen() {
             dailyRate={selectedItem.dailyRate}
             uploadedDocuments={uploadedDocuments}
             onDocumentUpload={handleDocumentUpload}
+            // ❌ HAPUS onSubmitSuccess karena sekarang submit dari footer
           />
         );
 
@@ -202,12 +404,13 @@ export default function SewaFormScreen() {
     }
   };
 
-  const isStep3Complete = currentStep === 3 && uploadedDocuments.length > 0;
+  // ✅ CONDITION UNTUK TOMBOL NEXT DI STEP 3
+  const isStep3Complete = uploadedDocuments.length > 0;
 
   return (
     <SafeAreaView style={[
       { flex: 1, backgroundColor: COLORS.background },
-      Platform.OS === 'android' && { paddingTop: StatusBar.currentHeight + 10 } // TAMBAH EXTRA PADDING
+      Platform.OS === 'android' && { paddingTop: StatusBar.currentHeight + 10 }
     ]}>
       <StatusBar 
         backgroundColor={COLORS.background} 
@@ -222,7 +425,7 @@ export default function SewaFormScreen() {
         <ScrollView
           contentContainerStyle={{ 
             paddingBottom: 120,
-            paddingTop: Platform.OS === 'android' ? 10 : 0 // TAMBAH PADDING TOP
+            paddingTop: Platform.OS === 'android' ? 10 : 0
           }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -242,8 +445,8 @@ export default function SewaFormScreen() {
         <Footer
           currentStep={currentStep}
           onBack={handleBackStep}
-          onNext={handleNextStep}
-          isNextDisabled={currentStep === 3 && !isStep3Complete}
+          onNext={handleFooterAction}
+          isNextDisabled={(currentStep === 3 && !isStep3Complete) || isSubmitting}
         />
       </KeyboardAvoidingView>
 
@@ -257,6 +460,7 @@ export default function SewaFormScreen() {
         visible={showSuccessModal}
         equipmentName={selectedItem.name}
         uploadedDocuments={uploadedDocuments}
+        submissionResult={submissionResult}
         onConfirm={handleSuccessConfirm}
       />
     </SafeAreaView>

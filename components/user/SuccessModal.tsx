@@ -4,14 +4,17 @@ import {
   View,
   Text,
   TouchableOpacity,
+  StyleSheet,
 } from 'react-native';
 import { CheckCircle } from 'lucide-react-native';
 import { COLORS } from '@/components/user/commonComponents';
 
+// SuccessModal.tsx - Update untuk tampilkan data dari submission
 interface SuccessModalProps {
   visible: boolean;
   equipmentName: string;
-  uploadedDocuments: string[];
+  uploadedDocuments: any[];
+  submissionResult?: any;
   onConfirm: () => void;
 }
 
@@ -19,38 +22,50 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
   visible,
   equipmentName,
   uploadedDocuments,
-  onConfirm,
+  submissionResult,
+  onConfirm
 }) => {
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={onConfirm}
-      statusBarTranslucent={true}
-    >
+    <Modal visible={visible} animationType="fade" transparent>
       <View style={styles.modalOverlay}>
         <View style={styles.successModal}>
           <View style={styles.successIconContainer}>
-            <CheckCircle size={64} color={COLORS.orange} />
+            <CheckCircle size={64} color={COLORS.green} />
           </View>
-
-          <Text style={styles.successTitle}>
-            Pengajuan Berhasil!
-          </Text>
-
+          
+          <Text style={styles.successTitle}>Penyewaan Berhasil Diajukan!</Text>
+          
+          {/* ✅ TAMPILKAN DATA DARI DATABASE JIKA ADA */}
+          {submissionResult && (
+            <View style={styles.submissionInfo}>
+              <Text style={styles.infoText}>
+                ID Sewa: <Text style={styles.infoValue}>{submissionResult.id_sewa || 'N/A'}</Text>
+              </Text>
+              <Text style={styles.infoText}>
+                Status: <Text style={styles.infoValue}>{submissionResult.status_persetujuan || 'Menunggu'}</Text>
+              </Text>
+              <Text style={styles.infoText}>
+                Tanggal Pengajuan: <Text style={styles.infoValue}>
+                  {submissionResult.created_at 
+                    ? new Date(submissionResult.created_at).toLocaleDateString('id-ID')
+                    : new Date().toLocaleDateString('id-ID')
+                  }
+                </Text>
+              </Text>
+            </View>
+          )}
+          
           <Text style={styles.successMessage}>
-            Pengajuan sewa {equipmentName} berhasil dikirim. 
-            Silakan tunggu konfirmasi dari admin.
-            {uploadedDocuments.length > 0 && (
-              ` Dokumen yang diunggah: ${uploadedDocuments.join(', ')}`
-            )}
+            Penyewaan {equipmentName} berhasil diajukan dan sedang menunggu persetujuan.
           </Text>
-
-          <TouchableOpacity
-            style={styles.successButton}
-            onPress={onConfirm}
-          >
+          
+          {uploadedDocuments.length > 0 && (
+            <Text style={styles.documentsText}>
+              {uploadedDocuments.length} dokumen berhasil diupload
+            </Text>
+          )}
+          
+          <TouchableOpacity style={styles.successButton} onPress={onConfirm}>
             <Text style={styles.successButtonText}>Kembali ke Katalog</Text>
           </TouchableOpacity>
         </View>
@@ -59,7 +74,7 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
   );
 };
 
-const styles = {
+const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -99,7 +114,31 @@ const styles = {
     color: COLORS.textGray,
     textAlign: 'center',
     lineHeight: 20,
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  submissionInfo: {
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    width: '100%',
+  },
+  infoText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: COLORS.textGray,
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontFamily: 'Poppins_600SemiBold',
+    color: COLORS.black,
+  },
+  documentsText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: COLORS.green,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   successButton: {
     backgroundColor: COLORS.yellow,
@@ -114,4 +153,4 @@ const styles = {
     color: COLORS.black,
     textAlign: 'center',
   },
-};
+});

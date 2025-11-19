@@ -1,11 +1,12 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { 
   SummaryCard, 
   ProjectDetailsCard, 
-  DocumentDownloadCard, 
+  DocumentDownloadCard,
   DocumentUploadCard,
-  documentStyles 
+  documentStyles,
+  UploadedFile 
 } from '@/components/user/DocumentComponents';
 
 interface Step3Props {
@@ -20,8 +21,10 @@ interface Step3Props {
   totalCost: number;
   equipmentName: string;
   dailyRate: number;
-  uploadedDocuments: string[];
-  onDocumentUpload: (files: string[]) => void;
+  uploadedDocuments: UploadedFile[];
+  onDocumentUpload: (files: UploadedFile[]) => void;
+  idPelanggan?: number;
+  idAlat?: number;
 }
 
 export const Step3Dokumen: React.FC<Step3Props> = ({
@@ -36,11 +39,32 @@ export const Step3Dokumen: React.FC<Step3Props> = ({
   totalCost,
   equipmentName,
   dailyRate,
-  uploadedDocuments,
+  uploadedDocuments = [],
   onDocumentUpload,
+  idPelanggan = 1,
+  idAlat = 1,
 }) => {
+
+  // ✅ DATA UNTUK SUBMIT KE API
+  const sewaData = {
+    idPelanggan: idPelanggan,
+    idAlat: idAlat,
+    tanggalSewa: startDate,
+    tanggalKembali: endDate,
+    totalHarga: totalCost,
+    namaProyek: projectName,
+    lokasiProyek: projectLocation,
+    deskripsiProyek: projectDescription,
+    latitude: latitude,
+    longitude: longitude
+  };
+
   return (
-    <>
+    <ScrollView 
+      style={{ flex: 1, backgroundColor: '#f5f5f5' }}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 20 }}
+    >
       <View style={documentStyles.section}>
         <SummaryCard
           startDate={startDate}
@@ -83,8 +107,12 @@ export const Step3Dokumen: React.FC<Step3Props> = ({
         <DocumentUploadCard 
           onUpload={onDocumentUpload}
           uploadedDocuments={uploadedDocuments}
+          // ✅ TAMBAHKAN PROPS UNTUK SUBMIT
+          sewaData={sewaData}
         />
       </View>
-    </>
+    </ScrollView>
   );
 };
+
+export default Step3Dokumen;

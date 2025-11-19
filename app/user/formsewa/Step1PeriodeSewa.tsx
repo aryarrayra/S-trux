@@ -39,8 +39,10 @@ export const Step1PeriodeSewa: React.FC<Step1Props> = ({
         <Text style={styles.periodeSewaInfo}>
           Anda hanya dapat memesan alat berat 2 hari sesudah hari ini
         </Text>
+
       </View>
 
+      {/* Tampilan UI tetap pakai format indonesia */}
       <DateInput
         label="Tanggal Mulai"
         value={formatDate(startDate)}

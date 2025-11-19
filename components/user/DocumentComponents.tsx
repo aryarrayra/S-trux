@@ -1,23 +1,110 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { FileText, Download, Upload } from 'lucide-react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import { COLORS } from '../user/commonComponents';
+import { API_BASE_URL } from '@/constants/ApiConfig';
+import { 
+  convertToBackendDate, 
+  formatDate, 
+  calculateDuration 
+} from '@/utils/dateUtils'; // Sesuaikan path
 
-interface DocumentData {
-  nama: string;
-  alamat: string;
-  noKtp: string;
-  projectName: string;
-  projectLocation: string;
-  startDate: string;
-  endDate: string;
-  duration: number;
-  totalCost: number;
-  equipmentName: string;
-  dailyRate: number;
+export interface UploadedFile {
+  name: string;
+  uri: string;
+  size: number;
+  mimeType: string | null;
+  lastModified: number | null;
 }
+
+// ✅ FUNGSI API
+const createPenyewaan = async (dataSewa) => {
+  // ✅ TAMBAHKAN FUNGSI INI DI DALAM createPenyewaan
+  const convertToBackendDate = (dateString: string): string => {
+    if (!dateString) return '';
+    
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString;
+    }
+    
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      console.warn('⚠️ Format tanggal tidak dikenali:', dateString);
+      return '';
+    }
+    
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  try {
+    const payload = {
+      id_pelanggan: dataSewa.idPelanggan,
+      id_alat: dataSewa.idAlat,
+      tanggal_sewa: convertToBackendDate(dataSewa.tanggalSewa),
+      tanggal_kembali: convertToBackendDate(dataSewa.tanggalKembali),
+      total_harga: parseFloat(dataSewa.totalHarga),
+      nama_proyek: dataSewa.namaProyek || '',
+      lokasi_proyek: dataSewa.lokasiProyek || '',
+      deskripsi_proyek: dataSewa.deskripsiProyek || '',
+      latitude: dataSewa.latitude ? parseFloat(dataSewa.latitude) : null,
+      longitude: dataSewa.longitude ? parseFloat(dataSewa.longitude) : null,
+      status_persetujuan: 'Menunggu',
+      status_sewa: 'Menunggu Persetujuan'
+    };
+
+    console.log('📤 Payload yang dikirim ke backend:', payload);
+
+    const response = await fetch(`${API_BASE_URL}/penyewaan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const responseData = await response.json();
+    console.log('📥 Response dari server:', responseData);
+    
+    if (!response.ok) {
+      if (responseData.errors) {
+        const errorMessages = Object.values(responseData.errors).flat().join(', ');
+        throw new Error(`Validasi gagal: ${errorMessages}`);
+      }
+      throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    if (responseData.success) {
+      return responseData.data;
+    } else {
+      throw new Error(responseData.message || 'Terjadi kesalahan tidak diketahui');
+    }
+  } catch (error) {
+    console.error('❌ Error creating penyewaan:', error);
+    throw error;
+  }
+};
+
+const getPenyewaanByPelanggan = async (idPelanggan) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/penyewaan/pelanggan/${idPelanggan}`);
+    const data = await response.json();
+    
+    if (data.success) {
+      return data.data;
+    } else {
+      throw new Error(data.message);
+    }
+  } catch (error) {
+    console.error('Error fetching penyewaan:', error);
+    throw error;
+  }
+};
 
 // Summary Card Component
 export const SummaryCard = ({ 
@@ -42,7 +129,7 @@ export const SummaryCard = ({
 
     <View style={documentStyles.summaryRow}>
       <Text style={documentStyles.summaryLabel}>Harga per Hari</Text>
-      <Text style={documentStyles.summaryValue}>Rp {dailyRate.toLocaleString('id-ID')}</Text>
+      <Text style={documentStyles.summaryValue}>Rp {dailyRate?.toLocaleString('id-ID')}</Text>
     </View>
 
     <View style={documentStyles.summaryRow}>
@@ -79,7 +166,7 @@ export const SummaryCard = ({
 
     <View style={[documentStyles.summaryRow, { marginTop: 8 }]}>
       <Text style={documentStyles.totalLabel}>Total Biaya</Text>
-      <Text style={documentStyles.totalValue}>Rp {totalCost.toLocaleString('id-ID')}</Text>
+      <Text style={documentStyles.totalValue}>Rp {totalCost?.toLocaleString('id-ID')}</Text>
     </View>
   </View>
 );
@@ -115,7 +202,7 @@ export const ProjectDetailsCard = ({ projectName, projectLocation, projectDescri
   </View>
 );
 
-// Document Download Card Component
+// Document Download Card Component - HANYA DOWNLOAD
 export const DocumentDownloadCard = ({ 
   startDate, 
   endDate, 
@@ -124,183 +211,228 @@ export const DocumentDownloadCard = ({
   projectName,
   projectLocation,
   equipmentName,
-  dailyRate 
+  dailyRate
 }: any) => {
   
-  const generateWordContent = (type: 'pernyataan' | 'kontrak', data: DocumentData): string => {
+  const generateTemplateContent = () => {
     const currentDate = new Date().toLocaleDateString('id-ID', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+      day: 'numeric',
+      month: 'long', 
+      year: 'numeric'
     });
 
-    if (type === 'pernyataan') {
-      return `SURAT PERNYATAAN
+    return `SURAT PERNYATAAN DAN KONTRAK SEWA ALAT BERAT
 
-Yang bertanda tangan di bawah ini:
-Nama : ${data.nama}
-Alamat : ${data.alamat}
-No. KTP : ${data.noKtp}
+Tanggal: ${currentDate}
 
-Dengan ini menyatakan bahwa saya bersedia menggunakan, menjaga, dan mematuhi seluruh ketentuan terkait penyewaan alat berat "${data.equipmentName}" yang saya gunakan. Segala bentuk kerusakan atau penyalahgunaan selama masa sewa menjadi tanggung jawab saya sepenuhnya.
+DATA PENYEWA:
+Nama        : __________________________
+Alamat      : __________________________
+No. KTP     : __________________________
+No. Telepon : __________________________
 
-Demikian surat pernyataan ini dibuat dengan sebenarnya untuk digunakan sebagaimana mestinya.
+DATA ALAT BERAT:
+Jenis Alat  : ${equipmentName || "__________________________"}
+Merk/Type   : __________________________
+Kapasitas   : __________________________
 
-Tanda Tangan,
+DATA SEWA:
+Tanggal Mulai      : ${startDate || "__________________________"}
+Tanggal Selesai    : ${endDate || "__________________________"}
+Durasi Sewa        : ${duration || "______"} hari
+Lokasi Proyek      : ${projectLocation || "__________________________"}
+Nama Proyek        : ${projectName || "__________________________"}
+Harga Sewa per Hari: Rp ${dailyRate?.toLocaleString('id-ID') || "______________________"}
+Total Biaya Sewa   : Rp ${totalCost?.toLocaleString('id-ID') || "______________________"}
 
+SURAT PERNYATAAN:
+Saya yang bertanda tangan di atas menyatakan:
+1. Bersedia mematuhi semua peraturan penggunaan alat berat
+2. Bertanggung jawab penuh atas kondisi alat selama masa sewa
+3. Akan mengganti kerugian jika terjadi kerusakan akibat kelalaian
+4. Menggunakan alat hanya untuk keperluan proyek yang telah disebutkan
 
-${data.nama}
+KETENTUAN KONTRAK:
+1. Penyewa wajib menjaga dan merawat alat dengan baik
+2. Dilarang memindahkan alat tanpa izin tertulis
+3. Biaya perbaikan akibat kelalaian ditanggung penyewa
+4. Kontrak ini berlaku sampai tanggal yang telah ditentukan
+
+TANDA TANGAN:
+
+Penyewa,                            Penyedia,
+
+(__________________________)        (__________________________)
+
+Catatan: Isi data yang masih kosong (____________) kemudian print dan tanda tangani dokumen ini.
 `;
-    } else {
-      return `SURAT KONTRAK SEWA
-
-Pada hari ini, ${currentDate}, telah dibuat perjanjian sewa-menyewa antara:
-
-PIHAK PERTAMA (PENYEDIA):
-Nama : PT. Alat Berat Indonesia
-Alamat : Jl. Industri Raya No. 123, Jakarta
-No. Telepon : (021) 1234-5678
-
-PIHAK KEDUA (PENYEWA):
-Nama : ${data.nama}
-Alamat : ${data.alamat}
-No. KTP : ${data.noKtp}
-
-Dengan ini, kedua belah pihak sepakat atas perjanjian sewa alat berat dengan ketentuan berikut:
-
-1. Nama Alat : ${data.equipmentName}
-2. Masa Sewa : ${data.duration} hari (${data.startDate} hingga ${data.endDate})
-3. Biaya Sewa : Rp ${data.totalCost.toLocaleString('id-ID')} (Rp ${data.dailyRate.toLocaleString('id-ID')} x ${data.duration} hari)
-4. Lokasi Proyek : ${data.projectLocation}
-5. Nama Proyek : ${data.projectName}
-6. Tanggung Jawab Penggunaan : Pihak Kedua bertanggung jawab penuh atas penggunaan dan kondisi alat.
-7. Ketentuan Tambahan : Alat digunakan untuk proyek "${data.projectName}" di ${data.projectLocation}. Segala kerusakan akibat kelalaian operator menjadi tanggung jawab penyewa.
-
-Perjanjian ini berlaku sejak tanggal ditandatangani oleh kedua pihak.
-
-Pihak Pertama,                               Pihak Kedua,
-
-
-(__________________________)               (${data.nama})
-`;
-    }
   };
 
-  const downloadDocument = async (type: 'pernyataan' | 'kontrak') => {
+  const downloadTemplate = async () => {
     try {
-      const documentData: DocumentData = {
-        nama: "John Doe",
-        alamat: "Jl. Contoh No. 123, Jakarta", 
-        noKtp: "12.3456.789012.3456",
-        projectName: projectName,
-        projectLocation: projectLocation,
-        startDate: startDate,
-        endDate: endDate,
-        duration: duration,
-        totalCost: totalCost,
-        equipmentName: equipmentName,
-        dailyRate: dailyRate
-      };
-
-      const content = generateWordContent(type, documentData);
-      const filename = type === 'pernyataan' 
-        ? `Surat_Pernyataan_${projectName.replace(/\s+/g, '_')}.doc` 
-        : `Surat_Kontrak_Sewa_${projectName.replace(/\s+/g, '_')}.doc`;
-
-      const fileUri = FileSystem.documentDirectory + filename;
-
-      await FileSystem.writeAsStringAsync(fileUri, content, {
-        encoding: FileSystem.EncodingType.UTF8
-      });
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/msword',
-          dialogTitle: `Download ${filename}`,
-          UTI: 'com.microsoft.word.doc'
-        });
-      } else {
-        alert(`File berhasil dibuat: ${filename}`);
+      console.log('Starting template download...');
+      
+      const filename = `Surat_Pernyataan_Kontrak_${(projectName || 'Sewa').replace(/\s+/g, '_')}.docx`;
+      
+      const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+      
+      if (!permissions.granted) {
+        Alert.alert('Error', 'Izin akses storage ditolak');
+        return;
       }
 
-    } catch (error) {
-      console.error('Error downloading document:', error);
-      alert('Error downloading document. Silakan coba lagi.');
+      const content = generateTemplateContent();
+      
+      const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+        permissions.directoryUri,
+        filename,
+        'application/msword'
+      );
+      
+      await FileSystem.writeAsStringAsync(fileUri, content);
+      
+      console.log('Template file created:', fileUri);
+
+      Alert.alert(
+        'Berhasil', 
+        `File berhasil disimpan: ${filename}`,
+        [{ text: 'OK' }]
+      );
+
+    } catch (error: any) {
+      console.error('Error downloading template:', error);
+      Alert.alert('Error', `Gagal mengunduh dokumen: ${error.message}`);
     }
   };
 
   return (
     <View style={documentStyles.documentCard}>
-      <Text style={documentStyles.documentCardTitle}>Dokumen untuk Diunduh</Text>
-      <Text style={documentStyles.documentCardSubtitle}>Unduh dan isi dokumen di bawah ini</Text>
+      <Text style={documentStyles.documentCardTitle}>Download Dokumen</Text>
+      <Text style={documentStyles.documentCardSubtitle}>Download template, isi data penyewa, print dan tanda tangani</Text>
 
       <TouchableOpacity 
         style={documentStyles.downloadButton}
-        onPress={() => downloadDocument('pernyataan')}
+        onPress={downloadTemplate}
       >
         <FileText color={COLORS.black} size={20} />
         <View style={documentStyles.downloadTextContainer}>
-          <Text style={documentStyles.downloadTitle}>Surat Pernyataan</Text>
-          <Text style={documentStyles.downloadSubtitle}>DOC - 2 KB</Text>
-        </View>
-        <Download color={COLORS.black} size={20} />
-      </TouchableOpacity>
-
-      <TouchableOpacity 
-        style={documentStyles.downloadButton}
-        onPress={() => downloadDocument('kontrak')}
-      >
-        <FileText color={COLORS.black} size={20} />
-        <View style={documentStyles.downloadTextContainer}>
-          <Text style={documentStyles.downloadTitle}>Surat Kontrak Sewa</Text>
-          <Text style={documentStyles.downloadSubtitle}>DOC - 3 KB</Text>
+          <Text style={documentStyles.downloadTitle}>Surat Pernyataan & Kontrak Sewa</Text>
+          <Text style={documentStyles.downloadSubtitle}>DOC - Download template untuk diisi</Text>
         </View>
         <Download color={COLORS.black} size={20} />
       </TouchableOpacity>
 
       <Text style={documentStyles.downloadNote}>
-        * Dokumen akan disimpan dalam format .doc yang dapat dibuka di Microsoft Word
+        * Download template, isi data penyewa, print, tanda tangani, lalu upload untuk mengajukan penyewaan
       </Text>
     </View>
   );
 };
 
-// Document Upload Card Component
+// Document Upload Card Component - DENGAN SUBMIT INTEGRASI
+// DocumentUploadCard Component - HANYA UPLOAD DOKUMEN
 export const DocumentUploadCard = ({ 
   onUpload,
-  uploadedDocuments = [] 
+  uploadedDocuments = []
 }: { 
-  onUpload?: (files: string[]) => void;
-  uploadedDocuments?: string[];
+  onUpload?: (files: UploadedFile[]) => void;
+  uploadedDocuments?: UploadedFile[];
 }) => {
-  const handleUpload = () => {
-    // Simulasi upload dokumen
-    const uploadedFiles = [
-      'Surat_Pernyataan.doc',
-      'Surat_Kontrak_Sewa.doc'
-    ];
-    onUpload?.(uploadedFiles);
+  
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'application/msword', 
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'image/jpeg',
+          'image/png'
+        ],
+        multiple: false,
+        copyToCacheDirectory: true
+      });
+
+      if (result.canceled) {
+        console.log('Document picking canceled');
+        return;
+      }
+
+      console.log('Picked document:', result.assets[0]);
+
+      const file: UploadedFile = {
+        name: result.assets[0].name || 'Unknown File',
+        uri: result.assets[0].uri,
+        size: result.assets[0].size || 0,
+        mimeType: result.assets[0].mimeType,
+        lastModified: result.assets[0].lastModified || null
+      };
+
+      // ✅ HANYA UPLOAD, TIDAK SUBMIT PENYEWAAN
+      if (onUpload) {
+        onUpload([file]);
+      }
+
+      Alert.alert(
+        'Berhasil!', 
+        'Dokumen berhasil diupload. Silakan lanjutkan untuk mengajukan penyewaan.',
+        [{ text: 'OK' }]
+      );
+
+    } catch (error: any) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', `Gagal mengupload file: ${error.message}`);
+    }
+  };
+
+  const getFileIcon = (fileName: string) => {
+    if (fileName.toLowerCase().endsWith('.pdf')) return '📄';
+    if (fileName.toLowerCase().endsWith('.doc') || fileName.toLowerCase().endsWith('.docx')) return '📝';
+    if (fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.jpeg') || fileName.toLowerCase().endsWith('.png')) return '🖼️';
+    return '📎';
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (
     <View style={documentStyles.documentCard}>
-      <Text style={documentStyles.documentCardTitle}>Unggah Dokumen</Text>
-      <Text style={documentStyles.documentCardSubtitle}>Unggah dokumen yang telah diisi dan ditandatangani</Text>
+      <Text style={documentStyles.documentCardTitle}>Upload Dokumen</Text>
+      <Text style={documentStyles.documentCardSubtitle}>
+        Upload dokumen yang sudah diisi dan ditandatangani
+      </Text>
 
-      <TouchableOpacity style={documentStyles.uploadButton} onPress={handleUpload}>
+      <TouchableOpacity style={documentStyles.uploadButton} onPress={pickDocument}>
         <Upload color={COLORS.black} size={24} />
-        <Text style={documentStyles.uploadText}>Unggah Dokumen</Text>
-        <Text style={documentStyles.uploadSubtext}>DOC, PDF, JPG, PNG (Max. 5MB)</Text>
+        <Text style={documentStyles.uploadText}>Upload Dokumen</Text>
+        <Text style={documentStyles.uploadSubtext}>
+          DOC, DOCX, PDF, JPG, PNG - Maks. 10MB
+        </Text>
       </TouchableOpacity>
 
-      {uploadedDocuments.length > 0 && (
+      {uploadedDocuments && uploadedDocuments.length > 0 && (
         <View style={documentStyles.uploadedFiles}>
-          <Text style={documentStyles.uploadedTitle}>Dokumen Terunggah:</Text>
+          <Text style={documentStyles.uploadedTitle}>Dokumen Terupload:</Text>
           {uploadedDocuments.map((file, index) => (
-            <Text key={index} style={documentStyles.uploadedFile}>
-              ✓ {file}
-            </Text>
+            <View key={index} style={documentStyles.uploadedFileItem}>
+              <Text style={documentStyles.uploadedFileIcon}>
+                {getFileIcon(file.name)}
+              </Text>
+              <View style={documentStyles.uploadedFileInfo}>
+                <Text style={documentStyles.uploadedFileName} numberOfLines={1}>
+                  {file.name}
+                </Text>
+                <Text style={documentStyles.uploadedFileDetails}>
+                  {formatFileSize(file.size)}
+                </Text>
+              </View>
+              <Text style={documentStyles.uploadedFileStatus}>✓</Text>
+            </View>
           ))}
         </View>
       )}
@@ -308,42 +440,118 @@ export const DocumentUploadCard = ({
   );
 };
 
+// ✅ COMPONENT UNTUK LIHAT HISTORY PENYEWAAN
+export const HistoryPenyewaanCard = ({ idPelanggan }: { idPelanggan: number }) => {
+  const [history, setHistory] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+
+  const fetchHistory = async () => {
+    try {
+      setLoading(true);
+      const data = await getPenyewaanByPelanggan(idPelanggan);
+      setHistory(data);
+    } catch (error) {
+      console.error('Error fetching history:', error);
+      Alert.alert('Error', 'Gagal mengambil history penyewaan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (idPelanggan) {
+      fetchHistory();
+    }
+  }, [idPelanggan]);
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Disetujui': return COLORS.green;
+      case 'Ditolak': return COLORS.red;
+      case 'Menunggu': return COLORS.orange;
+      default: return COLORS.textGray;
+    }
+  };
+
+  return (
+    <View style={documentStyles.documentCard}>
+      <Text style={documentStyles.documentCardTitle}>History Penyewaan</Text>
+      
+      {loading ? (
+        <Text style={documentStyles.documentCardSubtitle}>Loading...</Text>
+      ) : history.length > 0 ? (
+        history.map((sewa) => (
+          <View key={sewa.id_sewa} style={documentStyles.historyItem}>
+            <Text style={documentStyles.historyProject}>{sewa.nama_proyek}</Text>
+            <Text style={documentStyles.historyLocation}>{sewa.lokasi_proyek}</Text>
+            <View style={documentStyles.historyRow}>
+              <Text style={documentStyles.historyDate}>
+                {sewa.tanggal_sewa} - {sewa.tanggal_kembali}
+              </Text>
+              <Text style={[
+                documentStyles.historyStatus,
+                { color: getStatusColor(sewa.status_persetujuan) }
+              ]}>
+                {sewa.status_persetujuan}
+              </Text>
+            </View>
+            {sewa.alasan_penolakan && (
+              <Text style={documentStyles.historyReason}>
+                Alasan: {sewa.alasan_penolakan}
+              </Text>
+            )}
+          </View>
+        ))
+      ) : (
+        <Text style={documentStyles.documentCardSubtitle}>Belum ada history penyewaan</Text>
+      )}
+      
+      <TouchableOpacity 
+        style={documentStyles.refreshButton}
+        onPress={fetchHistory}
+      >
+        <Text style={documentStyles.refreshText}>Refresh Data</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 export const documentStyles = {
   section: {
-    marginTop: 34,
-    marginHorizontal: 31,
+    marginTop: 24,
+    marginHorizontal: 20,
   },
   summaryCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
     elevation: 3,
   },
   summaryCardTitle: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.black,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   summaryLabel: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.textGray,
     flex: 1,
   },
   summaryValue: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.black,
     flex: 1,
     textAlign: 'right',
@@ -354,78 +562,78 @@ export const documentStyles = {
   },
   coordinatesSummary: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
+    fontSize: 12,
     color: COLORS.textGray,
-    marginTop: 2,
+    marginTop: 4,
   },
   totalLabel: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.black,
   },
   totalValue: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.orange,
   },
   detailsCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
     elevation: 3,
   },
   detailsCardTitle: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.black,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   detailItem: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
   detailLabel: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.textGray,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   detailValue: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.black,
   },
   locationDetail: {
-    marginTop: 4,
+    marginTop: 6,
   },
   coordinatesDetail: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
+    fontSize: 12,
     color: COLORS.textGray,
-    marginTop: 2,
+    marginTop: 4,
   },
   documentCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
     elevation: 3,
   },
   documentCardTitle: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.black,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   documentCardSubtitle: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.textGray,
     marginBottom: 16,
   },
@@ -433,9 +641,9 @@ export const documentStyles = {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.lightGray,
-    borderRadius: 5,
-    padding: 12,
-    marginBottom: 8,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
   },
   downloadTextContainer: {
     flex: 1,
@@ -443,60 +651,137 @@ export const documentStyles = {
   },
   downloadTitle: {
     fontFamily: 'Poppins_500Medium',
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.black,
   },
   downloadSubtitle: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
+    fontSize: 12,
     color: COLORS.textGray,
-    marginTop: 2,
+    marginTop: 4,
   },
   uploadButton: {
     alignItems: 'center',
     backgroundColor: COLORS.yellow,
-    borderRadius: 5,
-    padding: 20,
-    borderWidth: 1,
+    borderRadius: 8,
+    padding: 24,
+    borderWidth: 2,
     borderColor: COLORS.orange,
     borderStyle: 'dashed',
   },
   uploadText: {
     fontFamily: 'Poppins_500Medium',
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.black,
-    marginTop: 8,
+    marginTop: 12,
   },
   uploadSubtext: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
+    fontSize: 12,
     color: COLORS.textGray,
-    marginTop: 4,
+    marginTop: 6,
   },
   uploadedFiles: {
     marginTop: 16,
-    padding: 12,
+    padding: 16,
     backgroundColor: COLORS.lightGray,
     borderRadius: 8,
   },
   uploadedTitle: {
     fontFamily: 'Poppins_500Medium',
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.black,
+    marginBottom: 12,
+  },
+  uploadedFileItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    padding: 12,
     marginBottom: 8,
   },
-  uploadedFile: {
+  uploadedFileIcon: {
+    fontSize: 18,
+    marginRight: 12,
+  },
+  uploadedFileInfo: {
+    flex: 1,
+  },
+  uploadedFileName: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 11,
+    fontSize: 14,
+    color: COLORS.black,
+  },
+  uploadedFileDetails: {
+    fontFamily: 'Poppins_300Light',
+    fontSize: 12,
     color: COLORS.textGray,
-    marginBottom: 4,
+    marginTop: 4,
+  },
+  uploadedFileStatus: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+    color: COLORS.green,
+    marginLeft: 8,
   },
   downloadNote: {
     fontFamily: 'Poppins_300Light',
-    fontSize: 10,
+    fontSize: 12,
     color: COLORS.textGray,
-    marginTop: 8,
+    marginTop: 12,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  historyItem: {
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  historyProject: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+    color: COLORS.black,
+  },
+  historyLocation: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: COLORS.textGray,
+    marginTop: 4,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  historyDate: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: COLORS.textGray,
+  },
+  historyStatus: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+  },
+  historyReason: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    color: COLORS.red,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  refreshButton: {
+    backgroundColor: COLORS.orange,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  refreshText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+    color: COLORS.white,
   },
 };
