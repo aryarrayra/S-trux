@@ -11,16 +11,17 @@ type Schedule = {
 
 interface MaintenanceCardProps {
   schedule: Schedule[];
+  title?: string; // 🔥 Tambahkan Title Props
 }
 
-const MaintenanceCard = ({ schedule }: MaintenanceCardProps) => {
+const MaintenanceCard = ({ schedule, title = "Jadwal Maintenance" }: MaintenanceCardProps) => {
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.iconContainer}>
           <FileCog color={COLORS.sidebarBg} size={24} />
         </View>
-        <Text style={styles.cardTitle}>Jadwal Maintenance</Text>
+        <Text style={styles.cardTitle}>{title}</Text> {/* 🔥 Gunakan title */}
       </View>
       <View style={styles.scheduleList}>
         {schedule.map((item, index) => (

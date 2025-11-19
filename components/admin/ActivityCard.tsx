@@ -11,16 +11,17 @@ type Activity = {
 
 interface ActivityCardProps {
   history: Activity[];
+  title?: string; // 🔥 Tambahkan title props
 }
 
-const ActivityCard = ({ history }: ActivityCardProps) => {
+const ActivityCard = ({ history, title = "Histori Aktivitas" }: ActivityCardProps) => {
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.iconContainer}>
           <History color={COLORS.sidebarBg} size={24} />
         </View>
-        <Text style={styles.cardTitle}>Histori Aktivitas</Text>
+        <Text style={styles.cardTitle}>{title}</Text> {/* 🔥 Gunakan title */}
       </View>
       <View style={styles.activityList}>
         {history.map((item, index) => (
@@ -78,14 +79,15 @@ const styles = StyleSheet.create({
     color: COLORS.historyText,
   },
   activityCompany: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
-    color: COLORS.historyText,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: COLORS.darkGray,
+    marginTop: 3,
   },
   activityTime: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
-    color: COLORS.historyText,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: COLORS.textMuted,
     marginTop: 4,
   },
 });
