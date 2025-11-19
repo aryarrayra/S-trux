@@ -1,33 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform } from 'react-native';
-import { MapPin, Search, X, Clock, User, Calendar } from 'lucide-react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
+import { MapPin, Search, X, Clock, Calendar } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
-
-// Declare global for Leaflet
-declare global {
-    interface Window {
-        L: any;
-        openLoanDetail: (loanId: string) => void;
-    }
-}
-
-// Load maps ONLY on mobile (no import at top)
-let MapView: any = null;
-let Marker: any = null;
-let PROVIDER_GOOGLE: any = null;
-
-if (Platform.OS !== 'web') {
-    try {
-        const rnMaps = require('react-native-maps');
-        MapView = rnMaps.default;
-        Marker = rnMaps.Marker;
-        PROVIDER_GOOGLE = rnMaps.PROVIDER_GOOGLE;
-    } catch (e) {
-        console.warn('Maps not loaded');
-    }
-}
 
 // Mock data
 const INITIAL_ACTIVE_LOANS = [
@@ -62,178 +38,150 @@ const INITIAL_ACTIVE_LOANS = [
         endDate: '04/11/2025',
         duration: '45 hari',
         condition: 'baik',
-    },
-    {
-        id: 'PJ000-07112025-003',
-        equipment: 'Dump Truck CAT 777',
-        type: 'Dump Truck',
-        borrower: 'Borrower Name',
-        unit: 'PT. Trans Logistik',
-        location: {
-            latitude: -6.1754,
-            longitude: 106.8272,
-            title: 'Jakarta Utara',
-        },
-        startDate: '25/10/2025',
-        endDate: '14/11/2025',
-        duration: '20 hari',
-        condition: 'rusak',
-    },
+    }
 ];
 
 // Web Map Component
-const WebMapView = ({ loans, onMarkerClick }: any) => {
+const WebMap = ({ loans, onMarkerClick }: any) => {
+    const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<any>(null);
-    const markersRef = useRef<any[]>([]);
-    const mapContainerRef = useRef<any>(null);
-
-    const getPinColor = (type: string) => {
-        switch (type) {
-            case 'Excavator':
-                return '#F59E0B';
-            case 'Bulldozer':
-                return '#FDB022';
-            case 'Dump Truck':
-                return '#000000';
-            default:
-                return '#F59E0B';
-        }
-    };
+    const [mapLoaded, setMapLoaded] = useState(false);
 
     useEffect(() => {
-        if (Platform.OS !== 'web') return;
+        if (!mapContainerRef.current) return;
 
-        // Load Leaflet CSS
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';
-        document.head.appendChild(link);
+        let script: HTMLScriptElement | null = null;
+        let link: HTMLLinkElement | null = null;
 
-        // Load Leaflet JS
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';
-        script.async = true;
-        script.onload = () => {
-            if (window.L && mapContainerRef.current && !mapRef.current) {
-                const map = window.L.map(mapContainerRef.current).setView([-6.2088, 106.8456], 11);
+        const initializeMap = () => {
+            if (!(window as any).L || !mapContainerRef.current || mapRef.current) return;
 
-                window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap contributors',
-                    maxZoom: 19,
+            try {
+                const L = (window as any).L;
+                const map = L.map(mapContainerRef.current).setView([-6.2088, 106.8456], 11);
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
                 }).addTo(map);
 
                 mapRef.current = map;
+                setMapLoaded(true);
+            } catch (error) {
+                console.error('Error initializing map:', error);
             }
         };
-        document.head.appendChild(script);
+
+        const loadLeaflet = () => {
+            // Check if already loaded
+            if ((window as any).L) {
+                initializeMap();
+                return;
+            }
+
+            // Load Leaflet CSS from CDN
+            link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+            link.crossOrigin = '';
+            document.head.appendChild(link);
+
+            // Load Leaflet JS from CDN
+            script = document.createElement('script');
+            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+            script.crossOrigin = '';
+            script.onload = initializeMap;
+            document.head.appendChild(script);
+        };
+
+        loadLeaflet();
 
         return () => {
             if (mapRef.current) {
                 mapRef.current.remove();
-                mapRef.current = null;
+            }
+            if (script && document.head.contains(script)) {
+                document.head.removeChild(script);
+            }
+            if (link && document.head.contains(link)) {
+                document.head.removeChild(link);
             }
         };
     }, []);
 
     useEffect(() => {
-        if (Platform.OS !== 'web') return;
-        if (!mapRef.current || !window.L) return;
+        if (!mapLoaded || !mapRef.current || !(window as any).L) return;
 
-        // Clear markers
-        markersRef.current.forEach(marker => marker.remove());
-        markersRef.current = [];
-
-        // Set window function
-        window.openLoanDetail = (loanId: string) => {
-            const loan = loans.find((l: any) => l.id === loanId);
-            if (loan) {
-                onMarkerClick(loan);
+        const L = (window as any).L;
+        
+        // Clear existing markers
+        mapRef.current.eachLayer((layer: any) => {
+            if (layer instanceof L.Marker) {
+                mapRef.current.removeLayer(layer);
             }
-        };
+        });
 
         // Add markers
         loans.forEach((loan: any) => {
-            const color = getPinColor(loan.type);
+            const marker = L.marker([loan.location.latitude, loan.location.longitude])
+                .addTo(mapRef.current)
+                .bindPopup(`
+                    <div style="padding: 8px; min-width: 200px;">
+                        <strong style="font-size: 14px;">${loan.equipment}</strong><br/>
+                        <small style="color: #666;">${loan.borrower}</small><br/>
+                        <button 
+                            onclick="window.dispatchEvent(new CustomEvent('markerClick', { detail: '${loan.id}' }))" 
+                            style="margin-top: 8px; padding: 6px 12px; background: #F59E0B; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;"
+                        >
+                            Detail
+                        </button>
+                    </div>
+                `);
 
-            const icon = window.L.divIcon({
-                html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-                className: 'custom-marker',
-                iconSize: [24, 24],
-                iconAnchor: [12, 24],
+            marker.on('click', () => {
+                onMarkerClick(loan);
             });
-
-            const marker = window.L.marker(
-                [loan.location.latitude, loan.location.longitude],
-                { icon }
-            ).addTo(mapRef.current);
-
-            marker.bindPopup(`
-                <div style="font-family: sans-serif;">
-                    <strong style="font-size: 14px; color: #333;">${loan.equipment}</strong><br/>
-                    <span style="font-size: 12px; color: #666;">${loan.borrower}</span><br/>
-                    <button 
-                        onclick="window.openLoanDetail('${loan.id}')" 
-                        style="margin-top: 8px; padding: 4px 12px; background-color: #F59E0B; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;"
-                    >
-                        Detail
-                    </button>
-                </div>
-            `);
-
-            markersRef.current.push(marker);
         });
-    }, [loans, onMarkerClick]);
+
+        // Handle marker clicks from popup buttons
+        const handleMarkerClick = (event: CustomEvent) => {
+            const loan = loans.find((l: any) => l.id === event.detail);
+            if (loan) onMarkerClick(loan);
+        };
+
+        window.addEventListener('markerClick', handleMarkerClick as EventListener);
+        
+        return () => {
+            window.removeEventListener('markerClick', handleMarkerClick as EventListener);
+        };
+    }, [loans, mapLoaded, onMarkerClick]);
 
     return (
         <View style={styles.map}>
-            <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+            <div 
+                ref={mapContainerRef} 
+                style={{ 
+                    width: '100%', 
+                    height: '100%',
+                    borderRadius: '10px'
+                }}
+            />
         </View>
     );
 };
 
 export default function PantauPeminjaman() {
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeLoans, setActiveLoans] = useState(INITIAL_ACTIVE_LOANS);
+    const [activeLoans] = useState(INITIAL_ACTIVE_LOANS);
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedLoan, setSelectedLoan] = useState<any>(null);
-
-    const getCurrentDate = () => {
-        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-        const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-        const now = new Date();
-        const dayName = days[now.getDay()];
-        const date = now.getDate();
-        const month = months[now.getMonth()];
-        const year = now.getFullYear();
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-
-        return {
-            full: `${dayName}, ${date} ${month} ${year}`,
-            time: `${hours}:${minutes} WIB`
-        };
-    };
-
-    const currentDate = getCurrentDate();
 
     const filteredLoans = activeLoans.filter(loan =>
         loan.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         loan.equipment.toLowerCase().includes(searchQuery.toLowerCase()) ||
         loan.borrower.toLowerCase().includes(searchQuery.toLowerCase())
     );
-
-    const getPinColor = (type: string) => {
-        switch (type) {
-            case 'Excavator':
-                return '#F59E0B';
-            case 'Bulldozer':
-                return '#FDB022';
-            case 'Dump Truck':
-                return '#000000';
-            default:
-                return '#F59E0B';
-        }
-    };
 
     const handleOpenDetail = (loan: any) => {
         setSelectedLoan(loan);
@@ -244,9 +192,24 @@ export default function PantauPeminjaman() {
         setModalVisible(false);
     };
 
-    const handleMarkerPress = (loan: any) => {
-        handleOpenDetail(loan);
+    const getCurrentDate = () => {
+        const now = new Date();
+        return {
+            full: now.toLocaleDateString('id-ID', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            }),
+            time: now.toLocaleTimeString('id-ID', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                timeZoneName: 'short'
+            })
+        };
     };
+
+    const currentDate = getCurrentDate();
 
     return (
         <>
@@ -278,40 +241,10 @@ export default function PantauPeminjaman() {
                     </View>
 
                     <View style={styles.mapContainer}>
-                        {Platform.OS === 'web' ? (
-                            <WebMapView
-                                loans={filteredLoans}
-                                onMarkerClick={handleOpenDetail}
-                            />
-                        ) : (
-                            MapView ? (
-                                <MapView
-                                    provider={PROVIDER_GOOGLE}
-                                    style={styles.map}
-                                    initialRegion={{
-                                        latitude: -6.2088,
-                                        longitude: 106.8456,
-                                        latitudeDelta: 0.5,
-                                        longitudeDelta: 0.5,
-                                    }}
-                                >
-                                    {filteredLoans.map((loan, index) => (
-                                        <Marker
-                                            key={index}
-                                            coordinate={loan.location}
-                                            title={loan.equipment}
-                                            description={loan.borrower}
-                                            pinColor={getPinColor(loan.type)}
-                                            onPress={() => handleMarkerPress(loan)}
-                                        />
-                                    ))}
-                                </MapView>
-                            ) : (
-                                <View style={styles.map}>
-                                    <Text>Maps loading...</Text>
-                                </View>
-                            )
-                        )}
+                        <WebMap
+                            loans={filteredLoans}
+                            onMarkerClick={handleOpenDetail}
+                        />
                     </View>
 
                     <View style={styles.legendContainer}>
@@ -323,10 +256,6 @@ export default function PantauPeminjaman() {
                         <View style={styles.legendRow}>
                             <View style={[styles.legendItem, { backgroundColor: '#FDB022' }]} />
                             <Text style={styles.legendText}>Bulldozer</Text>
-                        </View>
-                        <View style={styles.legendRow}>
-                            <View style={[styles.legendItem, { backgroundColor: '#000000' }]} />
-                            <Text style={styles.legendText}>Dump Truck</Text>
                         </View>
                     </View>
 
@@ -379,7 +308,6 @@ export default function PantauPeminjaman() {
                             <ScrollView style={styles.modalBody}>
                                 <View style={styles.infoSection}>
                                     <Text style={styles.sectionTitleModal}>Informasi Sewa</Text>
-
                                     <View style={styles.fieldsContainer}>
                                         <View style={styles.rowFields}>
                                             <View style={styles.fieldWrapper}>
@@ -388,7 +316,6 @@ export default function PantauPeminjaman() {
                                                     <Text style={styles.fieldValue}>{selectedLoan?.startDate}</Text>
                                                 </View>
                                             </View>
-
                                             <View style={styles.fieldWrapper}>
                                                 <Text style={styles.fieldLabel}>Nama Penyewa</Text>
                                                 <View style={styles.fieldInputBox}>
@@ -396,7 +323,6 @@ export default function PantauPeminjaman() {
                                                 </View>
                                             </View>
                                         </View>
-
                                         <View style={styles.rowFields}>
                                             <View style={styles.fieldWrapper}>
                                                 <Text style={styles.fieldLabel}>Sewa Berakhir</Text>
@@ -404,15 +330,13 @@ export default function PantauPeminjaman() {
                                                     <Text style={styles.fieldValue}>{selectedLoan?.endDate}</Text>
                                                 </View>
                                             </View>
-
                                             <View style={styles.fieldWrapper}>
-                                                <Text style={styles.fieldLabel}>Nama Perusahaan</Text>
+                                                <Text style={styles.fieldLabel}>Perusahaan</Text>
                                                 <View style={styles.fieldInputBox}>
                                                     <Text style={styles.fieldValue}>{selectedLoan?.unit}</Text>
                                                 </View>
                                             </View>
                                         </View>
-
                                         <View style={styles.fieldWrapper}>
                                             <Text style={styles.fieldLabel}>Lokasi</Text>
                                             <View style={styles.fieldInputBox}>
@@ -424,7 +348,6 @@ export default function PantauPeminjaman() {
 
                                 <View style={styles.infoSection}>
                                     <Text style={styles.sectionTitleModal}>Informasi Unit</Text>
-
                                     <View style={styles.fieldsContainer}>
                                         <View style={styles.fieldWrapper}>
                                             <Text style={styles.fieldLabel}>Kategori Unit</Text>
@@ -432,15 +355,13 @@ export default function PantauPeminjaman() {
                                                 <Text style={styles.fieldValue}>{selectedLoan?.type}</Text>
                                             </View>
                                         </View>
-
-                                        <View style={[styles.fieldWrapper, { marginTop: 20 }]}>
+                                        <View style={styles.fieldWrapper}>
                                             <Text style={styles.fieldLabel}>Series</Text>
                                             <View style={styles.fieldInputBox}>
                                                 <Text style={styles.fieldValue}>{selectedLoan?.equipment}</Text>
                                             </View>
                                         </View>
-
-                                        <View style={[styles.fieldWrapper, { marginTop: 20 }]}>
+                                        <View style={styles.fieldWrapper}>
                                             <Text style={styles.fieldLabel}>Kondisi</Text>
                                             <View style={styles.fieldInputBox}>
                                                 <Text style={styles.fieldValue}>{selectedLoan?.condition}</Text>
@@ -476,14 +397,12 @@ const styles = StyleSheet.create({
         marginBottom: 30,
     },
     pageTitle: {
-        fontFamily: 'Poppins_500Medium',
         fontSize: 32,
+        fontWeight: '600',
         color: '#F59E0B',
         marginBottom: 5,
-        letterSpacing: 0.2,
     },
     pageSubtitle: {
-        fontFamily: 'Poppins_400Regular',
         fontSize: 14,
         color: '#666',
     },
@@ -491,13 +410,13 @@ const styles = StyleSheet.create({
         alignItems: 'flex-end',
     },
     headerDateText: {
-        fontFamily: 'Poppins_500Medium',
         fontSize: 14,
+        fontWeight: '500',
         color: COLORS.primary,
     },
     timeText: {
-        fontFamily: 'Poppins_500Medium',
         fontSize: 18,
+        fontWeight: '500',
         color: COLORS.darkGray,
     },
     searchContainer: {
@@ -512,7 +431,6 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        fontFamily: 'Poppins_400Regular',
         fontSize: 14,
         color: COLORS.darkGray,
     },
@@ -528,18 +446,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: '#f0f0f0',
     },
-    mapPlaceholder: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 14,
-        color: '#666',
-        textAlign: 'center',
-    },
     legendContainer: {
         marginBottom: 20,
     },
     legendTitle: {
-        fontFamily: 'Poppins_600SemiBold',
         fontSize: 16,
+        fontWeight: '600',
         color: COLORS.darkGray,
         marginBottom: 10,
     },
@@ -555,7 +467,6 @@ const styles = StyleSheet.create({
         marginRight: 8,
     },
     legendText: {
-        fontFamily: 'Poppins_400Regular',
         fontSize: 14,
         color: '#666',
     },
@@ -563,8 +474,8 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     sectionTitle: {
-        fontFamily: 'Poppins_600SemiBold',
         fontSize: 18,
+        fontWeight: '600',
         color: COLORS.darkGray,
         marginBottom: 15,
     },
@@ -584,18 +495,17 @@ const styles = StyleSheet.create({
         marginBottom: 5,
     },
     loanId: {
-        fontFamily: 'Poppins_500Medium',
         fontSize: 14,
+        fontWeight: '500',
         color: COLORS.darkGray,
     },
     equipmentText: {
-        fontFamily: 'Poppins_600SemiBold',
         fontSize: 16,
+        fontWeight: '600',
         color: '#333',
         marginBottom: 5,
     },
     borrowerText: {
-        fontFamily: 'Poppins_400Regular',
         fontSize: 14,
         color: '#666',
         marginBottom: 10,
@@ -615,12 +525,10 @@ const styles = StyleSheet.create({
         gap: 5,
     },
     loanDateText: {
-        fontFamily: 'Poppins_400Regular',
         fontSize: 12,
         color: '#666',
     },
     durationText: {
-        fontFamily: 'Poppins_400Regular',
         fontSize: 12,
         color: '#666',
     },
@@ -637,14 +545,6 @@ const styles = StyleSheet.create({
         width: '95%',
         maxWidth: 900,
         maxHeight: '80%',
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 5,
     },
     modalHeader: {
         flexDirection: 'row',
@@ -655,14 +555,11 @@ const styles = StyleSheet.create({
         paddingBottom: 20,
         borderBottomWidth: 1,
         borderBottomColor: '#F59E0B',
-        backgroundColor: COLORS.white,
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
         position: 'relative',
     },
     modalTitle: {
-        fontFamily: 'Poppins_600SemiBold',
         fontSize: 22,
+        fontWeight: '600',
         color: '#F59E0B',
     },
     closeButton: {
@@ -679,8 +576,8 @@ const styles = StyleSheet.create({
         marginBottom: 30,
     },
     sectionTitleModal: {
-        fontFamily: 'Poppins_500Medium',
         fontSize: 16,
+        fontWeight: '500',
         color: '#F59E0B',
         marginBottom: 20,
     },
@@ -697,7 +594,6 @@ const styles = StyleSheet.create({
         maxWidth: 320,
     },
     fieldLabel: {
-        fontFamily: 'Poppins_400Regular',
         fontSize: 14,
         color: '#000',
         marginBottom: 8,
@@ -710,7 +606,6 @@ const styles = StyleSheet.create({
         padding: 12,
     },
     fieldValue: {
-        fontFamily: 'Poppins_400Regular',
         fontSize: 14,
         color: '#000',
     },
