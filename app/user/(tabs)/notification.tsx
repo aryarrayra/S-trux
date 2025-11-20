@@ -16,7 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Bell, History } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { penyewaanApi, Penyewaan, StatusPenyewaan } from '../../../services/penyewaanApi';
+import { Penyewaan } from '../../../services/apiService';
+import { fetchPenyewaanByPelanggan } from '../../../services/apiService';
 
 const COLORS = {
   background: '#F4F4F4',
@@ -224,7 +225,7 @@ const NotificationCard = ({ item }: { item: Penyewaan }) => {
 };
 
 export default function NotificationScreen() {
-  const [activeFilter, setActiveFilter] = useState('semua');
+  const [activeFilter, setActiveFilter] = useState<'semua' | 'menunggu' | 'disetujui'>('semua');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [notificationData, setNotificationData] = useState<Penyewaan[]>([]);
@@ -232,10 +233,30 @@ export default function NotificationScreen() {
 
   const fetchNotificationData = async () => {
     try {
-      // Untuk user, ambil data penyewaan berdasarkan pelanggan yang login
-      // Sementara pakai getAll dulu, nanti bisa disesuaikan dengan user ID
-      const penyewaanData = await penyewaanApi.getAllPenyewaan();
-      setNotificationData(penyewaanData);
+      console.log('🔍 Fetching notification data by pelanggan...');
+      const penyewaanData = await fetchPenyewaanByPelanggan();
+      
+      // ✅ FILTER SEDERHANA: Hilangkan hanya yang SUDAH BAYAR
+      const filteredData = penyewaanData.filter((item) => {
+        // SEMBUNYIKAN hanya jika sudah ada pembayaran (sudah bayar)
+        const sudahBayar = 
+          item.status_pembayaran === 'Lunas' ||
+          (item.pembayaran && item.pembayaran.length > 0);
+        
+        return !sudahBayar; // Tampilkan yang BELUM bayar
+      });
+      
+      console.log('📊 Data notifikasi setelah filter:', {
+        total: penyewaanData.length,
+        filtered: filteredData.length,
+        hidden: penyewaanData.length - filteredData.length,
+        sudah_bayar: penyewaanData.filter(item => 
+          item.status_pembayaran === 'Lunas' || 
+          (item.pembayaran && item.pembayaran.length > 0)
+        ).length
+      });
+      
+      setNotificationData(filteredData);
     } catch (error) {
       console.error('Error fetching notifications:', error);
       Alert.alert('Error', 'Gagal mengambil data notifikasi');
@@ -254,12 +275,18 @@ export default function NotificationScreen() {
     fetchNotificationData();
   }, []);
 
+  // ✅ FILTER BERDASARKAN TAB "Menunggu" dan "Disetujui"
   const filteredData = notificationData.filter((item) => {
-    const notificationStatus = mapStatusToNotification(item.status_persetujuan, item.status_sewa);
-    
     if (activeFilter === 'semua') return true;
-    if (activeFilter === 'menunggu') return notificationStatus === 'Menunggu';
-    if (activeFilter === 'selesai') return notificationStatus === 'Sukses' || notificationStatus === 'Diproses';
+    
+    if (activeFilter === 'menunggu') {
+      return item.status_persetujuan === 'Menunggu';
+    }
+    
+    if (activeFilter === 'disetujui') {
+      return item.status_persetujuan === 'Disetujui';
+    }
+    
     return false;
   });
 
@@ -295,7 +322,7 @@ export default function NotificationScreen() {
       <View style={styles.titleContainer}>
         <View>
           <Text style={styles.title}>Notifikasi</Text>
-          <Text style={styles.subtitle}>{notificationData.length} total notifikasi</Text>
+          <Text style={styles.subtitle}>{filteredData.length} total notifikasi</Text>
         </View>
         <TouchableOpacity onPress={onRefresh}>
           <LinearGradient
@@ -306,14 +333,15 @@ export default function NotificationScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* FILTER BARU: Semua, Menunggu, Disetujui */}
       <View style={styles.filterContainer}>
-        {(['semua', 'menunggu', 'selesai'] as const).map((filter) => (
+        {(['semua', 'menunggu', 'disetujui'] as const).map((filter) => (
           <TouchableOpacity
             key={filter}
             style={[styles.filterButton, activeFilter === filter && styles.activeFilterButton]}
             onPress={() => setActiveFilter(filter)}>
             <Text style={[styles.filterText, activeFilter === filter && styles.activeFilterText]}>
-              {filter === 'selesai' ? 'Selesai' : 
+              {filter === 'disetujui' ? 'Disetujui' : 
                filter === 'menunggu' ? 'Menunggu' : 'Semua'}
             </Text>
           </TouchableOpacity>
@@ -341,8 +369,22 @@ export default function NotificationScreen() {
           !loading && (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>Tidak ada notifikasi</Text>
-              <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
-                <Text style={styles.retryButtonText}>Coba Lagi</Text>
+              <Text style={styles.emptySubtext}>
+                {activeFilter === 'menunggu' 
+                  ? 'Tidak ada pesanan yang menunggu persetujuan'
+                  : activeFilter === 'disetujui'
+                  ? 'Tidak ada pesanan yang disetujui'
+                  : 'Semua pesanan sudah diproses atau selesai'
+                }
+                {'\n'}
+                Cek halaman Riwayat untuk melihat pesanan sebelumnya
+              </Text>
+              <TouchableOpacity 
+                style={styles.historyButton}
+                onPress={() => router.push('/user/history')}
+              >
+                <History size={16} color={COLORS.white} />
+                <Text style={styles.historyButtonText}>Lihat Riwayat</Text>
               </TouchableOpacity>
             </View>
           )
@@ -599,15 +641,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.inactive,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
   },
-  retryButton: {
+  emptySubtext: {
+    fontFamily: 'Poppins_300Light',
+    fontSize: 12,
+    color: COLORS.inactive,
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 40,
+    lineHeight: 16,
+  },
+  historyButton: {
     backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
+    gap: 8,
   },
-  retryButtonText: {
+  historyButtonText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 12,
     color: COLORS.white,

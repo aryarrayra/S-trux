@@ -13,11 +13,14 @@ import {
 } from '@/utils/dateUtils'; // Sesuaikan path
 
 export interface UploadedFile {
+  id?: number;
   name: string;
   uri: string;
   size: number;
-  mimeType: string | null;
-  lastModified: number | null;
+  type: string; // Ganti mimeType jadi type
+  base64: string; // ✅ INI YANG PENTING!
+  lastModified: number;
+  mimeType?: string; // Keep for backward compatibility
 }
 
 // ✅ FUNGSI API
@@ -335,12 +338,14 @@ export const DocumentUploadCard = ({
   onUpload,
   uploadedDocuments = []
 }: { 
-  onUpload?: (files: UploadedFile[]) => void;
-  uploadedDocuments?: UploadedFile[];
+  onUpload?: (files: any[]) => void;
+  uploadedDocuments?: any[];
 }) => {
   
   const pickDocument = async () => {
     try {
+      console.log('📁 Starting document pick...');
+      
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           'application/pdf',
@@ -358,29 +363,88 @@ export const DocumentUploadCard = ({
         return;
       }
 
-      console.log('Picked document:', result.assets[0]);
+      const pickedFile = result.assets[0];
+      console.log('📄 Picked document:', {
+        name: pickedFile.name,
+        uri: pickedFile.uri,
+        size: pickedFile.size,
+        mimeType: pickedFile.mimeType
+      });
 
-      const file: UploadedFile = {
-        name: result.assets[0].name || 'Unknown File',
-        uri: result.assets[0].uri,
-        size: result.assets[0].size || 0,
-        mimeType: result.assets[0].mimeType,
-        lastModified: result.assets[0].lastModified || null
-      };
+      // ✅ GENERATE BASE64 DARI FILE
+      console.log('🔄 Generating base64 from file...');
+      
+      try {
+        // Baca file sebagai base64
+        const fileInfo = await FileSystem.getInfoAsync(pickedFile.uri);
+        console.log('📊 File info:', fileInfo);
 
-      // ✅ HANYA UPLOAD, TIDAK SUBMIT PENYEWAAN
-      if (onUpload) {
-        onUpload([file]);
+        if (!fileInfo.exists) {
+          throw new Error('File tidak ditemukan');
+        }
+
+        const base64Data = await FileSystem.readAsStringAsync(pickedFile.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        console.log('✅ Base64 generated successfully, length:', base64Data.length);
+        console.log('🔍 Base64 preview:', base64Data.substring(0, 100) + '...');
+
+        const fileWithBase64 = {
+          id: Date.now(),
+          name: pickedFile.name || 'Unknown File',
+          uri: pickedFile.uri,
+          size: pickedFile.size || 0,
+          type: pickedFile.mimeType || 'application/octet-stream',
+          base64: base64Data, // ✅ INI YANG PENTING!
+          lastModified: pickedFile.lastModified || Date.now()
+        };
+
+        console.log('📦 File data with base64:', {
+          name: fileWithBase64.name,
+          type: fileWithBase64.type,
+          hasBase64: !!fileWithBase64.base64,
+          base64Length: fileWithBase64.base64?.length
+        });
+
+        // ✅ KIRIM KE PARENT DENGAN BASE64
+        if (onUpload) {
+          onUpload([fileWithBase64]);
+        }
+
+        Alert.alert(
+          'Berhasil!', 
+          'Dokumen berhasil diupload dengan base64 data.',
+          [{ text: 'OK' }]
+        );
+
+      } catch (base64Error) {
+        console.error('❌ Error generating base64:', base64Error);
+        
+        // Fallback: kirim tanpa base64
+        const fileWithoutBase64 = {
+          id: Date.now(),
+          name: pickedFile.name || 'Unknown File',
+          uri: pickedFile.uri,
+          size: pickedFile.size || 0,
+          type: pickedFile.mimeType || 'application/octet-stream',
+          base64: '', // Kosong jika gagal
+          lastModified: pickedFile.lastModified || Date.now()
+        };
+
+        if (onUpload) {
+          onUpload([fileWithoutBase64]);
+        }
+
+        Alert.alert(
+          'Warning', 
+          'Dokumen diupload tapi tanpa base64 data. Silakan coba upload lagi.',
+          [{ text: 'OK' }]
+        );
       }
 
-      Alert.alert(
-        'Berhasil!', 
-        'Dokumen berhasil diupload. Silakan lanjutkan untuk mengajukan penyewaan.',
-        [{ text: 'OK' }]
-      );
-
     } catch (error: any) {
-      console.error('Error picking document:', error);
+      console.error('❌ Error picking document:', error);
       Alert.alert('Error', `Gagal mengupload file: ${error.message}`);
     }
   };
@@ -428,12 +492,26 @@ export const DocumentUploadCard = ({
                   {file.name}
                 </Text>
                 <Text style={documentStyles.uploadedFileDetails}>
-                  {formatFileSize(file.size)}
+                  {formatFileSize(file.size)} • {file.base64 ? '✅ Base64' : '❌ No Base64'}
                 </Text>
               </View>
-              <Text style={documentStyles.uploadedFileStatus}>✓</Text>
+              <Text style={[
+                documentStyles.uploadedFileStatus,
+                { color: file.base64 ? COLORS.green : COLORS.red }
+              ]}>
+                {file.base64 ? '✓' : '⚠'}
+              </Text>
             </View>
           ))}
+        </View>
+      )}
+
+      {/* ✅ DEBUG INFO */}
+      {uploadedDocuments && uploadedDocuments.length > 0 && (
+        <View style={{ marginTop: 12, padding: 8, backgroundColor: '#f0f0f0', borderRadius: 8 }}>
+          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: COLORS.textGray }}>
+            🔍 Debug: {uploadedDocuments.length} file(s), Base64: {uploadedDocuments.filter(f => f.base64).length} success
+          </Text>
         </View>
       )}
     </View>
