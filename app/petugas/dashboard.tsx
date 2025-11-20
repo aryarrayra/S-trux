@@ -1,154 +1,238 @@
-// app/petugas/dashboard.tsx
 import React, { useState, useEffect } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    useWindowDimensions,
-} from 'react-native';
-import { ArrowRight } from 'lucide-react-native';
-import PetugasSidebar from '@/components/petugas/SideBar';
+import { ChevronRight } from 'lucide-react';
+import Sidebar from '@/components/petugas/SideBar';
 
-export default function PetugasDashboardScreen() {
-    const { width } = useWindowDimensions();
-    const isDesktop = width >= 1024;
-
-    const [currentDate, setCurrentDate] = useState({ full: '', time: '' });
+export default function PetugasDashboard() {
+    const [currentDate, setCurrentDate] = useState('');
+    const [currentTime, setCurrentTime] = useState('');
 
     useEffect(() => {
-        const timer = setInterval(() => {
+        const updateDateTime = () => {
             const now = new Date();
-            setCurrentDate({
-                full: now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-                time: now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+            const dateStr = now.toLocaleDateString('id-ID', {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
             });
-        }, 1000);
+            const timeStr = now.toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            setCurrentDate(dateStr);
+            setCurrentTime(timeStr);
+        };
+
+        updateDateTime();
+        const timer = setInterval(updateDateTime, 1000);
         return () => clearInterval(timer);
     }, []);
 
-    const stats = { masuk: 45, dijadwalkan: 25, berjalan: 19, dibatalkan: 7 };
-    const deliveryToday = [
+    const deliveries = [
         { no: 'STX0098', dest: 'Jln Bambu Hitam, Jakarta timur', company: 'PT Acong Makmur Jaya' },
         { no: 'STX0098', dest: 'Jln Bambu Hitam, Jakarta timur', company: 'PT Acong Makmur Jaya' },
         { no: 'STX0098', dest: 'Jln Bambu Hitam, Jakarta timur', company: 'PT Acong Makmur Jaya' },
     ];
 
     return (
-        <View style={styles.container}>
-            {/* SIDEBAR FIXED */}
-            {isDesktop && <PetugasSidebar />}
+        <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#FFFFFF' }}>
+            {/* SIDEBAR */}
+            <Sidebar />
 
-            {/* KONTEN UTAMA – MULAI DARI SAMPING SIDEBAR */}
-            <ScrollView style={[styles.content, isDesktop && styles.contentWithSidebar]}>
+            {/* MAIN CONTENT */}
+            <div style={{
+                flex: 1,
+                padding: '40px 50px',
+                backgroundColor: '#FFFFFF',
+                overflowY: 'auto' as const,
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                fontStyle: 'normal'
+            }}>
                 {/* HEADER */}
-                <View style={styles.header}>
-                    <View>
-                        <Text style={styles.title}>Dashboard Petugas</Text>
-                        <Text style={styles.subtitle}>Selamat datang kembali, mari mulai pekerjaan hari ini!</Text>
-                    </View>
-                    <View style={styles.dateBox}>
-                        <Text style={styles.dateDay}>{currentDate.full}</Text>
-                        <Text style={styles.dateTime}>{currentDate.time}</Text>
-                    </View>
-                </View>
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    marginBottom: '40px'
+                }}>
+                    <div>
+                        <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#000', margin: '0 0 8px 0' }}>
+                            Dashboard Petugas
+                        </h1>
+                        <p style={{ fontSize: '14px', color: '#666', margin: 0 }}>
+                            Selamat datang kembali, mari mulai pekerjaan hari ini!
+                        </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontSize: '14px', fontWeight: '600', color: '#F59E0B', margin: '0 0 4px 0' }}>
+                            {currentDate}
+                        </p>
+                        <p style={{ fontSize: '14px', color: '#666', margin: 0 }}>
+                            {currentTime} WIB
+                        </p>
+                    </div>
+                </div>
 
-                {/* BAR CHART */}
-                <View style={styles.chartCard}>
-                    <Text style={styles.chartTitle}>Pesanan</Text>
-                    <View style={styles.barWrapper}>
-                        {[
-                            { label: 'Masuk', value: stats.masuk },
-                            { label: 'Dijadwalkan', value: stats.dijadwalkan },
-                            { label: 'Berjalan', value: stats.berjalan },
-                            { label: 'Dibatalkan', value: stats.dibatalkan },
-                        ].map((item) => (
-                            <View key={item.label} style={styles.barItem}>
-                                <View style={[styles.bar, { height: (item.value / 60) * 220 }]} />
-                                <Text style={styles.barLabel}>{item.label}</Text>
-                            </View>
-                        ))}
-                    </View>
-                </View>
+                {/* CHART CARD */}
+                <div style={{
+                    backgroundColor: '#FFF4E0',
+                    borderRadius: '20px',
+                    padding: '35px 40px',
+                    marginBottom: '30px',
+                    border: '2px solid #F5E6D3'
+                }}>
+                    <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#000', margin: '0 0 35px 0' }}>
+                        Pesanan
+                    </h2>
+
+                    {/* BAR CHART WITH Y-AXIS */}
+                    <div style={{ display: 'flex', gap: '40px', alignItems: 'flex-end', minHeight: '280px', position: 'relative' }}>
+                        {/* Y-AXIS LABELS */}
+                        <div style={{ display: 'flex', flexDirection: 'column-reverse', justifyContent: 'space-between', height: '260px', textAlign: 'right', paddingRight: '10px', minWidth: '40px' }}>
+                            <span style={{ fontSize: '12px', color: '#999' }}>10</span>
+                            <span style={{ fontSize: '12px', color: '#999' }}>20</span>
+                            <span style={{ fontSize: '12px', color: '#999' }}>30</span>
+                            <span style={{ fontSize: '12px', color: '#999' }}>40</span>
+                            <span style={{ fontSize: '12px', color: '#999' }}>50</span>
+                            <span style={{ fontSize: '12px', color: '#999' }}>60</span>
+                        </div>
+
+                        {/* BARS */}
+                        <div style={{ display: 'flex', gap: '60px', alignItems: 'flex-end', flex: 1, paddingBottom: '0px' }}>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{
+                                    width: '65px',
+                                    height: '195px',
+                                    backgroundColor: '#FFC107',
+                                    borderRadius: '8px 8px 0 0',
+                                    marginBottom: '14px'
+                                }}></div>
+                                <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>Masuk</p>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{
+                                    width: '65px',
+                                    height: '130px',
+                                    backgroundColor: '#FFC107',
+                                    borderRadius: '8px 8px 0 0',
+                                    marginBottom: '14px'
+                                }}></div>
+                                <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>Dijadwalkan</p>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{
+                                    width: '65px',
+                                    height: '100px',
+                                    backgroundColor: '#FFC107',
+                                    borderRadius: '8px 8px 0 0',
+                                    marginBottom: '14px'
+                                }}></div>
+                                <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>Berjalan</p>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{
+                                    width: '65px',
+                                    height: '35px',
+                                    backgroundColor: '#FFC107',
+                                    borderRadius: '8px 8px 0 0',
+                                    marginBottom: '14px'
+                                }}></div>
+                                <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>Dibatalkan</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* BOTTOM LINE */}
+                    <div style={{ borderBottom: '2px solid #D4A574', marginTop: '20px' }}></div>
+                </div>
 
                 {/* BOTTOM ROW */}
-                <View style={styles.bottomRow}>
-                    {/* DONUT */}
-                    <View style={styles.donutCard}>
-                        <View style={styles.donutContainer}>
-                            <View style={styles.donutBg} />
-                            <View style={styles.donutProgress}>
-                                <View style={styles.donutProgressFill} />
-                            </View>
-                            <View style={styles.donutCenter} />
-                        </View>
-                        <View style={styles.legend}>
-                            <View style={styles.legendItem}>
-                                <View style={[styles.legendBox, { backgroundColor: '#F59E0B' }]} />
-                                <Text style={styles.legendText}>Diantar</Text>
-                            </View>
-                            <View style={styles.legendItem}>
-                                <View style={[styles.legendBox, { backgroundColor: '#FFDA6A' }]} />
-                                <Text style={styles.legendText}>Menunggu kurir</Text>
-                            </View>
-                        </View>
-                    </View>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '30px'
+                }}>
+                    {/* DONUT CHART */}
+                    <div style={{
+                        backgroundColor: '#FFFFFF',
+                        borderRadius: '20px',
+                        padding: '40px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '2px solid #F5E6D3'
+                    }}>
+                        {/* DONUT */}
+                        <div style={{
+                            width: '180px',
+                            height: '180px',
+                            borderRadius: '50%',
+                            background: 'conic-gradient(#F59E0B 0deg 234deg, #FFDA6A 234deg 360deg)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: '35px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                        }}>
+                            <div style={{
+                                width: '115px',
+                                height: '115px',
+                                borderRadius: '50%',
+                                backgroundColor: '#FFFFFF'
+                            }}></div>
+                        </div>
 
-                    {/* JADWAL */}
-                    <View style={styles.scheduleCard}>
-                        <Text style={styles.scheduleTitle}>Jadwal pengiriman hari ini</Text>
-                        {deliveryToday.map((item, i) => (
-                            <View key={i} style={styles.scheduleItem}>
-                                <View>
-                                    <Text style={styles.scheduleNo}>{item.no} - {item.dest}</Text>
-                                    <Text style={styles.scheduleCompany}>{item.company}</Text>
-                                </View>
-                                <ArrowRight size={22} color="#F59E0B" />
-                            </View>
-                        ))}
-                    </View>
-                </View>
-            </ScrollView>
-        </View>
+                        {/* LEGEND */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignSelf: 'flex-start', marginLeft: '0px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '16px', height: '16px', backgroundColor: '#F59E0B', borderRadius: '3px' }}></div>
+                                <span style={{ fontSize: '13px', color: '#000', fontWeight: '500' }}>Diantar</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '16px', height: '16px', backgroundColor: '#FFDA6A', borderRadius: '3px' }}></div>
+                                <span style={{ fontSize: '13px', color: '#000', fontWeight: '500' }}>Menunggu kurir</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* SCHEDULE CARD */}
+                    <div style={{
+                        backgroundColor: '#FFF4E0',
+                        borderRadius: '20px',
+                        padding: '40px',
+                        border: '2px solid #F5E6D3'
+                    }}>
+                        <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#000', margin: '0 0 24px 0' }}>
+                            Jadwal pengiriman hari ini
+                        </h3>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            {deliveries.map((delivery, idx) => (
+                                <div key={idx} style={{
+                                    backgroundColor: '#FFFFFF',
+                                    padding: '18px 20px',
+                                    borderRadius: '12px',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    border: '1px solid #F0E6D8'
+                                }}>
+                                    <div>
+                                        <p style={{ fontSize: '13px', fontWeight: '600', color: '#000', margin: '0 0 5px 0' }}>
+                                            {delivery.no} - {delivery.dest}
+                                        </p>
+                                        <p style={{ fontSize: '12px', color: '#999', margin: 0, fontStyle: 'italic' }}>
+                                            {delivery.company}
+                                        </p>
+                                    </div>
+                                    <ChevronRight size={18} color="#F59E0B" style={{ flexShrink: 0 }} />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F5E6D3' },
-    content: { flex: 1, paddingHorizontal: 40, paddingTop: 32 },
-    contentWithSidebar: { marginLeft: 280 }, // EXACT MATCH SIDEBAR WIDTH
-
-    header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32 },
-    title: { fontSize: 28, fontWeight: 'bold', color: '#333' },
-    subtitle: { fontSize: 15, color: '#666', marginTop: 6 },
-    dateBox: { alignItems: 'flex-end' },
-    dateDay: { fontSize: 14, fontWeight: 'bold', color: '#F59E0B' },
-    dateTime: { fontSize: 14, color: '#666' },
-
-    chartCard: { backgroundColor: '#FFFCF5', borderRadius: 20, padding: 32, marginBottom: 24 },
-    chartTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 32 },
-    barWrapper: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', height: 260 },
-    barItem: { alignItems: 'center' },
-    bar: { width: 80, backgroundColor: '#F59E0B', borderRadius: 8 },
-    barLabel: { marginTop: 12, fontSize: 13, color: '#666' },
-
-    bottomRow: { flexDirection: 'row', gap: 24 },
-
-    donutCard: { flex: 1, backgroundColor: '#FFFCF5', borderRadius: 20, padding: 40, alignItems: 'center' },
-    donutContainer: { width: 200, height: 200, position: 'relative' },
-    donutBg: { ...StyleSheet.absoluteFillObject, borderRadius: 100, backgroundColor: '#FFDA6A' },
-    donutProgress: { ...StyleSheet.absoluteFillObject, borderRadius: 100, overflow: 'hidden' },
-    donutProgressFill: { width: '100%', height: '100%', backgroundColor: '#F59E0B', transform: [{ rotate: '130deg' }] },
-    donutCenter: { position: 'absolute', top: 40, left: 40, width: 120, height: 120, borderRadius: 60, backgroundColor: '#FFFCF5' },
-
-    legend: { marginTop: 32, gap: 16 },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    legendBox: { width: 16, height: 16, borderRadius: 4 },
-    legendText: { fontSize: 14, color: '#333' },
-
-    scheduleCard: { flex: 1, backgroundColor: '#FFFCF5', borderRadius: 20, paddingVertical: 32, paddingHorizontal: 28 },
-    scheduleTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 24 },
-    scheduleItem: { backgroundColor: '#FFF', padding: 18, borderRadius: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-    scheduleNo: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-    scheduleCompany: { fontSize: 13, color: '#888', marginTop: 4 },
-});

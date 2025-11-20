@@ -1,104 +1,160 @@
-// components/petugas/Sidebar.tsx
+// components/petugas/SideBar.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import { LayoutDashboard, Package, Wrench, History, LogOut } from 'lucide-react-native';
+import { LogOut, LayoutDashboard, Package, Wrench, History } from 'lucide-react-native';
+import { COLORS } from '@/constants/Colors';
+import type { Href } from 'expo-router';
 
-const MENU = [
-    { name: 'Dashboard', icon: LayoutDashboard, route: '/petugas/dashboard' as const },
-    { name: 'Pengantaran', icon: Package, route: '/petugas/pengantaran' as const },
-    { name: 'Service Alat', icon: Wrench, route: '/petugas/service-alat' as const },
-    { name: 'Riwayat bayar', icon: History, route: '/petugas/riwayat-bayar' as const },
+const PETUGAS_NAV_LINKS = [
+    { icon: LayoutDashboard, text: 'Dashboard Petugas', route: '/petugas/dashboard' as const },
+    { icon: Package, text: 'Pengantaran', route: '/petugas/pengantaran' as const },
+    { icon: Wrench, text: 'Service Alat', route: '/petugas/service-alat' as const },
+    { icon: History, text: 'Riwayat bayar', route: '/petugas/riwayat-bayar' as const },
 ] as const;
 
-export default function PetugasSidebar() {
+const SideBar = () => {
     const router = useRouter();
     const pathname = usePathname();
 
+    const handleNavigation = (route: Href) => {
+        router.push(route);
+    };
+
+    const isActive = (route: string) => {
+        return pathname === route;
+    };
+
     return (
         <View style={styles.sidebar}>
-            {/* LOGO ST - KLIK KE DASHBOARD */}
-            <TouchableOpacity
-                style={styles.logo}
-                onPress={() => router.push('/petugas/dashboard')}
-                activeOpacity={0.7}
-            >
-                <View style={styles.logoBox}>
-                    <Text style={styles.logoST}>ST</Text>
-                </View>
-                <Text style={styles.logoBrand}>S`Trux</Text>
-            </TouchableOpacity>
-
-            {/* MENU */}
-            <View style={styles.menu}>
-                {MENU.map((item) => {
-                    const Icon = item.icon;
-                    const active = pathname === item.route;
-
-                    return (
-                        <TouchableOpacity
-                            key={item.name}
-                            style={[styles.menuItem, active && styles.active]}
-                            onPress={() => router.push(item.route)}
-                        >
-                            <Icon size={24} color={active ? '#000' : '#FFF'} />
-                            <Text style={[styles.menuText, active && styles.activeText]}>
-                                {item.name}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                })}
-            </View>
-
-            {/* LOGOUT */}
-            <View style={styles.bottom}>
+            <View>
+                <TouchableOpacity
+                    style={styles.logoContainer}
+                    onPress={() => handleNavigation('/petugas/dashboard' as Href)}
+                    activeOpacity={0.7}
+                >
+                    <View style={styles.logoBox}>
+                        <Text style={styles.logoText}>ST</Text>
+                    </View>
+                    <Text style={styles.logoBrand}>S'Trux</Text>
+                </TouchableOpacity>
                 <View style={styles.separator} />
-                <TouchableOpacity style={styles.logout}>
+
+                {/* Menu Items */}
+                <View style={styles.navContainer}>
+                    {PETUGAS_NAV_LINKS.map((link, index) => {
+                        const IconComponent = link.icon;
+                        return (
+                            <TouchableOpacity
+                                key={index}
+                                style={[
+                                    styles.navLink,
+                                    isActive(link.route) && styles.navLinkActive
+                                ]}
+                                onPress={() => handleNavigation(link.route as Href)}
+                            >
+                                <IconComponent
+                                    color={isActive(link.route) ? COLORS.darkGray : COLORS.white}
+                                    size={24}
+                                />
+                                <Text style={[
+                                    styles.navLinkText,
+                                    isActive(link.route) && styles.navLinkTextActive
+                                ]}>
+                                    {link.text}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            </View>
+            <View>
+                <View style={styles.separator} />
+                <TouchableOpacity
+                    style={styles.logoutButton}
+                    onPress={() => router.push('/login' as Href)}
+                >
                     <Text style={styles.logoutText}>Logout</Text>
-                    <LogOut size={22} color="#F59E0B" />
+                    <LogOut color={COLORS.primary} size={22} />
                 </TouchableOpacity>
             </View>
         </View>
     );
-}
+};
 
 const styles = StyleSheet.create({
     sidebar: {
-        width: 280,
-        backgroundColor: '#1F1F1F',
-        paddingVertical: 40,
-        paddingHorizontal: 24,
+        width: 294,
+        backgroundColor: COLORS.sidebarBg,
+        padding: 20,
         justifyContent: 'space-between',
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        zIndex: 100,
-        borderRightWidth: 0, // sudah rapih tanpa border kuning
+        borderRightWidth: 1,
+        borderRightColor: COLORS.primaryLight,
     },
-    logo: {
+    logoContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 14,
-        marginBottom: 60,
+        paddingVertical: 10,
     },
     logoBox: {
-        width: 48,
-        height: 48,
-        backgroundColor: '#F59E0B',
-        borderRadius: 12,
+        width: 44,
+        height: 44,
+        backgroundColor: COLORS.primary,
+        borderRadius: 5,
         justifyContent: 'center',
         alignItems: 'center',
+        marginRight: 10,
     },
-    logoST: { fontSize: 20, fontWeight: 'bold', color: '#000' },
-    logoBrand: { fontSize: 24, fontWeight: 'bold', color: '#FFF' },
-    menu: { gap: 10 },
-    menuItem: { flexDirection: 'row', alignItems: 'center', gap: 18, paddingVertical: 16, paddingHorizontal: 20, borderRadius: 12 },
-    active: { backgroundColor: '#F59E0B' },
-    menuText: { fontSize: 15.5, color: '#FFF', fontWeight: '500' },
-    activeText: { color: '#000', fontWeight: '600' },
-    bottom: { marginTop: 'auto' },
-    separator: { height: 1, backgroundColor: '#444', marginBottom: 20 },
-    logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
-    logoutText: { fontSize: 16, color: '#F59E0B', fontWeight: '600' },
+    logoText: {
+        fontFamily: 'Poppins_600SemiBold',
+        fontSize: 20,
+        color: COLORS.darkGray,
+    },
+    logoBrand: {
+        fontFamily: 'Poppins_600SemiBold',
+        fontSize: 20,
+        color: COLORS.white,
+    },
+    separator: {
+        height: 1,
+        backgroundColor: COLORS.primaryLight,
+        marginVertical: 20,
+    },
+    navContainer: {
+        gap: 25,
+    },
+    navLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 20,
+        paddingLeft: 10,
+        paddingVertical: 10,
+        paddingRight: 10,
+        borderRadius: 8,
+    },
+    navLinkActive: {
+        backgroundColor: COLORS.primary,
+    },
+    navLinkText: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 14,
+        color: COLORS.white,
+    },
+    navLinkTextActive: {
+        color: COLORS.darkGray,
+        fontWeight: '600',
+    },
+    logoutButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 10,
+    },
+    logoutText: {
+        fontFamily: 'Poppins_600SemiBold',
+        fontSize: 14,
+        color: COLORS.primary,
+    },
 });
+
+export default SideBar;
