@@ -154,7 +154,7 @@ export default function PetugasDashboard() {
                 }}>
                     {/* DONUT CHART */}
                     <div style={{
-                        backgroundColor: '#FFFFFF',
+                        backgroundColor: '#FFF4E0',
                         borderRadius: '20px',
                         padding: '40px',
                         display: 'flex',

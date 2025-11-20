@@ -1,133 +1,297 @@
-// File: app/service-alat/page.tsx  (atau di components/ServiceAlat.tsx)
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, Package, Wrench, Calendar, LogOut } from 'lucide-react';
+import Sidebar from '@/components/petugas/SideBar';
 
 export default function ServiceAlat() {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentDate, setCurrentDate] = useState('');
     const [currentTime, setCurrentTime] = useState('');
+    const [selectedType, setSelectedType] = useState('Semua Tipe');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     useEffect(() => {
-        const timer = setInterval(() => {
+        const updateDateTime = () => {
             const now = new Date();
-            setCurrentTime(now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB');
-        }, 1000);
+            const dateStr = now.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+            const timeStr = now.toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            setCurrentDate(dateStr);
+            setCurrentTime(timeStr);
+        };
+
+        updateDateTime();
+        const timer = setInterval(updateDateTime, 1000);
         return () => clearInterval(timer);
     }, []);
 
-    // Data dummy sesuai screenshot
-    const services = Array(6).fill({
-        type: 'EXCAVATOR KOMATSU',
-        unit: '2 unit',
-        service: 'service tahunan',
-        date: '05 November 2025',
-        price: 'Rp 7.000.000'
-    });
+    const services = [
+        {
+            id: 1,
+            category: 'EXCAVATOR KOMATSU',
+            units: 2,
+            lastService: 'service tahunan',
+            nextService: '05 November 2025',
+            totalCost: 'Rp 7.000.000'
+        },
+        {
+            id: 2,
+            category: 'EXCAVATOR KOMATSU',
+            units: 2,
+            lastService: 'service tahunan',
+            nextService: '05 November 2025',
+            totalCost: 'Rp 7.000.000'
+        },
+        {
+            id: 3,
+            category: 'EXCAVATOR KOMATSU',
+            units: 2,
+            lastService: 'service tahunan',
+            nextService: '05 November 2025',
+            totalCost: 'Rp 7.000.000'
+        },
+        {
+            id: 4,
+            category: 'EXCAVATOR KOMATSU',
+            units: 2,
+            lastService: 'service tahunan',
+            nextService: '05 November 2025',
+            totalCost: 'Rp 7.000.000'
+        },
+        {
+            id: 5,
+            category: 'EXCAVATOR KOMATSU',
+            units: 2,
+            lastService: 'service tahunan',
+            nextService: '05 November 2025',
+            totalCost: 'Rp 7.000.000'
+        },
+        {
+            id: 6,
+            category: 'EXCAVATOR KOMATSU',
+            units: 2,
+            lastService: 'service tahunan',
+            nextService: '05 November 2025',
+            totalCost: 'Rp 7.000.000'
+        }
+    ];
 
     return (
-        <div className="flex h-screen bg-gray-100">
-            {/* SIDEBAR */}
-            <div className="w-64 bg-gradient-to-b from-black to-gray-900 text-white flex flex-col">
-                <div className="p-6 text-2xl font-bold text-yellow-500 text-center">ST | S-Trux</div>
+        <div style={{ display: 'flex', height: '100vh', backgroundColor: '#e8e8e8', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+            <Sidebar />
 
-                <nav className="flex-1 px-6">
-                    <div className="space-y-2">
-                        <div className="flex items-center gap-4 py-4 px-6 rounded-lg hover:bg-yellow-500/20 cursor-pointer text-gray-300">
-                            <Package size={20} /> Dashboard
-                        </div>
-                        <div className="flex items-center gap-4 py-4 px-6 rounded-lg hover:bg-yellow-500/20 cursor-pointer text-gray-300">
-                            <Calendar size={20} /> Pengingat
-                        </div>
-                        <div className="flex items-center gap-4 py-4 px-6 rounded-lg bg-yellow-500 text-black font-semibold cursor-pointer">
-                            <Wrench size={20} /> Service Alat
-                        </div>
-                        <div className="flex items-center gap-4 py-4 px-6 rounded-lg hover:bg-yellow-500/20 cursor-pointer text-gray-300">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            Riwayat bayar
-                        </div>
-                    </div>
-                </nav>
-
-                <div className="p-6 flex items-center gap-3 text-yellow-500 cursor-pointer hover:text-yellow-400">
-                    <LogOut size={20} /> Logout
-                </div>
-            </div>
-
-            {/* MAIN CONTENT */}
-            <div className="flex-1 overflow-y-auto">
-                {/* HEADER */}
-                <div className="bg-white shadow-sm px-8 py-5 flex justify-between items-center">
+            {/* Main Content */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#e8e8e8' }}>
+                {/* Header */}
+                <div style={{ backgroundColor: 'white', padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e0e0e0' }}>
                     <div>
-                        <h1 className="text-2xl font-semibold text-gray-800">Service unit</h1>
-                        <p className="text-sm text-gray-500">atur penjadwalan maintenance alat berat</p>
+                        <h1 style={{ fontSize: '26px', fontWeight: '600', color: '#1a1a1a', margin: 0, marginBottom: '4px', fontStyle: 'normal' }}>Service unit</h1>
+                        <p style={{ color: '#666', fontSize: '13px', margin: 0, fontStyle: 'normal' }}>atur penjadwalan maintenance alat berat</p>
                     </div>
-                    <div className="text-right">
-                        <p className="text-yellow-500 font-semibold">Rabu 28 Oktober 2025</p>
-                        <p className="text-2xl font-bold text-yellow-500">{currentTime}</p>
-                        <p className="text-sm text-gray-500">18.08 WIB</p>
+                    <div style={{ textAlign: 'right' }}>
+                        <p style={{ color: '#f59e0b', fontWeight: '600', fontSize: '13px', margin: 0, marginBottom: '4px', fontStyle: 'normal' }}>{currentDate}</p>
+                        <p style={{ color: '#666', fontSize: '12px', margin: 0, fontStyle: 'normal' }}>{currentTime} WIB</p>
                     </div>
                 </div>
 
-                {/* SEARCH + FILTER + ADD BUTTON */}
-                <div className="px-8 pt-6 flex gap-4 items-center">
-                    <div className="flex-1 relative">
-                        <Search className="absolute left-4 top-3.5 text-gray-400" size={20} />
-                        <input
-                            type="text"
-                            placeholder="Temukan"
-                            className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yellow-500"
-                        />
+                {/* Filter Bar */}
+                <div style={{ backgroundColor: 'white', padding: '12px 32px', display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e0e0e0' }}>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1 }}>
+                        <div style={{ flex: 1, position: 'relative', maxWidth: '280px' }}>
+                            <input
+                                type="text"
+                                placeholder="Temukan"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '6px 12px',
+                                    backgroundColor: '#e8e8e8',
+                                    borderRadius: '3px',
+                                    fontSize: '12px',
+                                    border: 'none',
+                                    outline: 'none',
+                                    color: '#333',
+                                    fontStyle: 'normal'
+                                }}
+                            />
+                            <span style={{ position: 'absolute', right: '10px', top: '8px', color: '#999', fontSize: '13px' }}>🔍</span>
+                        </div>
+
+                        <div style={{ position: 'relative' }}>
+                            <button
+                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                style={{
+                                    padding: '6px 14px',
+                                    backgroundColor: '#e8e8e8',
+                                    borderRadius: '3px',
+                                    fontSize: '12px',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    color: '#333',
+                                    minWidth: '140px',
+                                    justifyContent: 'space-between',
+                                    fontStyle: 'normal'
+                                }}
+                            >
+                                {selectedType}
+                                <span style={{ fontSize: '10px', transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+                            </button>
+
+                            {isDropdownOpen && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: 'calc(100% + 4px)',
+                                    left: 0,
+                                    right: 0,
+                                    backgroundColor: 'white',
+                                    borderRadius: '3px',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                    zIndex: 1000,
+                                    overflow: 'hidden',
+                                    fontStyle: 'normal'
+                                }}>
+                                    {['Semua Tipe', 'Excavator', 'Bulldozer', 'Crane'].map((option, idx) => (
+                                        <div
+                                            key={idx}
+                                            onClick={() => {
+                                                setSelectedType(option);
+                                                setIsDropdownOpen(false);
+                                            }}
+                                            style={{
+                                                padding: '10px 14px',
+                                                cursor: 'pointer',
+                                                color: '#666',
+                                                fontSize: '12px',
+                                                backgroundColor: selectedType === option ? '#f5f5f5' : 'white',
+                                                transition: 'background-color 0.2s',
+                                                fontStyle: 'normal'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = selectedType === option ? '#f5f5f5' : 'white'}
+                                        >
+                                            {option}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    <select className="px-6 py-3 border border-gray-300 rounded-lg bg-white text-gray-700">
-                        <option>Semua Tipe</option>
-                    </select>
-
-                    <button className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-6 py-3 rounded-lg flex items-center gap-2 transition">
-                        <Plus size={20} />
+                    <button style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#f59e0b',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontStyle: 'normal'
+                    }}>
                         Tambahkan Jadwal
+                        <span style={{ fontSize: '16px', fontWeight: 'bold' }}>+</span>
                     </button>
                 </div>
 
-                {/* CARD GRID */}
-                <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {services.map((item, index) => (
-                        <div key={index} className="bg-white rounded-lg shadow-lg overflow-hidden border-t-4 border-yellow-500">
-                            <div className="p-6">
-                                <h3 className="text-xl font-bold text-yellow-500 mb-4">{item.type}</h3>
+                {/* Cards Grid */}
+                <div style={{ flex: 1, overflow: 'auto', padding: '16px 32px' }}>
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, 1fr)',
+                        gap: '16px'
+                    }}>
+                        {services.map((service) => (
+                            <div key={service.id} style={{
+                                backgroundColor: 'white',
+                                borderRadius: '8px',
+                                padding: '20px',
+                                border: '1px solid #e0e0e0',
+                                position: 'relative'
+                            }}>
+                                {/* Category Title */}
+                                <h3 style={{
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    color: '#f59e0b',
+                                    margin: 0,
+                                    marginBottom: '12px',
+                                    fontStyle: 'normal'
+                                }}>
+                                    {service.category}
+                                </h3>
 
-                                <div className="space-y-3 text-gray-600">
-                                    <div className="flex items-center gap-3">
-                                        <Package size={18} className="text-gray-500" />
-                                        <span>{item.unit}</span>
+                                {/* Icons - Top Right */}
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '20px',
+                                    right: '20px',
+                                    display: 'flex',
+                                    gap: '8px'
+                                }}>
+                                    <button style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        fontSize: '18px'
+                                    }}>✏️</button>
+                                    <button style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        fontSize: '18px'
+                                    }}>🗑️</button>
+                                </div>
+
+                                {/* Info Items */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#333', fontStyle: 'normal' }}>
+                                        <span>⚙️</span>
+                                        <span>{service.units} unit</span>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <Wrench size={18} className="text-gray-500" />
-                                        <span>{item.service}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#333', fontStyle: 'normal' }}>
+                                        <span>🔄</span>
+                                        <span>{service.lastService}</span>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <Calendar size={18} className="text-gray-500" />
-                                        <span>{item.date}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#333', fontStyle: 'normal' }}>
+                                        <span>📅</span>
+                                        <span>{service.nextService}</span>
                                     </div>
                                 </div>
 
-                                <div className="mt-5 pt-4 border-t border-gray-200">
-                                    <p className="text-lg font-bold text-gray-800">
-                                        total biaya <span className="text-yellow-600">{item.price}</span>
-                                    </p>
+                                {/* Cost */}
+                                <div style={{
+                                    fontSize: '12px',
+                                    color: '#999',
+                                    marginBottom: '4px',
+                                    fontStyle: 'normal'
+                                }}>
+                                    total biaya
                                 </div>
-
-                                <div className="flex justify-end gap-4 mt-4">
-                                    <button className="text-yellow-500 hover:text-yellow-600">
-                                        <Edit2 size={20} />
-                                    </button>
-                                    <button className="text-red-500 hover:text-red-600">
-                                        <Trash2 size={20} />
-                                    </button>
+                                <div style={{
+                                    fontSize: '18px',
+                                    fontWeight: '600',
+                                    color: '#1a1a1a',
+                                    fontStyle: 'normal'
+                                }}>
+                                    {service.totalCost}
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>
