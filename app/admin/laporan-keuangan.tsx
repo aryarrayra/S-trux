@@ -1,9 +1,20 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { 
+    View, 
+    Text, 
+    StyleSheet, 
+    ScrollView, 
+    TouchableOpacity, 
+    Modal, 
+    Platform,
+    Alert,
+    ActivityIndicator
+} from 'react-native';
 import { TrendingUp, TrendingDown, Download } from 'lucide-react-native';
 import Svg, { Path, G } from 'react-native-svg';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
+import { api } from '@/utils/api';
 
 interface LabelPosition {
     name: string;
@@ -12,23 +23,134 @@ interface LabelPosition {
     y: number;
 }
 
-// Mock data
-const FINANCIAL_DATA = {
-    totalPendapatan: 330000000,
-    totalPengeluaran: 330000000,
-    percentageChange: 2.5,
-    categories: [
-        { name: 'Excavator', percentage: 35, color: '#F4E5C2' },
-        { name: 'Bulldozer', percentage: 25, color: '#F0B952' },
-        { name: 'Dump truck', percentage: 25, color: '#F5C771' },
-        { name: 'Lainnya', percentage: 5, color: '#E8A855' },
-        { name: 'Crane', percentage: 10, color: '#F5D7A1' },
-    ],
+interface FinancialData {
+    totalPendapatan: number;
+    totalPengeluaran: number;
+    percentageChange: number;
+    categories: Array<{
+        name: string;
+        percentage: number;
+        color: string;
+        total_pendapatan?: number;
+        total_sewa?: number;
+    }>;
+    period: string;
+    dateRange: {
+        start: string;
+        end: string;
+    };
+}
+
+// Default data fallback
+const DEFAULT_FINANCIAL_DATA: FinancialData = {
+    totalPendapatan: 0,
+    totalPengeluaran: 0,
+    percentageChange: 0,
+    categories: [],
+    period: '6 bulan terakhir',
+    dateRange: {
+        start: new Date().toISOString(),
+        end: new Date().toISOString()
+    }
+};
+
+// Default colors for categories
+const CATEGORY_COLORS: { [key: string]: string } = {
+    'Excavator': '#F4E5C2',
+    'Bulldozer': '#F0B952',
+    'Dump Truck': '#F5C771',
+    'Crane': '#F5D7A1',
+    'Loader': '#E8A855',
+    'Motor Grader': '#D4A574',
+    'Lainnya': '#CCCCCC'
 };
 
 export default function LaporanKeuangan() {
     const [selectedPeriod, setSelectedPeriod] = useState('6 bulan terakhir');
     const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
+    const [financialData, setFinancialData] = useState<FinancialData>(DEFAULT_FINANCIAL_DATA);
+    const [loading, setLoading] = useState(true);
+    const [exporting, setExporting] = useState(false);
+
+    useEffect(() => {
+        fetchLaporanKeuangan();
+    }, [selectedPeriod]);
+
+    const fetchLaporanKeuangan = async () => {
+        try {
+            setLoading(true);
+            const response = await api.get(`/pembayaran/laporan-keuangan?period=${selectedPeriod}`);
+            
+            // Process categories dengan warna
+            const processedData = {
+                ...response.data.data,
+                categories: response.data.data.categories.map((category: any) => ({
+                    ...category,
+                    color: CATEGORY_COLORS[category.name] || '#CCCCCC'
+                }))
+            };
+            
+            setFinancialData(processedData);
+        } catch (error) {
+            console.error('Error fetching laporan keuangan:', error);
+            Alert.alert('Error', 'Gagal memuat data laporan keuangan');
+            // Fallback ke data default
+            setFinancialData(DEFAULT_FINANCIAL_DATA);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleExportPDF = async () => {
+        try {
+            setExporting(true);
+            
+            if (Platform.OS === 'web') {
+                // Untuk web, langsung download
+                const exportUrl = `${api.defaults.baseURL}/pembayaran/export-laporan?period=${selectedPeriod}&format=html`;
+                window.open(exportUrl, '_blank');
+            } else {
+                // Untuk mobile, tampilkan pilihan format
+                Alert.alert(
+                    'Export Laporan',
+                    'Pilih format export:',
+                    [
+                        { text: 'Batal', style: 'cancel' },
+                        { 
+                            text: 'HTML', 
+                            onPress: () => downloadReport('html')
+                        },
+                        { 
+                            text: 'CSV', 
+                            onPress: () => downloadReport('csv')
+                        }
+                    ]
+                );
+            }
+        } catch (error) {
+            console.error('Error exporting:', error);
+            Alert.alert('Error', 'Gagal mengekspor laporan');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    const downloadReport = async (format: string) => {
+        try {
+            const exportUrl = `${api.defaults.baseURL}/pembayaran/export-laporan?period=${selectedPeriod}&format=${format}`;
+            
+            if (Platform.OS === 'web') {
+                window.open(exportUrl, '_blank');
+            } else {
+                // Untuk React Native, Anda bisa menggunakan Linking atau download manager
+                Alert.alert('Info', `File ${format.toUpperCase()} akan diunduh`);
+                // Contoh menggunakan Linking:
+                // Linking.openURL(exportUrl);
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Gagal mengunduh file');
+        }
+    };
 
     const getCurrentDate = () => {
         const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -51,11 +173,6 @@ export default function LaporanKeuangan() {
 
     const formatCurrency = (amount: number) => {
         return `Rp ${amount.toLocaleString('id-ID')}`;
-    };
-
-    const handleExportPDF = () => {
-        console.log('Export PDF clicked');
-        // Implement PDF export logic here
     };
 
     const selectPeriod = (period: string) => {
@@ -84,15 +201,15 @@ export default function LaporanKeuangan() {
         ].join(' ');
     };
 
-    // Compute segments and label positions - Excavator largest at top, Bulldozer adjacent smaller
+    // Compute segments and label positions
     const centerX = 150;
     const centerY = 150;
     const radius = 140;
-    let currentAngle = 0; // Start Excavator at top
+    let currentAngle = 0;
     const segments: React.ReactElement[] = [];
     const labelPositions: LabelPosition[] = [];
 
-    FINANCIAL_DATA.categories.forEach((category, index) => {
+    financialData.categories.forEach((category, index) => {
         const startAngle = currentAngle;
         const slice = (category.percentage / 100) * 360;
         const endAngle = startAngle + slice;
@@ -111,12 +228,13 @@ export default function LaporanKeuangan() {
             />
         );
 
-        // Label position near segment (mid angle, outside radius)
+        // Label position
         let labelRadius = radius + 60;
-        // Closer for Crane and Lainnya only
-        if (category.name === 'Crane' || category.name === 'Lainnya') {
+        // Adjust for smaller segments
+        if (category.percentage < 10) {
             labelRadius = radius + 40;
         }
+        
         const radians = (midAngle - 90) * Math.PI / 180;
         const labelX = centerX + labelRadius * Math.cos(radians);
         const labelY = centerY + labelRadius * Math.sin(radians);
@@ -128,6 +246,18 @@ export default function LaporanKeuangan() {
             y: labelY
         });
     });
+
+    if (loading) {
+        return (
+            <View style={styles.container}>
+                <SideBar />
+                <View style={[styles.mainContent, styles.centered]}>
+                    <ActivityIndicator size="large" color="#F59E0B" />
+                    <Text style={styles.loadingText}>Memuat data laporan keuangan...</Text>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -157,9 +287,19 @@ export default function LaporanKeuangan() {
                         <Text style={styles.dropdownArrow}>▼</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.exportButton} onPress={handleExportPDF}>
-                        <Download color={COLORS.white} size={18} />
-                        <Text style={styles.exportButtonText}>Ekspor PDF</Text>
+                    <TouchableOpacity 
+                        style={[styles.exportButton, exporting && styles.exportButtonDisabled]} 
+                        onPress={handleExportPDF}
+                        disabled={exporting}
+                    >
+                        {exporting ? (
+                            <ActivityIndicator size="small" color={COLORS.white} />
+                        ) : (
+                            <Download color={COLORS.white} size={18} />
+                        )}
+                        <Text style={styles.exportButtonText}>
+                            {exporting ? 'Mengekspor...' : 'Ekspor Laporan'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
@@ -174,9 +314,9 @@ export default function LaporanKeuangan() {
                                     <TrendingUp color="#D97706" size={24} />
                                 </View>
                             </View>
-                            <Text style={styles.cardAmount}>{formatCurrency(FINANCIAL_DATA.totalPendapatan)}</Text>
+                            <Text style={styles.cardAmount}>{formatCurrency(financialData.totalPendapatan)}</Text>
                             <Text style={styles.cardSubtext}>
-                                +{FINANCIAL_DATA.percentageChange}% dari periode sebelumnya
+                                {financialData.percentageChange >= 0 ? '+' : ''}{financialData.percentageChange}% dari periode sebelumnya
                             </Text>
                         </View>
 
@@ -189,10 +329,10 @@ export default function LaporanKeuangan() {
                                 </View>
                             </View>
                             <Text style={[styles.cardAmount, { color: COLORS.white }]}>
-                                {formatCurrency(FINANCIAL_DATA.totalPengeluaran)}
+                                {formatCurrency(financialData.totalPengeluaran)}
                             </Text>
                             <Text style={[styles.cardSubtext, { color: 'rgba(255,255,255,0.9)' }]}>
-                                +{FINANCIAL_DATA.percentageChange}% dari periode sebelumnya
+                                Data pengeluaran akan tersedia soon
                             </Text>
                         </View>
                     </View>
@@ -202,32 +342,94 @@ export default function LaporanKeuangan() {
                         <Text style={styles.chartTitle}>Pendapatan per kategori</Text>
 
                         <View style={styles.chartContainer}>
-                            {/* Pie Chart */}
-                            <View style={styles.pieChartWrapper}>
-                                <Svg width={300} height={300} viewBox="0 0 300 300">
-                                    <G>
-                                        {segments}
-                                    </G>
-                                </Svg>
+                            {financialData.categories.length > 0 ? (
+                                <View style={styles.pieChartWrapper}>
+                                    <Svg width={300} height={300} viewBox="0 0 300 300">
+                                        <G>
+                                            {segments}
+                                        </G>
+                                    </Svg>
 
-                                {/* Dynamic Category Labels near segments */}
-                                {labelPositions.map((label, index) => (
-                                    <View
-                                        key={index}
-                                        style={[
-                                            styles.labelContainer,
-                                            {
-                                                left: label.x - 50,
-                                                top: label.y - 8,
-                                            }
-                                        ]}
-                                    >
-                                        <Text style={styles.labelText}>
-                                            {label.name} {label.percentage}%
+                                    {/* Dynamic Category Labels near segments */}
+                                    {labelPositions.map((label, index) => (
+                                        <View
+                                            key={index}
+                                            style={[
+                                                styles.labelContainer,
+                                                {
+                                                    left: label.x - 50,
+                                                    top: label.y - 8,
+                                                }
+                                            ]}
+                                        >
+                                            <Text style={styles.labelText}>
+                                                {label.name} {label.percentage}%
+                                            </Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            ) : (
+                                <View style={styles.noDataContainer}>
+                                    <Text style={styles.noDataText}>Tidak ada data untuk periode ini</Text>
+                                    <Text style={styles.noDataSubtext}>
+                                        Tidak ada pembayaran terverifikasi pada {selectedPeriod.toLowerCase()}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Category Details */}
+                        {financialData.categories.length > 0 && (
+                            <View style={styles.categoryDetails}>
+                                <Text style={styles.categoryDetailsTitle}>Detail Kategori</Text>
+                                {financialData.categories.map((category, index) => (
+                                    <View key={index} style={styles.categoryItem}>
+                                        <View style={[styles.colorIndicator, { backgroundColor: category.color }]} />
+                                        <View style={styles.categoryInfo}>
+                                            <Text style={styles.categoryName}>{category.name}</Text>
+                                            <Text style={styles.categorySubtext}>
+                                                {category.total_sewa} sewa • {category.percentage}%
+                                            </Text>
+                                        </View>
+                                        <Text style={styles.categoryAmount}>
+                                            Rp {category.total_pendapatan?.toLocaleString('id-ID')}
                                         </Text>
                                     </View>
                                 ))}
+                                
+                                {/* Total */}
+                                <View style={[styles.categoryItem, styles.totalItem]}>
+                                    <View style={[styles.colorIndicator, { backgroundColor: '#F59E0B' }]} />
+                                    <View style={styles.categoryInfo}>
+                                        <Text style={[styles.categoryName, styles.totalText]}>TOTAL</Text>
+                                        <Text style={styles.categorySubtext}>
+                                            {financialData.categories.reduce((sum, cat) => sum + (cat.total_sewa || 0), 0)} sewa • 100%
+                                        </Text>
+                                    </View>
+                                    <Text style={[styles.categoryAmount, styles.totalText]}>
+                                        {formatCurrency(financialData.totalPendapatan)}
+                                    </Text>
+                                </View>
                             </View>
+                        )}
+                    </View>
+
+                    {/* Period Info */}
+                    <View style={styles.periodInfoCard}>
+                        <Text style={styles.periodInfoTitle}>Informasi Periode</Text>
+                        <View style={styles.periodInfoRow}>
+                            <Text style={styles.periodInfoLabel}>Periode yang ditampilkan:</Text>
+                            <Text style={styles.periodInfoValue}>{selectedPeriod}</Text>
+                        </View>
+                        <View style={styles.periodInfoRow}>
+                            <Text style={styles.periodInfoLabel}>Rentang tanggal:</Text>
+                            <Text style={styles.periodInfoValue}>
+                                {new Date(financialData.dateRange.start).toLocaleDateString('id-ID')} - {new Date(financialData.dateRange.end).toLocaleDateString('id-ID')}
+                            </Text>
+                        </View>
+                        <View style={styles.periodInfoRow}>
+                            <Text style={styles.periodInfoLabel}>Data terakhir diperbarui:</Text>
+                            <Text style={styles.periodInfoValue}>{currentDate.full} {currentDate.time}</Text>
                         </View>
                     </View>
                 </ScrollView>
@@ -287,6 +489,16 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 30,
         backgroundColor: '#F5F5F5',
+    },
+    centered: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 16,
+        color: '#666',
+        marginTop: 20,
     },
     header: {
         flexDirection: 'row',
@@ -352,6 +564,10 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 8,
         gap: 8,
+    },
+    exportButtonDisabled: {
+        backgroundColor: '#FDBA74',
+        opacity: 0.7,
     },
     exportButtonText: {
         fontFamily: 'Poppins_500Medium',
@@ -427,7 +643,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
-        marginBottom: 30,
+        marginBottom: 20,
     },
     chartTitle: {
         fontFamily: 'Poppins_600SemiBold',
@@ -438,6 +654,7 @@ const styles = StyleSheet.create({
     chartContainer: {
         alignItems: 'center',
         justifyContent: 'center',
+        minHeight: 400,
     },
     pieChartWrapper: {
         width: 400,
@@ -460,6 +677,111 @@ const styles = StyleSheet.create({
         borderRadius: 4,
         paddingHorizontal: 4,
         paddingVertical: 2,
+    },
+    noDataContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 60,
+    },
+    noDataText: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 16,
+        color: '#666',
+        marginBottom: 8,
+    },
+    noDataSubtext: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 14,
+        color: '#999',
+        textAlign: 'center',
+    },
+    categoryDetails: {
+        marginTop: 30,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E5E5',
+        paddingTop: 20,
+    },
+    categoryDetailsTitle: {
+        fontFamily: 'Poppins_600SemiBold',
+        fontSize: 16,
+        color: '#333',
+        marginBottom: 15,
+    },
+    categoryItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F5F5F5',
+    },
+    totalItem: {
+        borderTopWidth: 2,
+        borderTopColor: '#E5E5E5',
+        borderBottomWidth: 0,
+        paddingTop: 15,
+        marginTop: 5,
+    },
+    colorIndicator: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        marginRight: 12,
+    },
+    categoryInfo: {
+        flex: 1,
+    },
+    categoryName: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 14,
+        color: '#333',
+        marginBottom: 2,
+    },
+    totalText: {
+        fontFamily: 'Poppins_700Bold',
+        color: '#F59E0B',
+    },
+    categorySubtext: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 12,
+        color: '#666',
+    },
+    categoryAmount: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 14,
+        color: '#333',
+    },
+    periodInfoCard: {
+        backgroundColor: COLORS.white,
+        borderRadius: 16,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+        marginBottom: 30,
+    },
+    periodInfoTitle: {
+        fontFamily: 'Poppins_600SemiBold',
+        fontSize: 16,
+        color: '#333',
+        marginBottom: 15,
+    },
+    periodInfoRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 8,
+    },
+    periodInfoLabel: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 14,
+        color: '#666',
+    },
+    periodInfoValue: {
+        fontFamily: 'Poppins_500Medium',
+        fontSize: 14,
+        color: '#333',
     },
     dropdownOverlay: {
         flex: 1,
