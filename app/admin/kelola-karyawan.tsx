@@ -72,11 +72,10 @@ export default function KelolaKaryawan() {
     const [tanggal_lahir, setTanggalLahir] = useState('');
     const [no_telp, setNoTelp] = useState('');
     const [role, setRole] = useState('Karyawan');
-    const [status, setStatus] = useState('aktif'); // Default ke 'aktif'
+    const [status, setStatus] = useState('aktif');
 
     const API_BASE = 'http://localhost:8000/api';
 
-    // Save to storage
     const saveToStorage = async (data: Employee[]) => {
         try {
             await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -85,12 +84,10 @@ export default function KelolaKaryawan() {
         }
     };
 
-    // Fetch data dari API
     const fetchEmployees = async () => {
         setIsLoading(true);
         setError(null);
         try {
-            console.log('🔄 Fetching employees from API...');
             const response = await fetch(`${API_BASE}/petugas`, {
                 method: 'GET',
                 headers: {
@@ -99,19 +96,13 @@ export default function KelolaKaryawan() {
                 },
             });
 
-            console.log('📡 Response status:', response.status);
-
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('❌ Server response:', errorText);
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const data: ApiResponse = await response.json();
-            console.log('✅ API Response:', data);
 
             if (data.success && data.data) {
-                // Transform data dari API ke format yang sesuai dengan struktur database
                 const transformedData: Employee[] = data.data.map((item: any) => ({
                     id_petugas: item.id_petugas?.toString() || Math.random().toString(),
                     nama_petugas: item.nama_petugas || 'Nama tidak tersedia',
@@ -124,38 +115,29 @@ export default function KelolaKaryawan() {
                     status: item.status || 'aktif'
                 }));
                 setEmployees(transformedData);
-                // Save to storage on successful fetch
                 await saveToStorage(transformedData);
             } else {
                 throw new Error(data.message || 'Gagal mengambil data petugas');
             }
         } catch (error) {
-            console.error('❌ Error fetching employees:', error);
-            setError(error instanceof Error ? error.message : 'Terjadi kesalahan saat mengambil data');
-            // Do not overwrite local data on error
+            console.error('Error fetching employees:', error);
+            setError(error instanceof Error ? error.message : 'Terjadi kesalahan');
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Initialize data on mount
     useEffect(() => {
         const initData = async () => {
             try {
                 const stored = await AsyncStorage.getItem(STORAGE_KEY);
                 if (stored) {
-                    const parsedData = JSON.parse(stored);
-                    setEmployees(parsedData);
-                    console.log('📦 Loaded from storage:', parsedData);
+                    setEmployees(JSON.parse(stored));
                 } else {
-                    // First time or no data, fetch from API
-                    console.log('🌐 No stored data, fetching from API...');
                     await fetchEmployees();
                     return;
                 }
             } catch (e) {
-                console.error('Failed to load from storage:', e);
-                // Fallback to fetch
                 await fetchEmployees();
             } finally {
                 setIsLoading(false);
@@ -168,83 +150,30 @@ export default function KelolaKaryawan() {
         const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
         const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
         const now = new Date();
-        const dayName = days[now.getDay()];
-        const date = now.getDate();
-        const month = months[now.getMonth()];
-        const year = now.getFullYear();
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-
         return {
-            full: `${dayName}, ${date} ${month} ${year}`,
-            time: `${hours}:${minutes} WIB`
+            full: `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`,
+            time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} WIB`
         };
     };
 
     const currentDate = getCurrentDate();
 
-    // Format date ke YYYY-MM-DD untuk database
     const formatDateForDB = (dateString: string) => {
         if (!dateString) return '';
-        // Jika date string sudah dalam format YYYY-MM-DD, return langsung
-        if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            return dateString;
-        }
-        // Convert dari DD/MM/YYYY ke YYYY-MM-DD
+        if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) return dateString;
         const parts = dateString.split('/');
-        if (parts.length === 3) {
-            return `${parts[2]}-${parts[1]}-${parts[0]}`;
-        }
+        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
         return dateString;
     };
 
-    // Format date ke DD/MM/YYYY untuk display
-    const formatDateForDisplay = (dateString: string) => {
-        if (!dateString) return '';
-        try {
-            // Jika format sudah YYYY-MM-DD
-            if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                const date = new Date(dateString);
-                return date.toLocaleDateString('id-ID', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric'
-                });
-            }
-            return dateString;
-        } catch (error) {
-            return '';
-        }
+    const getStatusDisplay = (statusValue: string) => {
+        return statusValue === 'aktif' ? 'Aktif' : 'Nonaktif';
     };
 
-    // Format date ke YYYY-MM-DD untuk input type="date"
-    const formatDateForInput = (dateString: string) => {
-        if (!dateString) return '';
-        try {
-            // Jika format sudah YYYY-MM-DD, return langsung
-            if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                return dateString;
-            }
-            // Convert dari DD/MM/YYYY ke YYYY-MM-DD
-            const parts = dateString.split('/');
-            if (parts.length === 3) {
-                return `${parts[2]}-${parts[1]}-${parts[0]}`;
-            }
-            // Coba parse sebagai Date object
-            const date = new Date(dateString);
-            if (!isNaN(date.getTime())) {
-                return date.toISOString().split('T')[0];
-            }
-            return '';
-        } catch (error) {
-            return '';
-        }
-    };
-
-    const filteredEmployees = employees.filter(employee =>
-        employee.nama_petugas.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        employee.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        employee.no_telp.includes(searchQuery)
+    const filteredEmployees = employees.filter(emp =>
+        emp.nama_petugas.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        emp.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        emp.no_telp.includes(searchQuery)
     );
 
     const handleEdit = (employee: Employee) => {
@@ -257,7 +186,7 @@ export default function KelolaKaryawan() {
         setTanggalLahir(employee.tanggal_lahir || '');
         setNoTelp(employee.no_telp);
         setRole(employee.role || 'Karyawan');
-        setStatus(employee.status || 'aktif'); // Default ke 'aktif'
+        setStatus(employee.status || 'aktif');
         setModalVisible(true);
     };
 
@@ -276,7 +205,7 @@ export default function KelolaKaryawan() {
         setTanggalLahir('');
         setNoTelp('');
         setRole('Karyawan');
-        setStatus('aktif'); // Reset ke 'aktif'
+        setStatus('aktif');
     };
 
     const handleDelete = (employee: Employee) => {
@@ -287,30 +216,20 @@ export default function KelolaKaryawan() {
     const handleConfirmDelete = async (confirmed: boolean) => {
         if (confirmed && selectedEmployee) {
             try {
-                // Delete dari API
                 const response = await fetch(`${API_BASE}/petugas/${selectedEmployee.id_petugas}`, {
                     method: 'DELETE',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
                 });
 
                 if (response.ok) {
-                    // Hapus dari state lokal
-                    const updatedEmployees = employees.filter(emp => emp.id_petugas !== selectedEmployee.id_petugas);
-                    setEmployees(updatedEmployees);
-                    // Save to storage
-                    await saveToStorage(updatedEmployees);
-                    console.log('✅ Karyawan dihapus:', selectedEmployee.id_petugas);
+                    const updated = employees.filter(emp => emp.id_petugas !== selectedEmployee.id_petugas);
+                    setEmployees(updated);
+                    await saveToStorage(updated);
                     Alert.alert('Sukses', 'Data berhasil dihapus');
                 } else {
-                    const errorText = await response.text();
-                    console.error('❌ Server response:', errorText);
                     throw new Error('Gagal menghapus data');
                 }
             } catch (error) {
-                console.error('❌ Error deleting employee:', error);
                 Alert.alert('Error', 'Gagal menghapus data dari server');
             }
         }
@@ -319,101 +238,46 @@ export default function KelolaKaryawan() {
     };
 
     const validateForm = (): boolean => {
-        if (!nama_petugas.trim()) {
-            Alert.alert('Error', 'Nama lengkap harus diisi!');
-            return false;
-        }
-        if (!email.trim()) {
-            Alert.alert('Error', 'Email harus diisi!');
-            return false;
-        }
-        if (!no_telp.trim()) {
-            Alert.alert('Error', 'Nomor telepon harus diisi!');
-            return false;
-        }
-
-        // Validasi email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            Alert.alert('Error', 'Format email tidak valid!');
-            return false;
-        }
-
+        if (!nama_petugas.trim()) { Alert.alert('Error', 'Nama lengkap harus diisi!'); return false; }
+        if (!email.trim()) { Alert.alert('Error', 'Email harus diisi!'); return false; }
+        if (!no_telp.trim()) { Alert.alert('Error', 'Nomor telepon harus diisi!'); return false; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { Alert.alert('Error', 'Format email tidak valid!'); return false; }
         return true;
     };
 
     const handleUpdate = async () => {
         if (!validateForm()) return;
-        if (selectedEmployee) {
-            try {
-                const updateData = {
-                    nama_petugas: nama_petugas,
-                    email: email,
-                    tempat_lahir: tempat_lahir,
-                    alamat: alamat,
-                    tanggal_lahir: formatDateForDB(tanggal_lahir),
-                    no_telp: no_telp,
-                    role: role,
-                    status: status, // Sudah dalam format 'aktif'/'nonaktif'
-                };
+        if (!selectedEmployee) return;
 
-                console.log('📤 Data update yang dikirim:', updateData);
+        try {
+            const updateData = {
+                nama_petugas, email, tempat_lahir, alamat,
+                tanggal_lahir: formatDateForDB(tanggal_lahir),
+                no_telp, role, status,
+            };
 
-                const response = await fetch(`${API_BASE}/petugas/${selectedEmployee.id_petugas}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify(updateData),
-                });
+            const response = await fetch(`${API_BASE}/petugas/${selectedEmployee.id_petugas}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(updateData),
+            });
 
-                console.log('📡 Response status:', response.status);
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('❌ Server response:', errorText);
-                    let errorMessage = `HTTP error! status: ${response.status}`;
-
-                    try {
-                        const errorData = JSON.parse(errorText);
-                        errorMessage = errorData.message || errorMessage;
-                    } catch (e) {
-                        errorMessage = errorText || errorMessage;
-                    }
-
-                    throw new Error(errorMessage);
-                }
-
-                const result = await response.json();
-                console.log('✅ Response data:', result);
-
-                // Update state lokal
-                const updatedEmployees = employees.map(emp =>
-                    emp.id_petugas === selectedEmployee.id_petugas
-                        ? {
-                            ...emp,
-                            nama_petugas,
-                            email,
-                            tempat_lahir,
-                            alamat,
-                            tanggal_lahir: formatDateForDB(tanggal_lahir),
-                            no_telp,
-                            role,
-                            status,
-                        }
-                        : emp
-                );
-                setEmployees(updatedEmployees);
-                // Save to storage
-                await saveToStorage(updatedEmployees);
-                console.log('✅ Data diupdate:', selectedEmployee.id_petugas);
-                Alert.alert('Sukses', 'Data berhasil diupdate');
-                setModalVisible(false);
-            } catch (error) {
-                console.error('💥 Error updating employee:', error);
-                Alert.alert('Error', error instanceof Error ? error.message : 'Gagal mengupdate data di server');
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || `HTTP error! status: ${response.status}`);
             }
+
+            const updated = employees.map(emp =>
+                emp.id_petugas === selectedEmployee.id_petugas
+                    ? { ...emp, nama_petugas, email, tempat_lahir, alamat, tanggal_lahir: formatDateForDB(tanggal_lahir), no_telp, role, status }
+                    : emp
+            );
+            setEmployees(updated);
+            await saveToStorage(updated);
+            Alert.alert('Sukses', 'Data berhasil diupdate');
+            setModalVisible(false);
+        } catch (error) {
+            Alert.alert('Error', error instanceof Error ? error.message : 'Gagal mengupdate data');
         }
     };
 
@@ -421,114 +285,49 @@ export default function KelolaKaryawan() {
         if (!validateForm()) return;
 
         try {
-            const newEmployeeData = {
-                nama_petugas: nama_petugas,
-                email: email,
-                tempat_lahir: tempat_lahir,
-                alamat: alamat,
+            const newData = {
+                nama_petugas, email, tempat_lahir, alamat,
                 tanggal_lahir: formatDateForDB(tanggal_lahir),
-                no_telp: no_telp,
-                role: role,
-                status: status, // Sudah dalam format 'aktif'/'nonaktif'
+                no_telp, role, status,
             };
-
-            console.log('📤 Data yang dikirim:', newEmployeeData);
 
             const response = await fetch(`${API_BASE}/petugas`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify(newEmployeeData),
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(newData),
             });
-
-            console.log('📡 Response status:', response.status);
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error('❌ Server response:', errorText);
-                let errorMessage = `HTTP error! status: ${response.status}`;
-
-                try {
-                    const errorData = JSON.parse(errorText);
-                    errorMessage = errorData.message || errorMessage;
-                } catch (e) {
-                    errorMessage = errorText || errorMessage;
-                }
-
-                throw new Error(errorMessage);
+                throw new Error(errorText || `HTTP error! status: ${response.status}`);
             }
 
             const result = await response.json();
-            console.log('✅ Response data:', result);
-
-            // Tambahkan ke state lokal
             const newEmployee: Employee = {
                 id_petugas: result.data?.id_petugas || String(employees.length + 1),
-                nama_petugas,
-                email,
-                tempat_lahir,
-                alamat,
+                nama_petugas, email, tempat_lahir, alamat,
                 tanggal_lahir: formatDateForDB(tanggal_lahir),
-                no_telp,
-                role,
-                status,
+                no_telp, role, status,
             };
-            const updatedEmployees = [...employees, newEmployee];
-            setEmployees(updatedEmployees);
-            // Save to storage
-            await saveToStorage(updatedEmployees);
-            console.log('✅ Data baru ditambahkan:', newEmployee);
+            const updated = [...employees, newEmployee];
+            setEmployees(updated);
+            await saveToStorage(updated);
             Alert.alert('Sukses', 'Data berhasil ditambahkan');
             setModalVisible(false);
         } catch (error) {
-            console.error('💥 Error adding employee:', error);
-            Alert.alert('Error', error instanceof Error ? error.message : 'Gagal menambahkan data ke server');
+            Alert.alert('Error', error instanceof Error ? error.message : 'Gagal menambahkan data');
         }
     };
 
-    const handleClear = () => {
-        resetForm();
-    };
-
-    const handleCloseModal = () => {
-        setModalVisible(false);
-    };
-
-    // Handler untuk pilih role dari dropdown
-    const selectRole = (selectedRole: string) => {
-        setRole(selectedRole);
-        setShowRoleDropdown(false);
-    };
-
-    // Handler untuk pilih status dari dropdown - PERBAIKAN DI SINI
-    const selectStatus = (selectedStatus: string) => {
-        // Simpan dalam format yang sesuai database ('aktif'/'nonaktif')
-        const dbStatus = selectedStatus === 'Aktif' ? 'aktif' : 'nonaktif';
-        setStatus(dbStatus);
-        setShowStatusDropdown(false);
-    };
-
-    // Refresh data
-    const handleRefresh = () => {
-        fetchEmployees();
-    };
-
-    // Helper untuk menampilkan status di UI
-    const getStatusDisplay = (statusValue: string) => {
-        return statusValue === 'aktif' ? 'Aktif' : 'Nonaktif';
-    };
+    const selectRole = (selectedRole: string) => { setRole(selectedRole); setShowRoleDropdown(false); };
+    const selectStatus = (selectedStatus: string) => { setStatus(selectedStatus === 'Aktif' ? 'aktif' : 'nonaktif'); setShowStatusDropdown(false); };
 
     return (
         <>
             <Stack.Screen options={{ headerShown: false }} />
             <View style={styles.container}>
                 <SideBar />
-
-                {/* Main Content */}
                 <View style={styles.mainContent}>
-                    {/* Header */}
                     <View style={styles.header}>
                         <View>
                             <Text style={styles.pageTitle}>Kelola Karyawan Dan Petugas</Text>
@@ -537,23 +336,16 @@ export default function KelolaKaryawan() {
                         <View style={styles.dateTimeContainer}>
                             <Text style={styles.dateText}>{currentDate.full}</Text>
                             <Text style={styles.timeText}>{currentDate.time}</Text>
-                            <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                            <TouchableOpacity style={styles.refreshButton} onPress={fetchEmployees}>
                                 <Text style={styles.refreshButtonText}>Refresh</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
 
-                    {/* Search Bar & Add Button */}
                     <View style={styles.searchRow}>
                         <View style={styles.searchContainer}>
                             <Search color="#999" size={20} />
-                            <TextInput
-                                style={styles.searchInput}
-                                placeholder="Cari berdasarkan nama, email, atau nomor telepon..."
-                                value={searchQuery}
-                                onChangeText={setSearchQuery}
-                                placeholderTextColor="#999"
-                            />
+                            <TextInput style={styles.searchInput} placeholder="Cari..." value={searchQuery} onChangeText={setSearchQuery} placeholderTextColor="#999" />
                         </View>
                         <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
                             <Text style={styles.addButtonText}>Tambahkan</Text>
@@ -561,98 +353,35 @@ export default function KelolaKaryawan() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Loading & Error State */}
-                    {isLoading && (
-                        <View style={styles.loadingContainer}>
-                            <Text style={styles.loadingText}>Memuat data...</Text>
-                        </View>
-                    )}
-
-                    {error && (
-                        <View style={styles.errorContainer}>
-                            <Text style={styles.errorText}>Error: {error}</Text>
-                            <TouchableOpacity style={styles.retryButton} onPress={fetchEmployees}>
-                                <Text style={styles.retryButtonText}>Coba Lagi</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-
-                    {/* Table */}
-                    {!isLoading && !error && employees.length === 0 && (
-                        <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>Tidak ada data karyawan</Text>
-                        </View>
-                    )}
+                    {isLoading && <View style={styles.loadingContainer}><Text style={styles.loadingText}>Memuat data...</Text></View>}
+                    {error && <View style={styles.errorContainer}><Text style={styles.errorText}>Error: {error}</Text></View>}
 
                     {!isLoading && !error && employees.length > 0 && (
                         <ScrollView style={styles.tableContainer}>
                             <View style={styles.table}>
-                                {/* Table Header */}
                                 <View style={styles.tableHeader}>
-                                    <View style={[styles.tableHeaderCell, { flex: 1.5 }]}>
-                                        <Text style={styles.tableHeaderText}>Nama Lengkap</Text>
-                                    </View>
-                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
-                                        <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Role</Text>
-                                    </View>
-                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}>
-                                        <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>No. Telp</Text>
-                                    </View>
-                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1.5 }]}>
-                                        <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Email</Text>
-                                    </View>
-                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.8 }]}>
-                                        <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Status</Text>
-                                    </View>
-                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.8 }]}>
-                                        <Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Aksi</Text>
-                                    </View>
+                                    <View style={[styles.tableHeaderCell, { flex: 1.5 }]}><Text style={styles.tableHeaderText}>Nama Lengkap</Text></View>
+                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}><Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Role</Text></View>
+                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1 }]}><Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>No. Telp</Text></View>
+                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 1.5 }]}><Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Email</Text></View>
+                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.8 }]}><Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Status</Text></View>
+                                    <View style={[styles.tableHeaderCell, styles.tableHeaderCellBorder, { flex: 0.8 }]}><Text style={[styles.tableHeaderText, { textAlign: 'center' }]}>Aksi</Text></View>
                                 </View>
-
-                                {/* Table Body */}
-                                {filteredEmployees.map((employee, index) => (
-                                    <View key={employee.id_petugas} style={styles.tableRow}>
-                                        <View style={[styles.tableCell, { flex: 1.5, backgroundColor: '#F5EFE7', alignItems: 'flex-start' }]}>
-                                            <Text style={styles.employeeName}>{employee.nama_petugas}</Text>
-                                        </View>
-
-                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
-                                            <Text style={styles.employeeRole}>{employee.role}</Text>
-                                        </View>
-
-                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1, backgroundColor: '#F5EFE7' }]}>
-                                            <Text style={styles.employeePhone}>{employee.no_telp}</Text>
-                                        </View>
-
-                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1.5, backgroundColor: '#F5EFE7' }]}>
-                                            <Text style={styles.employeeEmail}>{employee.email}</Text>
-                                        </View>
-
-                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8, backgroundColor: '#F5EFE7' }]}>
-                                            <View style={[
-                                                styles.statusBadge,
-                                                employee.status === 'aktif' ? styles.statusActive : styles.statusInactive
-                                            ]}>
-                                                <Text style={styles.statusText}>
-                                                    {getStatusDisplay(employee.status || 'aktif')}
-                                                </Text>
+                                {filteredEmployees.map((emp) => (
+                                    <View key={emp.id_petugas} style={styles.tableRow}>
+                                        <View style={[styles.tableCell, { flex: 1.5, alignItems: 'flex-start' }]}><Text style={styles.employeeName}>{emp.nama_petugas}</Text></View>
+                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1 }]}><Text style={styles.employeeRole}>{emp.role}</Text></View>
+                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1 }]}><Text style={styles.employeePhone}>{emp.no_telp}</Text></View>
+                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1.5 }]}><Text style={styles.employeeEmail}>{emp.email}</Text></View>
+                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8 }]}>
+                                            <View style={[styles.statusBadge, emp.status === 'aktif' ? styles.statusActive : styles.statusInactive]}>
+                                                <Text style={styles.statusText}>{getStatusDisplay(emp.status || 'aktif')}</Text>
                                             </View>
                                         </View>
-
-                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8, backgroundColor: '#F5EFE7' }]}>
+                                        <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8 }]}>
                                             <View style={styles.actionButtons}>
-                                                <TouchableOpacity
-                                                    style={styles.editButton}
-                                                    onPress={() => handleEdit(employee)}
-                                                >
-                                                    <Edit2 color={COLORS.white} size={16} />
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    style={styles.deleteButton}
-                                                    onPress={() => handleDelete(employee)}
-                                                >
-                                                    <Trash2 color={COLORS.white} size={16} />
-                                                </TouchableOpacity>
+                                                <TouchableOpacity style={styles.editButton} onPress={() => handleEdit(emp)}><Edit2 color="#FFF" size={16} /></TouchableOpacity>
+                                                <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(emp)}><Trash2 color="#FFF" size={16} /></TouchableOpacity>
                                             </View>
                                         </View>
                                     </View>
@@ -662,20 +391,12 @@ export default function KelolaKaryawan() {
                     )}
                 </View>
 
-                {/* Edit/Add Modal */}
-                <Modal
-                    animationType="fade"
-                    transparent={true}
-                    visible={modalVisible}
-                    onRequestClose={handleCloseModal}
-                >
+                {/* EDIT/ADD MODAL - DIPERBAIKI */}
+                <Modal animationType="fade" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
                     <View style={styles.modalOverlay}>
                         <View style={styles.modalContent}>
-                            {/* Header Modal */}
                             <View style={styles.modalHeader}>
-                                <TouchableOpacity onPress={handleCloseModal}>
-                                    <X color="#F59E0B" size={24} />
-                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setModalVisible(false)}><X color="#F59E0B" size={24} /></TouchableOpacity>
                                 <Text style={styles.modalTitle}>{isAddMode ? 'Tambah Data Anggota' : 'Update Data Anggota'}</Text>
                                 <View style={styles.modalDateContainer}>
                                     <Text style={styles.modalDateText}>{currentDate.full}</Text>
@@ -683,106 +404,53 @@ export default function KelolaKaryawan() {
                                 </View>
                             </View>
 
-                            {/* Content Modal */}
-                            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
                                 <View style={styles.formContainer}>
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>Nama Lengkap *</Text>
-                                            <TextInput
-                                                style={styles.input}
-                                                value={nama_petugas}
-                                                onChangeText={setNamaPetugas}
-                                                placeholder="Eggy Johns"
-                                                placeholderTextColor="#999"
-                                            />
+                                            <TextInput style={styles.input} value={nama_petugas} onChangeText={setNamaPetugas} placeholder="Nama" placeholderTextColor="#999" />
                                         </View>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>Email *</Text>
-                                            <TextInput
-                                                style={styles.input}
-                                                value={email}
-                                                onChangeText={setEmail}
-                                                placeholder="Eggy10@gmail.com"
-                                                placeholderTextColor="#999"
-                                                keyboardType="email-address"
-                                                autoCapitalize="none"
-                                            />
+                                            <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="email@gmail.com" placeholderTextColor="#999" keyboardType="email-address" autoCapitalize="none" />
                                         </View>
                                     </View>
 
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>Tempat Lahir</Text>
-                                            <TextInput
-                                                style={styles.input}
-                                                value={tempat_lahir}
-                                                onChangeText={setTempatLahir}
-                                                placeholder="Jakarta"
-                                                placeholderTextColor="#999"
-                                            />
+                                            <TextInput style={styles.input} value={tempat_lahir} onChangeText={setTempatLahir} placeholder="Jakarta" placeholderTextColor="#999" />
                                         </View>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>Alamat</Text>
-                                            <TextInput
-                                                style={[styles.input, styles.textArea]}
-                                                value={alamat}
-                                                onChangeText={setAlamat}
-                                                placeholder="Jl. Mawar III Jakarta Pusat"
-                                                placeholderTextColor="#999"
-                                                multiline
-                                                numberOfLines={3}
-                                            />
+                                            <TextInput style={[styles.input, styles.textArea]} value={alamat} onChangeText={setAlamat} placeholder="Alamat lengkap" placeholderTextColor="#999" multiline numberOfLines={3} />
                                         </View>
                                     </View>
 
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Tanggal Lahir</Text>
-                                            {/* Solusi terbaik untuk date input */}
-                                            <View style={styles.dateInputWrapper}>
-                                                <input
-                                                    type="date"
-                                                    value={formatDateForInput(tanggal_lahir)}
-                                                    onChange={(e) => setTanggalLahir(e.target.value)}
-                                                    style={styles.webDateInput}
-                                                    max={new Date().toISOString().split('T')[0]}
-                                                />
-                                            </View>
+                                            <Text style={styles.label}>Tanggal Lahir (YYYY-MM-DD)</Text>
+                                            <TextInput style={styles.input} value={tanggal_lahir} onChangeText={setTanggalLahir} placeholder="1990-01-31" placeholderTextColor="#999" />
                                         </View>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>No. Telp *</Text>
-                                            <TextInput
-                                                style={styles.input}
-                                                value={no_telp}
-                                                onChangeText={setNoTelp}
-                                                placeholder="0172631291286821"
-                                                placeholderTextColor="#999"
-                                                keyboardType="phone-pad"
-                                            />
+                                            <TextInput style={styles.input} value={no_telp} onChangeText={setNoTelp} placeholder="08123456789" placeholderTextColor="#999" keyboardType="phone-pad" />
                                         </View>
                                     </View>
 
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>Role</Text>
-                                            <TouchableOpacity
-                                                style={styles.selectInput}
-                                                onPress={() => setShowRoleDropdown(true)}
-                                            >
+                                            <TouchableOpacity style={styles.selectInput} onPress={() => setShowRoleDropdown(true)}>
                                                 <Text style={styles.selectText}>{role}</Text>
                                                 <Text style={styles.selectArrow}>▼</Text>
                                             </TouchableOpacity>
                                         </View>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>Status</Text>
-                                            <TouchableOpacity
-                                                style={styles.selectInput}
-                                                onPress={() => setShowStatusDropdown(true)}
-                                            >
-                                                <Text style={styles.selectText}>
-                                                    {getStatusDisplay(status)}
-                                                </Text>
+                                            <TouchableOpacity style={styles.selectInput} onPress={() => setShowStatusDropdown(true)}>
+                                                <Text style={styles.selectText}>{getStatusDisplay(status)}</Text>
                                                 <Text style={styles.selectArrow}>▼</Text>
                                             </TouchableOpacity>
                                         </View>
@@ -790,31 +458,22 @@ export default function KelolaKaryawan() {
                                 </View>
                             </ScrollView>
 
-                            {/* Footer Modal - Buttons */}
+                            {/* FOOTER DIPERBAIKI - Button sekarang bisa diklik */}
                             <View style={styles.modalFooter}>
                                 {isAddMode ? (
-                                    <TouchableOpacity
-                                        style={styles.saveButton}
-                                        onPress={handleSave}
-                                    >
+                                    <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.7}>
                                         <Text style={styles.saveButtonText}>Simpan</Text>
-                                        <Check color={COLORS.white} size={18} />
+                                        <Check color="#FFF" size={18} />
                                     </TouchableOpacity>
                                 ) : (
                                     <>
-                                        <TouchableOpacity
-                                            style={styles.updateButton}
-                                            onPress={handleUpdate}
-                                        >
+                                        <TouchableOpacity style={styles.updateButton} onPress={handleUpdate} activeOpacity={0.7}>
                                             <Text style={styles.updateButtonText}>Update</Text>
-                                            <Check color={COLORS.white} size={18} />
+                                            <Check color="#FFF" size={18} />
                                         </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={styles.clearButton}
-                                            onPress={handleClear}
-                                        >
+                                        <TouchableOpacity style={styles.clearButton} onPress={resetForm} activeOpacity={0.7}>
                                             <Text style={styles.clearButtonText}>Clear</Text>
-                                            <X color={COLORS.white} size={18} />
+                                            <X color="#FFF" size={18} />
                                         </TouchableOpacity>
                                     </>
                                 )}
@@ -823,96 +482,43 @@ export default function KelolaKaryawan() {
                     </View>
                 </Modal>
 
-                {/* Custom Modal untuk Dropdown Role */}
-                <Modal
-                    animationType="fade"
-                    transparent={true}
-                    visible={showRoleDropdown}
-                    onRequestClose={() => setShowRoleDropdown(false)}
-                >
-                    <TouchableOpacity
-                        style={styles.dropdownOverlay}
-                        activeOpacity={1}
-                        onPress={() => setShowRoleDropdown(false)}
-                    >
+                {/* Role Dropdown */}
+                <Modal animationType="fade" transparent={true} visible={showRoleDropdown} onRequestClose={() => setShowRoleDropdown(false)}>
+                    <TouchableOpacity style={styles.dropdownOverlay} activeOpacity={1} onPress={() => setShowRoleDropdown(false)}>
                         <View style={styles.dropdownContent}>
-                            <TouchableOpacity
-                                style={styles.dropdownItem}
-                                onPress={() => selectRole('Karyawan')}
-                            >
-                                <Text style={styles.dropdownText}>Karyawan</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.dropdownItem}
-                                onPress={() => selectRole('Petugas')}
-                            >
-                                <Text style={styles.dropdownText}>Petugas</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.dropdownItem}
-                                onPress={() => selectRole('Admin')}
-                            >
-                                <Text style={styles.dropdownText}>Admin</Text>
-                            </TouchableOpacity>
+                            {['Karyawan', 'Petugas', 'Admin'].map(r => (
+                                <TouchableOpacity key={r} style={styles.dropdownItem} onPress={() => selectRole(r)}>
+                                    <Text style={styles.dropdownText}>{r}</Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
                     </TouchableOpacity>
                 </Modal>
 
-                {/* Custom Modal untuk Dropdown Status */}
-                <Modal
-                    animationType="fade"
-                    transparent={true}
-                    visible={showStatusDropdown}
-                    onRequestClose={() => setShowStatusDropdown(false)}
-                >
-                    <TouchableOpacity
-                        style={styles.dropdownOverlay}
-                        activeOpacity={1}
-                        onPress={() => setShowStatusDropdown(false)}
-                    >
+                {/* Status Dropdown */}
+                <Modal animationType="fade" transparent={true} visible={showStatusDropdown} onRequestClose={() => setShowStatusDropdown(false)}>
+                    <TouchableOpacity style={styles.dropdownOverlay} activeOpacity={1} onPress={() => setShowStatusDropdown(false)}>
                         <View style={styles.dropdownContent}>
-                            <TouchableOpacity
-                                style={styles.dropdownItem}
-                                onPress={() => selectStatus('Aktif')}
-                            >
-                                <Text style={styles.dropdownText}>Aktif</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.dropdownItem}
-                                onPress={() => selectStatus('Nonaktif')}
-                            >
-                                <Text style={styles.dropdownText}>Nonaktif</Text>
-                            </TouchableOpacity>
+                            {['Aktif', 'Nonaktif'].map(s => (
+                                <TouchableOpacity key={s} style={styles.dropdownItem} onPress={() => selectStatus(s)}>
+                                    <Text style={styles.dropdownText}>{s}</Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
                     </TouchableOpacity>
                 </Modal>
 
-                {/* Delete Confirmation Modal */}
-                <Modal
-                    animationType="fade"
-                    transparent={true}
-                    visible={deleteModalVisible}
-                    onRequestClose={() => setDeleteModalVisible(false)}
-                >
+                {/* Delete Modal */}
+                <Modal animationType="fade" transparent={true} visible={deleteModalVisible} onRequestClose={() => setDeleteModalVisible(false)}>
                     <View style={styles.confirmOverlay}>
                         <View style={styles.confirmContent}>
-                            <View style={styles.confirmIconContainer}>
-                                <View style={styles.confirmIcon}>
-                                    <Trash2 color="#EF4444" size={48} />
-                                </View>
-                            </View>
+                            <View style={styles.confirmIcon}><Trash2 color="#EF4444" size={48} /></View>
                             <Text style={styles.confirmTitle}>Anda Yakin Menghapus Anggota Ini?</Text>
                             <View style={styles.confirmButtons}>
-                                <TouchableOpacity
-                                    style={styles.confirmYesButton}
-                                    onPress={() => handleConfirmDelete(true)}
-                                >
+                                <TouchableOpacity style={styles.confirmYesButton} onPress={() => handleConfirmDelete(true)}>
                                     <Text style={styles.confirmButtonText}>YA</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.confirmNoButton}
-                                    onPress={() => handleConfirmDelete(false)}
-                                >
+                                <TouchableOpacity style={styles.confirmNoButton} onPress={() => handleConfirmDelete(false)}>
                                     <Text style={styles.confirmButtonText}>Tidak</Text>
                                 </TouchableOpacity>
                             </View>
@@ -925,507 +531,80 @@ export default function KelolaKaryawan() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        flexDirection: 'row',
-        backgroundColor: COLORS.white,
-    },
-    mainContent: {
-        flex: 1,
-        padding: 30,
-        backgroundColor: COLORS.white,
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 30,
-    },
-    pageTitle: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 32,
-        color: '#F59E0B',
-        marginBottom: 5,
-        letterSpacing: 0.2,
-    },
-    pageSubtitle: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 14,
-        color: '#666',
-    },
-    dateTimeContainer: {
-        alignItems: 'flex-end',
-    },
-    dateText: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 14,
-        color: COLORS.primary,
-    },
-    timeText: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 18,
-        color: COLORS.darkGray,
-    },
-    searchRow: {
-        flexDirection: 'row',
-        marginBottom: 20,
-        gap: 15,
-    },
-    searchContainer: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#F5F5F5',
-        borderRadius: 10,
-        paddingHorizontal: 15,
-        paddingVertical: 10,
-        gap: 10,
-    },
-    searchInput: {
-        flex: 1,
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 14,
-        color: COLORS.darkGray,
-    },
-    refreshButton: {
-        marginTop: 10,
-        paddingHorizontal: 15,
-        paddingVertical: 8,
-        backgroundColor: '#F59E0B',
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    refreshButtonText: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 12,
-        color: COLORS.white,
-    },
-    addButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FDB022',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 10,
-        gap: 8,
-    },
-    addButtonText: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 14,
-        color: COLORS.white,
-    },
-    addButtonIcon: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 20,
-        color: COLORS.white,
-    },
-    // Loading & Error Styles
-    loadingContainer: {
-        padding: 20,
-        alignItems: 'center',
-    },
-    loadingText: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 16,
-        color: COLORS.primary,
-    },
-    errorContainer: {
-        padding: 20,
-        alignItems: 'center',
-        backgroundColor: '#FEE2E2',
-        borderRadius: 10,
-        marginBottom: 20,
-    },
-    errorText: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 14,
-        color: '#DC2626',
-        textAlign: 'center',
-        marginBottom: 10,
-    },
-    retryButton: {
-        backgroundColor: '#FDB022',
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 8,
-    },
-    retryButtonText: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 14,
-        color: COLORS.white,
-    },
-    emptyContainer: {
-        padding: 40,
-        alignItems: 'center',
-    },
-    emptyText: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 16,
-        color: COLORS.gray,
-    },
-    tableContainer: {
-        flex: 1,
-    },
-    table: {
-        backgroundColor: COLORS.white,
-        borderRadius: 10,
-        overflow: 'hidden',
-        borderWidth: 2,
-        borderColor: '#D4A574',
-    },
-    tableHeader: {
-        flexDirection: 'row',
-        backgroundColor: '#E8D5C4',
-        borderBottomWidth: 2,
-        borderBottomColor: '#D4A574',
-    },
-    tableHeaderCell: {
-        paddingVertical: 15,
-        paddingHorizontal: 20,
-        justifyContent: 'center',
-    },
-    tableHeaderCellBorder: {
-        borderLeftWidth: 2,
-        borderLeftColor: '#D4A574',
-    },
-    tableHeaderText: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 14,
-        color: COLORS.darkGray,
-    },
-    tableRow: {
-        flexDirection: 'row',
-        borderBottomWidth: 2,
-        borderBottomColor: '#D4A574',
-    },
-    tableCell: {
-        paddingVertical: 15,
-        paddingHorizontal: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    tableCellBorder: {
-        borderLeftWidth: 2,
-        borderLeftColor: '#D4A574',
-    },
-    employeeName: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    employeeRole: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    employeePhone: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    employeeEmail: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    statusBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-    },
-    statusActive: {
-        backgroundColor: '#DCFCE7',
-    },
-    statusInactive: {
-        backgroundColor: '#FEE2E2',
-    },
-    statusText: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 12,
-        color: COLORS.darkGray,
-    },
-    actionButtons: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    editButton: {
-        backgroundColor: '#FDB022',
-        width: 36,
-        height: 36,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    deleteButton: {
-        backgroundColor: '#FDB022',
-        width: 36,
-        height: 36,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContent: {
-        backgroundColor: COLORS.white,
-        borderRadius: 10,
-        width: '85%',
-        maxWidth: 900,
-        maxHeight: '90%',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
-    },
-    modalTitle: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 20,
-        color: '#F59E0B',
-        flex: 1,
-        marginLeft: 15,
-        textAlign: 'center',
-    },
-    modalDateContainer: {
-        flexDirection: 'column',
-        alignItems: 'flex-end',
-    },
-    modalDateText: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 12,
-        color: '#F59E0B',
-    },
-    modalTimeText: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 14,
-        color: COLORS.darkGray,
-    },
-    modalBody: {
-        padding: 30,
-        maxHeight: 500,
-    },
-    formContainer: {
-        gap: 20,
-        width: '100%',
-    },
-    formRow: {
-        flexDirection: 'row',
-        gap: 20,
-        width: '100%',
-    },
-    formGroup: {
-        flex: 1,
-        minWidth: 0, // Penting untuk mencegah overflow
-    },
-    label: {
-        fontFamily: 'Poppins_500Medium',
-        fontSize: 13,
-        color: COLORS.darkGray,
-        marginBottom: 8,
-    },
-    input: {
-        backgroundColor: COLORS.white,
-        borderWidth: 1.5,
-        borderColor: '#F59E0B',
-        borderRadius: 8,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-        width: '100%',
-    },
-    // Solusi terbaik untuk date input
-    dateInputWrapper: {
-        width: '100%',
-    },
-    webDateInput: {
-        width: '100%',
-        padding: '12px 15px',
-        border: '1.5px solid #F59E0B',
-        borderRadius: '8px',
-        fontSize: '13px',
-        fontFamily: 'Poppins, sans-serif',
-        color: COLORS.darkGray,
-        backgroundColor: COLORS.white,
-        minHeight: '48px',
-        boxSizing: 'border-box',
-        outline: 'none',
-    },
-    textArea: {
-        minHeight: 80,
-        textAlignVertical: 'top',
-    },
-    selectInput: {
-        backgroundColor: COLORS.white,
-        borderWidth: 1.5,
-        borderColor: '#F59E0B',
-        borderRadius: 8,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        width: '100%',
-    },
-    selectText: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 13,
-        color: COLORS.darkGray,
-    },
-    selectArrow: {
-        fontSize: 12,
-        color: '#F59E0B',
-    },
-    modalFooter: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-        gap: 15,
-        borderTopWidth: 1,
-        borderTopColor: '#E5E5E5',
-    },
-    updateButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#10B981',
-        paddingHorizontal: 35,
-        paddingVertical: 12,
-        borderRadius: 25,
-        gap: 10,
-    },
-    updateButtonText: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 14,
-        color: COLORS.white,
-    },
-    clearButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#EF4444',
-        paddingHorizontal: 35,
-        paddingVertical: 12,
-        borderRadius: 25,
-        gap: 10,
-    },
-    clearButtonText: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 14,
-        color: COLORS.white,
-    },
-    saveButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FDB022',
-        paddingHorizontal: 40,
-        paddingVertical: 12,
-        borderRadius: 25,
-        gap: 10,
-    },
-    saveButtonText: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 14,
-        color: COLORS.white,
-    },
-    // Styles untuk Custom Dropdown
-    dropdownOverlay: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    },
-    dropdownContent: {
-        backgroundColor: COLORS.white,
-        borderRadius: 8,
-        width: '80%',
-        maxWidth: 300,
-        elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-    },
-    dropdownItem: {
-        paddingVertical: 15,
-        paddingHorizontal: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
-    },
-    dropdownText: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 16,
-        color: COLORS.darkGray,
-    },
-
-    confirmOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    confirmContent: {
-        backgroundColor: COLORS.white,
-        borderRadius: 16,
-        width: '100%',
-        maxWidth: 300,
-        padding: 30,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 5,
-    },
-    confirmIconContainer: {
-        marginBottom: 20,
-    },
-    confirmIcon: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: '#FEE2E2',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    confirmTitle: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 14,
-        color: '#F59E0B',
-        textAlign: 'center',
-        marginBottom: 25,
-    },
-    confirmButtons: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    confirmYesButton: {
-        backgroundColor: '#FDB022',
-        paddingHorizontal: 30,
-        paddingVertical: 10,
-        borderRadius: 20,
-        minWidth: 80,
-        alignItems: 'center',
-    },
-    confirmNoButton: {
-        backgroundColor: '#FDB022',
-        paddingHorizontal: 30,
-        paddingVertical: 10,
-        borderRadius: 20,
-        minWidth: 80,
-        alignItems: 'center',
-    },
-    confirmButtonText: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 13,
-        color: COLORS.white,
-    },
+    container: { flex: 1, flexDirection: 'row', backgroundColor: '#FFF' },
+    mainContent: { flex: 1, padding: 30, backgroundColor: '#FFF' },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 30 },
+    pageTitle: { fontSize: 32, color: '#F59E0B', marginBottom: 5 },
+    pageSubtitle: { fontSize: 14, color: '#666' },
+    dateTimeContainer: { alignItems: 'flex-end' },
+    dateText: { fontSize: 14, color: '#F59E0B' },
+    timeText: { fontSize: 18, color: '#333' },
+    refreshButton: { marginTop: 10, paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#F59E0B', borderRadius: 8 },
+    refreshButtonText: { fontSize: 12, color: '#FFF' },
+    searchRow: { flexDirection: 'row', marginBottom: 20, gap: 15 },
+    searchContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 10, paddingHorizontal: 15, paddingVertical: 10, gap: 10 },
+    searchInput: { flex: 1, fontSize: 14, color: '#333' },
+    addButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FDB022', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10, gap: 8 },
+    addButtonText: { fontSize: 14, color: '#FFF' },
+    addButtonIcon: { fontSize: 20, color: '#FFF' },
+    loadingContainer: { padding: 20, alignItems: 'center' },
+    loadingText: { fontSize: 16, color: '#F59E0B' },
+    errorContainer: { padding: 20, alignItems: 'center', backgroundColor: '#FEE2E2', borderRadius: 10, marginBottom: 20 },
+    errorText: { fontSize: 14, color: '#DC2626', textAlign: 'center' },
+    tableContainer: { flex: 1 },
+    table: { backgroundColor: '#FFF', borderRadius: 10, overflow: 'hidden', borderWidth: 2, borderColor: '#D4A574' },
+    tableHeader: { flexDirection: 'row', backgroundColor: '#E8D5C4', borderBottomWidth: 2, borderBottomColor: '#D4A574' },
+    tableHeaderCell: { paddingVertical: 15, paddingHorizontal: 20, justifyContent: 'center' },
+    tableHeaderCellBorder: { borderLeftWidth: 2, borderLeftColor: '#D4A574' },
+    tableHeaderText: { fontSize: 14, color: '#333', fontWeight: '600' },
+    tableRow: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: '#D4A574' },
+    tableCell: { paddingVertical: 15, paddingHorizontal: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5EFE7' },
+    tableCellBorder: { borderLeftWidth: 2, borderLeftColor: '#D4A574' },
+    employeeName: { fontSize: 13, color: '#333', fontWeight: '500' },
+    employeeRole: { fontSize: 13, color: '#333' },
+    employeePhone: { fontSize: 13, color: '#333' },
+    employeeEmail: { fontSize: 13, color: '#333' },
+    statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+    statusActive: { backgroundColor: '#DCFCE7' },
+    statusInactive: { backgroundColor: '#FEE2E2' },
+    statusText: { fontSize: 12, color: '#333', fontWeight: '500' },
+    actionButtons: { flexDirection: 'row', gap: 8 },
+    editButton: { backgroundColor: '#FDB022', width: 36, height: 36, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+    deleteButton: { backgroundColor: '#FDB022', width: 36, height: 36, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
+    modalContent: { backgroundColor: '#FFF', borderRadius: 10, width: '85%', maxWidth: 900, maxHeight: '90%' },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E5E5E5' },
+    modalTitle: { fontSize: 20, color: '#F59E0B', flex: 1, marginLeft: 15, textAlign: 'center', fontWeight: '500' },
+    modalDateContainer: { flexDirection: 'column', alignItems: 'flex-end' },
+    modalDateText: { fontSize: 12, color: '#F59E0B' },
+    modalTimeText: { fontSize: 14, color: '#333', fontWeight: '500' },
+    modalBody: { padding: 30, maxHeight: 400 },
+    formContainer: { gap: 20, width: '100%' },
+    formRow: { flexDirection: 'row', gap: 20, width: '100%' },
+    formGroup: { flex: 1, minWidth: 0 },
+    label: { fontSize: 13, color: '#333', marginBottom: 8, fontWeight: '500' },
+    input: { backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#F59E0B', borderRadius: 8, paddingHorizontal: 15, paddingVertical: 12, fontSize: 13, color: '#333', width: '100%' },
+    textArea: { minHeight: 80, textAlignVertical: 'top' },
+    selectInput: { backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#F59E0B', borderRadius: 8, paddingHorizontal: 15, paddingVertical: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
+    selectText: { fontSize: 13, color: '#333' },
+    selectArrow: { fontSize: 12, color: '#F59E0B' },
+    modalFooter: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 20, gap: 15, borderTopWidth: 1, borderTopColor: '#E5E5E5', backgroundColor: '#FFF' },
+    updateButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingHorizontal: 35, paddingVertical: 12, borderRadius: 25, gap: 10 },
+    updateButtonText: { fontSize: 14, color: '#FFF', fontWeight: '600' },
+    clearButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EF4444', paddingHorizontal: 35, paddingVertical: 12, borderRadius: 25, gap: 10 },
+    clearButtonText: { fontSize: 14, color: '#FFF', fontWeight: '600' },
+    saveButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FDB022', paddingHorizontal: 40, paddingVertical: 12, borderRadius: 25, gap: 10 },
+    saveButtonText: { fontSize: 14, color: '#FFF', fontWeight: '600' },
+    dropdownOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)' },
+    dropdownContent: { backgroundColor: '#FFF', borderRadius: 8, width: '80%', maxWidth: 300, elevation: 5 },
+    dropdownItem: { paddingVertical: 15, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#E5E5E5' },
+    dropdownText: { fontSize: 16, color: '#333' },
+    confirmOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+    confirmContent: { backgroundColor: '#FFF', borderRadius: 16, width: '100%', maxWidth: 300, padding: 30, alignItems: 'center' },
+    confirmIcon: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+    confirmTitle: { fontSize: 14, color: '#F59E0B', textAlign: 'center', marginBottom: 25, fontWeight: '600' },
+    confirmButtons: { flexDirection: 'row', gap: 12 },
+    confirmYesButton: { backgroundColor: '#FDB022', paddingHorizontal: 30, paddingVertical: 10, borderRadius: 20, minWidth: 80, alignItems: 'center' },
+    confirmNoButton: { backgroundColor: '#FDB022', paddingHorizontal: 30, paddingVertical: 10, borderRadius: 20, minWidth: 80, alignItems: 'center' },
+    confirmButtonText: { fontSize: 13, color: '#FFF', fontWeight: '600' },
 });
