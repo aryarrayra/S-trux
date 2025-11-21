@@ -7,7 +7,7 @@ import { COLORS } from '@/constants/Colors';
 import type { Href } from 'expo-router';
 
 const PETUGAS_NAV_LINKS = [
-    { icon: LayoutDashboard, text: 'Dashboard Petugas', route: '/petugas/dashboard' as const },
+    { icon: LayoutDashboard, text: 'Dashboard Karyawan', route: '/petugas/dashboard' as const },
     { icon: Package, text: 'Pengantaran', route: '/petugas/pengantaran' as const },
     { icon: Wrench, text: 'Service Alat', route: '/petugas/service-alat' as const },
     { icon: History, text: 'Riwayat Bayar', route: '/petugas/riwayat-bayar' as const },
