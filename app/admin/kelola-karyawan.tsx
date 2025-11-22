@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Search, Edit2, Trash2, X, Check, Calendar } from 'lucide-react-native';
+import { Search, Edit2, Trash2, X, Check, Calendar, Eye, EyeOff, Copy, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 // Mock data fallback sesuai struktur database
 const INITIAL_EMPLOYEES = [
@@ -41,7 +42,7 @@ type Employee = {
     tempat_lahir?: string;
     tanggal_lahir?: string;
     alamat?: string;
-    status?: string;
+    status: string;
 };
 
 interface ApiResponse {
@@ -57,12 +58,17 @@ export default function KelolaKaryawan() {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+    const [passwordModalVisible, setPasswordModalVisible] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
     const [isAddMode, setIsAddMode] = useState(false);
     const [showRoleDropdown, setShowRoleDropdown] = useState(false);
     const [showStatusDropdown, setShowStatusDropdown] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [generatedPassword, setGeneratedPassword] = useState('');
+    const [showGeneratedPassword, setShowGeneratedPassword] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [selectedDate, setSelectedDate] = useState(new Date());
 
     // Form states
     const [nama_petugas, setNamaPetugas] = useState('');
@@ -73,6 +79,59 @@ export default function KelolaKaryawan() {
     const [no_telp, setNoTelp] = useState('');
     const [role, setRole] = useState('Karyawan');
     const [status, setStatus] = useState('aktif');
+    const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+
+        const getDaysInMonth = (date: Date) => {
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const firstDay = new Date(year, month, 1).getDay();
+        
+        const days = [];
+        
+        // Tambahkan hari kosong untuk minggu pertama
+        for (let i = 0; i < firstDay; i++) {
+            days.push(null);
+        }
+        
+        // Tambahkan hari dalam bulan
+        for (let i = 1; i <= daysInMonth; i++) {
+            days.push(new Date(year, month, i));
+        }
+        
+        return days;
+    };
+
+    const navigateMonth = (direction: 'prev' | 'next') => {
+        const newMonth = new Date(currentMonth);
+        if (direction === 'prev') {
+            newMonth.setMonth(newMonth.getMonth() - 1);
+        } else {
+            newMonth.setMonth(newMonth.getMonth() + 1);
+        }
+        setCurrentMonth(newMonth);
+    };
+
+    const selectDate = (date: Date) => {
+        setSelectedDate(date);
+        setTanggalLahir(formatDateForDisplay(date));
+        setShowCustomDatePicker(false);
+    };
+
+    const getMonthName = (date: Date) => {
+        const months = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        return months[date.getMonth()];
+    };
+
+    const getDayName = (dayIndex: number) => {
+        const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+        return days[dayIndex];
+    };
+
 
     const API_BASE = 'http://localhost:8000/api';
 
@@ -84,48 +143,66 @@ export default function KelolaKaryawan() {
         }
     };
 
-    const fetchEmployees = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const response = await fetch(`${API_BASE}/petugas`, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data: ApiResponse = await response.json();
-
-            if (data.success && data.data) {
-                const transformedData: Employee[] = data.data.map((item: any) => ({
-                    id_petugas: item.id_petugas?.toString() || Math.random().toString(),
-                    nama_petugas: item.nama_petugas || 'Nama tidak tersedia',
-                    role: item.role || 'Karyawan',
-                    no_telp: item.no_telp || 'Tidak ada telepon',
-                    email: item.email || 'Email tidak tersedia',
-                    tempat_lahir: item.tempat_lahir || '',
-                    tanggal_lahir: item.tanggal_lahir || '',
-                    alamat: item.alamat || '',
-                    status: item.status || 'aktif'
-                }));
-                setEmployees(transformedData);
-                await saveToStorage(transformedData);
-            } else {
-                throw new Error(data.message || 'Gagal mengambil data petugas');
-            }
-        } catch (error) {
-            console.error('Error fetching employees:', error);
-            setError(error instanceof Error ? error.message : 'Terjadi kesalahan');
-        } finally {
-            setIsLoading(false);
-        }
+    // Fungsi untuk generate password otomatis
+    const generatePassword = (employeeCount: number): string => {
+        const nextNumber = employeeCount + 1;
+        return `petugas${String(nextNumber).padStart(4, '0')}`;
     };
+
+const fetchEmployees = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+        const response = await fetch(`${API_BASE}/petugas`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data: ApiResponse = await response.json();
+
+        if (data.success && data.data) {
+            const transformedData: Employee[] = data.data.map((item: any) => ({
+                id_petugas: item.id_petugas?.toString() || Math.random().toString(),
+                nama_petugas: item.nama_petugas || 'Nama tidak tersedia',
+                role: item.role || 'Karyawan',
+                no_telp: item.no_telp || 'Tidak ada telepon',
+                email: item.email || 'Email tidak tersedia',
+                tempat_lahir: item.tempat_lahir || '',
+                tanggal_lahir: item.tanggal_lahir || '',
+                alamat: item.alamat || '',
+                status: item.status === 'aktif' || item.status === 'nonaktif' ? item.status : 'aktif' // PERBAIKAN DI SINI
+            }));
+            setEmployees(transformedData);
+            await saveToStorage(transformedData);
+        } else {
+            throw new Error(data.message || 'Gagal mengambil data petugas');
+        }
+    } catch (error) {
+        console.error('Error fetching employees:', error);
+        setError(error instanceof Error ? error.message : 'Terjadi kesalahan');
+        
+        // Fallback ke data lokal jika API error
+        try {
+            const stored = await AsyncStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                setEmployees(JSON.parse(stored));
+            } else {
+                setEmployees(INITIAL_EMPLOYEES);
+            }
+        } catch (e) {
+            setEmployees(INITIAL_EMPLOYEES);
+        }
+    } finally {
+        setIsLoading(false);
+    }
+};
 
     useEffect(() => {
         const initData = async () => {
@@ -158,16 +235,43 @@ export default function KelolaKaryawan() {
 
     const currentDate = getCurrentDate();
 
-    const formatDateForDB = (dateString: string) => {
+    // Format date untuk display (DD/MM/YYYY)
+    const formatDateForDisplay = (date: Date): string => {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+    };
+
+    // Format date untuk database (YYYY-MM-DD)
+    const formatDateForDB = (dateString: string): string => {
         if (!dateString) return '';
         if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) return dateString;
+        
+        // Convert dari DD/MM/YYYY ke YYYY-MM-DD
         const parts = dateString.split('/');
-        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        if (parts.length === 3) {
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
         return dateString;
+    };
+
+    // Convert dari YYYY-MM-DD ke Date object
+    const parseDateFromDB = (dateString: string): Date => {
+        if (!dateString) return new Date();
+        if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            const parts = dateString.split('-');
+            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        }
+        return new Date();
     };
 
     const getStatusDisplay = (statusValue: string) => {
         return statusValue === 'aktif' ? 'Aktif' : 'Nonaktif';
+    };
+
+    const getStatusColor = (statusValue: string) => {
+        return statusValue === 'aktif' ? styles.statusActive : styles.statusInactive;
     };
 
     const filteredEmployees = employees.filter(emp =>
@@ -183,7 +287,17 @@ export default function KelolaKaryawan() {
         setEmail(employee.email);
         setTempatLahir(employee.tempat_lahir || '');
         setAlamat(employee.alamat || '');
-        setTanggalLahir(employee.tanggal_lahir || '');
+        
+        // Set tanggal lahir dan selectedDate
+        if (employee.tanggal_lahir) {
+            const date = parseDateFromDB(employee.tanggal_lahir);
+            setSelectedDate(date);
+            setTanggalLahir(formatDateForDisplay(date));
+        } else {
+            setSelectedDate(new Date());
+            setTanggalLahir('');
+        }
+        
         setNoTelp(employee.no_telp);
         setRole(employee.role || 'Karyawan');
         setStatus(employee.status || 'aktif');
@@ -194,6 +308,11 @@ export default function KelolaKaryawan() {
         setSelectedEmployee(null);
         setIsAddMode(true);
         resetForm();
+        
+        // Generate password otomatis saat mode tambah
+        const newPassword = generatePassword(employees.length);
+        setGeneratedPassword(newPassword);
+        
         setModalVisible(true);
     };
 
@@ -202,10 +321,13 @@ export default function KelolaKaryawan() {
         setEmail('');
         setTempatLahir('');
         setAlamat('');
+        setSelectedDate(new Date());
         setTanggalLahir('');
         setNoTelp('');
         setRole('Karyawan');
         setStatus('aktif');
+        setGeneratedPassword('');
+        setShowGeneratedPassword(false);
     };
 
     const handleDelete = (employee: Employee) => {
@@ -245,15 +367,35 @@ export default function KelolaKaryawan() {
         return true;
     };
 
+    const handleDateChange = (event: any, date?: Date) => {
+        if (Platform.OS === 'android') {
+            setShowDatePicker(false);
+        }
+        
+        if (date) {
+            setSelectedDate(date);
+            setTanggalLahir(formatDateForDisplay(date));
+        }
+    };
+
+    const showDatepicker = () => {
+        setShowDatePicker(true);
+    };
+
     const handleUpdate = async () => {
         if (!validateForm()) return;
         if (!selectedEmployee) return;
 
         try {
             const updateData = {
-                nama_petugas, email, tempat_lahir, alamat,
+                nama_petugas,
+                email,
+                tempat_lahir,
+                alamat,
                 tanggal_lahir: formatDateForDB(tanggal_lahir),
-                no_telp, role, status,
+                no_telp,
+                role,
+                status,
             };
 
             const response = await fetch(`${API_BASE}/petugas/${selectedEmployee.id_petugas}`, {
@@ -267,9 +409,21 @@ export default function KelolaKaryawan() {
                 throw new Error(errorText || `HTTP error! status: ${response.status}`);
             }
 
+            const result = await response.json();
+            
             const updated = employees.map(emp =>
                 emp.id_petugas === selectedEmployee.id_petugas
-                    ? { ...emp, nama_petugas, email, tempat_lahir, alamat, tanggal_lahir: formatDateForDB(tanggal_lahir), no_telp, role, status }
+                    ? {
+                        ...emp,
+                        nama_petugas,
+                        email,
+                        tempat_lahir,
+                        alamat,
+                        tanggal_lahir: formatDateForDB(tanggal_lahir),
+                        no_telp,
+                        role,
+                        status
+                    }
                     : emp
             );
             setEmployees(updated);
@@ -286,9 +440,15 @@ export default function KelolaKaryawan() {
 
         try {
             const newData = {
-                nama_petugas, email, tempat_lahir, alamat,
+                nama_petugas,
+                email,
+                tempat_lahir,
+                alamat,
                 tanggal_lahir: formatDateForDB(tanggal_lahir),
-                no_telp, role, status,
+                no_telp,
+                role,
+                status,
+                password: generatedPassword // Kirim password yang digenerate
             };
 
             const response = await fetch(`${API_BASE}/petugas`, {
@@ -305,17 +465,35 @@ export default function KelolaKaryawan() {
             const result = await response.json();
             const newEmployee: Employee = {
                 id_petugas: result.data?.id_petugas || String(employees.length + 1),
-                nama_petugas, email, tempat_lahir, alamat,
+                nama_petugas,
+                email,
+                tempat_lahir,
+                alamat,
                 tanggal_lahir: formatDateForDB(tanggal_lahir),
-                no_telp, role, status,
+                no_telp,
+                role,
+                status: status || 'aktif',
             };
+            
             const updated = [...employees, newEmployee];
             setEmployees(updated);
             await saveToStorage(updated);
-            Alert.alert('Sukses', 'Data berhasil ditambahkan');
+            
+            // Tampilkan modal password setelah berhasil create
             setModalVisible(false);
+            setPasswordModalVisible(true);
+            
         } catch (error) {
             Alert.alert('Error', error instanceof Error ? error.message : 'Gagal menambahkan data');
+        }
+    };
+
+    const copyToClipboard = async () => {
+        try {
+            await navigator.clipboard.writeText(generatedPassword);
+            Alert.alert('Berhasil', 'Password telah disalin ke clipboard');
+        } catch (error) {
+            console.error('Failed to copy password:', error);
         }
     };
 
@@ -331,7 +509,7 @@ export default function KelolaKaryawan() {
                     <View style={styles.header}>
                         <View>
                             <Text style={styles.pageTitle}>Kelola Karyawan Dan Petugas</Text>
-                            <Text style={styles.pageSubtitle}>Lorem Ipsum Dolor Sit Amet Consectetur</Text>
+                            <Text style={styles.pageSubtitle}>Halaman untuk kelola petugas</Text>
                         </View>
                         <View style={styles.dateTimeContainer}>
                             <Text style={styles.dateText}>{currentDate.full}</Text>
@@ -374,8 +552,8 @@ export default function KelolaKaryawan() {
                                         <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1 }]}><Text style={styles.employeePhone}>{emp.no_telp}</Text></View>
                                         <View style={[styles.tableCell, styles.tableCellBorder, { flex: 1.5 }]}><Text style={styles.employeeEmail}>{emp.email}</Text></View>
                                         <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8 }]}>
-                                            <View style={[styles.statusBadge, emp.status === 'aktif' ? styles.statusActive : styles.statusInactive]}>
-                                                <Text style={styles.statusText}>{getStatusDisplay(emp.status || 'aktif')}</Text>
+                                            <View style={[styles.statusBadge, getStatusColor(emp.status)]}>
+                                                <Text style={styles.statusText}>{getStatusDisplay(emp.status)}</Text>
                                             </View>
                                         </View>
                                         <View style={[styles.tableCell, styles.tableCellBorder, { flex: 0.8 }]}>
@@ -391,7 +569,7 @@ export default function KelolaKaryawan() {
                     )}
                 </View>
 
-                {/* EDIT/ADD MODAL - DIPERBAIKI */}
+                {/* EDIT/ADD MODAL */}
                 <Modal animationType="fade" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
                     <View style={styles.modalOverlay}>
                         <View style={styles.modalContent}>
@@ -430,8 +608,20 @@ export default function KelolaKaryawan() {
 
                                     <View style={styles.formRow}>
                                         <View style={styles.formGroup}>
-                                            <Text style={styles.label}>Tanggal Lahir (YYYY-MM-DD)</Text>
-                                            <TextInput style={styles.input} value={tanggal_lahir} onChangeText={setTanggalLahir} placeholder="1990-01-31" placeholderTextColor="#999" />
+                                            <Text style={styles.label}>Tanggal Lahir</Text>
+                                            <TouchableOpacity 
+                                                style={styles.dateInputContainer} 
+                                                onPress={() => setShowCustomDatePicker(true)}
+                                            >
+                                                <TextInput 
+                                                    style={styles.dateInput}
+                                                    value={tanggal_lahir}
+                                                    placeholder="Pilih tanggal lahir"
+                                                    placeholderTextColor="#999"
+                                                    editable={false}
+                                                />
+                                                <Calendar color="#F59E0B" size={20} />
+                                            </TouchableOpacity>
                                         </View>
                                         <View style={styles.formGroup}>
                                             <Text style={styles.label}>No. Telp *</Text>
@@ -455,10 +645,18 @@ export default function KelolaKaryawan() {
                                             </TouchableOpacity>
                                         </View>
                                     </View>
+
+                                    {/* Info Password untuk mode tambah */}
+                                    {isAddMode && (
+                                        <View style={styles.passwordInfoContainer}>
+                                            <Text style={styles.passwordInfoText}>
+                                                Password akan digenerate otomatis: <Text style={styles.passwordText}>{generatedPassword}</Text>
+                                            </Text>
+                                        </View>
+                                    )}
                                 </View>
                             </ScrollView>
 
-                            {/* FOOTER DIPERBAIKI - Button sekarang bisa diklik */}
                             <View style={styles.modalFooter}>
                                 {isAddMode ? (
                                     <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.7}>
@@ -477,6 +675,68 @@ export default function KelolaKaryawan() {
                                         </TouchableOpacity>
                                     </>
                                 )}
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
+
+                {/* Date Picker */}
+                {showDatePicker && (
+                    <DateTimePicker
+                        value={selectedDate}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={handleDateChange}
+                        maximumDate={new Date()}
+                    />
+                )}
+
+                {/* Modal Tampilkan Password Setelah Create */}
+                <Modal animationType="fade" transparent={true} visible={passwordModalVisible} onRequestClose={() => setPasswordModalVisible(false)}>
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.passwordModalContent}>
+                            <View style={styles.passwordModalHeader}>
+                                <Text style={styles.passwordModalTitle}>Data Petugas Berhasil Dibuat!</Text>
+                                <Text style={styles.passwordModalSubtitle}>Simpan password berikut untuk login:</Text>
+                            </View>
+                            
+                            <View style={styles.passwordDisplayContainer}>
+                                <Text style={styles.passwordLabel}>Password:</Text>
+                                <View style={styles.passwordInputContainer}>
+                                    <TextInput
+                                        style={styles.passwordDisplay}
+                                        value={generatedPassword}
+                                        editable={false}
+                                        secureTextEntry={!showGeneratedPassword}
+                                    />
+                                    <TouchableOpacity
+                                        style={styles.eyeButton}
+                                        onPress={() => setShowGeneratedPassword(!showGeneratedPassword)}
+                                    >
+                                        {showGeneratedPassword ? <EyeOff size={20} color="#666" /> : <Eye size={20} color="#666" />}
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.copyButton}
+                                        onPress={copyToClipboard}
+                                    >
+                                        <Copy size={20} color="#FFF" />
+                                    </TouchableOpacity>
+                                </View>
+                                <Text style={styles.passwordWarning}>
+                                    ⚠️ Password ini tidak dapat dilihat lagi. Pastikan untuk menyimpannya dengan aman.
+                                </Text>
+                            </View>
+
+                            <View style={styles.passwordModalFooter}>
+                                <TouchableOpacity
+                                    style={styles.okButton}
+                                    onPress={() => {
+                                        setPasswordModalVisible(false);
+                                        resetForm();
+                                    }}
+                                >
+                                    <Text style={styles.okButtonText}>OK, Saya Sudah Mencatat</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
                     </View>
@@ -506,6 +766,80 @@ export default function KelolaKaryawan() {
                             ))}
                         </View>
                     </TouchableOpacity>
+                </Modal>
+
+                                <Modal
+                    animationType="slide"
+                    transparent={true}
+                    visible={showCustomDatePicker}
+                    onRequestClose={() => setShowCustomDatePicker(false)}
+                >
+                    <View style={styles.datePickerOverlay}>
+                        <View style={styles.datePickerContainer}>
+                            <View style={styles.datePickerHeader}>
+                                <TouchableOpacity onPress={() => setShowCustomDatePicker(false)}>
+                                    <X color="#F59E0B" size={24} />
+                                </TouchableOpacity>
+                                <Text style={styles.datePickerTitle}>Pilih Tanggal Lahir</Text>
+                                <View style={styles.monthNavigator}>
+                                    <TouchableOpacity onPress={() => navigateMonth('prev')}>
+                                        <ChevronLeft color="#F59E0B" size={24} />
+                                    </TouchableOpacity>
+                                    <Text style={styles.monthText}>
+                                        {getMonthName(currentMonth)} {currentMonth.getFullYear()}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => navigateMonth('next')}>
+                                        <ChevronRight color="#F59E0B" size={24} />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
+                            <View style={styles.calendarContainer}>
+                                <View style={styles.weekDays}>
+                                    {[0, 1, 2, 3, 4, 5, 6].map(dayIndex => (
+                                        <Text key={dayIndex} style={styles.weekDayText}>
+                                            {getDayName(dayIndex)}
+                                        </Text>
+                                    ))}
+                                </View>
+
+                                <View style={styles.calendarGrid}>
+                                    {getDaysInMonth(currentMonth).map((date, index) => (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={[
+                                                styles.calendarDay,
+                                                !date && styles.calendarDayEmpty,
+                                                date && date.toDateString() === selectedDate.toDateString() && styles.calendarDaySelected
+                                            ]}
+                                            onPress={() => date && selectDate(date)}
+                                            disabled={!date}
+                                        >
+                                            <Text style={[
+                                                styles.calendarDayText,
+                                                date && date.toDateString() === selectedDate.toDateString() && styles.calendarDayTextSelected,
+                                                date && date.getDay() === 0 && styles.calendarDaySunday
+                                            ]}>
+                                                {date ? date.getDate() : ''}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            <View style={styles.datePickerFooter}>
+                                <Text style={styles.selectedDateText}>
+                                    Tanggal terpilih: {formatDateForDisplay(selectedDate)}
+                                </Text>
+                                <TouchableOpacity 
+                                    style={styles.confirmDateButton}
+                                    onPress={() => setShowCustomDatePicker(false)}
+                                >
+                                    <Text style={styles.confirmDateButtonText}>Konfirmasi</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
                 </Modal>
 
                 {/* Delete Modal */}
@@ -573,7 +907,11 @@ const styles = StyleSheet.create({
     deleteButton: { backgroundColor: '#FDB022', width: 36, height: 36, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
     modalContent: { backgroundColor: '#FFF', borderRadius: 10, width: '85%', maxWidth: 900, maxHeight: '90%' },
+    passwordModalContent: { backgroundColor: '#FFF', borderRadius: 10, width: '85%', maxWidth: 500, padding: 0 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E5E5E5' },
+    passwordModalHeader: { padding: 25, borderBottomWidth: 1, borderBottomColor: '#E5E5E5', alignItems: 'center' },
+    passwordModalTitle: { fontSize: 20, color: '#10B981', fontWeight: '600', marginBottom: 8 },
+    passwordModalSubtitle: { fontSize: 14, color: '#666', textAlign: 'center' },
     modalTitle: { fontSize: 20, color: '#F59E0B', flex: 1, marginLeft: 15, textAlign: 'center', fontWeight: '500' },
     modalDateContainer: { flexDirection: 'column', alignItems: 'flex-end' },
     modalDateText: { fontSize: 12, color: '#F59E0B' },
@@ -584,11 +922,41 @@ const styles = StyleSheet.create({
     formGroup: { flex: 1, minWidth: 0 },
     label: { fontSize: 13, color: '#333', marginBottom: 8, fontWeight: '500' },
     input: { backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#F59E0B', borderRadius: 8, paddingHorizontal: 15, paddingVertical: 12, fontSize: 13, color: '#333', width: '100%' },
+    dateInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFF',
+        borderWidth: 1.5,
+        borderColor: '#F59E0B',
+        borderRadius: 8,
+        paddingHorizontal: 15,
+        paddingVertical: 12,
+    },
+    dateInput: {
+        flex: 1,
+        fontSize: 13,
+        color: '#333',
+        padding: 0,
+        margin: 0,
+    },
     textArea: { minHeight: 80, textAlignVertical: 'top' },
     selectInput: { backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#F59E0B', borderRadius: 8, paddingHorizontal: 15, paddingVertical: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
     selectText: { fontSize: 13, color: '#333' },
     selectArrow: { fontSize: 12, color: '#F59E0B' },
+    passwordInfoContainer: { backgroundColor: '#F0F9FF', padding: 15, borderRadius: 8, borderLeftWidth: 4, borderLeftColor: '#0EA5E9' },
+    passwordInfoText: { fontSize: 13, color: '#0369A1', textAlign: 'center' },
+    passwordText: { fontWeight: '600', color: '#0C4A6E' },
     modalFooter: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 20, gap: 15, borderTopWidth: 1, borderTopColor: '#E5E5E5', backgroundColor: '#FFF' },
+    passwordDisplayContainer: { padding: 25 },
+    passwordLabel: { fontSize: 16, color: '#333', marginBottom: 10, fontWeight: '500' },
+    passwordInputContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+    passwordDisplay: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 2, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 15, paddingVertical: 12, fontSize: 16, color: '#1E293B', fontWeight: '500' },
+    eyeButton: { padding: 10, marginLeft: 10 },
+    copyButton: { backgroundColor: '#3B82F6', padding: 10, borderRadius: 8, marginLeft: 10 },
+    passwordWarning: { fontSize: 12, color: '#EF4444', textAlign: 'center', fontStyle: 'italic' },
+    passwordModalFooter: { padding: 20, borderTopWidth: 1, borderTopColor: '#E5E5E5' },
+    okButton: { backgroundColor: '#10B981', paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+    okButtonText: { fontSize: 16, color: '#FFF', fontWeight: '600' },
     updateButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingHorizontal: 35, paddingVertical: 12, borderRadius: 25, gap: 10 },
     updateButtonText: { fontSize: 14, color: '#FFF', fontWeight: '600' },
     clearButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EF4444', paddingHorizontal: 35, paddingVertical: 12, borderRadius: 25, gap: 10 },
@@ -607,4 +975,125 @@ const styles = StyleSheet.create({
     confirmYesButton: { backgroundColor: '#FDB022', paddingHorizontal: 30, paddingVertical: 10, borderRadius: 20, minWidth: 80, alignItems: 'center' },
     confirmNoButton: { backgroundColor: '#FDB022', paddingHorizontal: 30, paddingVertical: 10, borderRadius: 20, minWidth: 80, alignItems: 'center' },
     confirmButtonText: { fontSize: 13, color: '#FFF', fontWeight: '600' },
+
+    // ========== STYLES UNTUK CUSTOM DATE PICKER ==========
+    datePickerOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    datePickerContainer: {
+        backgroundColor: '#FFF',
+        borderRadius: 15,
+        width: '100%',
+        maxWidth: 400,
+        maxHeight: '80%',
+        overflow: 'hidden',
+    },
+    datePickerHeader: {
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E5E5',
+        alignItems: 'center',
+        backgroundColor: '#FEF7E5',
+    },
+    datePickerTitle: {
+        fontSize: 18,
+        color: '#F59E0B',
+        fontWeight: '600',
+        marginTop: 10,
+        marginBottom: 15,
+    },
+    monthNavigator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        paddingHorizontal: 20,
+    },
+    monthText: {
+        fontSize: 16,
+        color: '#333',
+        fontWeight: '500',
+    },
+    calendarContainer: {
+        padding: 15,
+        backgroundColor: '#FFF',
+    },
+    weekDays: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        marginBottom: 10,
+        paddingHorizontal: 5,
+    },
+    weekDayText: {
+        fontSize: 12,
+        color: '#666',
+        fontWeight: '500',
+        width: 40,
+        height: 30,
+        textAlign: 'center',
+        textAlignVertical: 'center',
+    },
+    calendarGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'flex-start',
+        paddingHorizontal: 5,
+    },
+    calendarDay: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        margin: 2,
+        borderRadius: 20,
+        backgroundColor: '#F8FAFC',
+    },
+    calendarDayEmpty: {
+        backgroundColor: 'transparent',
+    },
+    calendarDaySelected: {
+        backgroundColor: '#F59E0B',
+    },
+    calendarDayText: {
+        fontSize: 14,
+        color: '#333',
+        fontWeight: '500',
+    },
+    calendarDayTextSelected: {
+        color: '#FFF',
+        fontWeight: '600',
+    },
+    calendarDaySunday: {
+        color: '#EF4444',
+    },
+    datePickerFooter: {
+        padding: 20,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E5E5',
+        alignItems: 'center',
+        backgroundColor: '#FEF7E5',
+    },
+    selectedDateText: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 15,
+        textAlign: 'center',
+    },
+    confirmDateButton: {
+        backgroundColor: '#F59E0B',
+        paddingHorizontal: 30,
+        paddingVertical: 12,
+        borderRadius: 25,
+        minWidth: 150,
+        alignItems: 'center',
+    },
+    confirmDateButtonText: {
+        color: '#FFF',
+        fontSize: 14,
+        fontWeight: '600',
+    },
 });

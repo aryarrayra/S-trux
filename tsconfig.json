@@ -12,5 +12,5 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-, "components/login/login", "components/common/SplashScreen.js"  ]
+, "components/login/login", "components/common/SplashScreen.js", "services/pembayaranService.js"  ]
 }

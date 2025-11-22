@@ -8,42 +8,191 @@ export default function JadwalPengantaran() {
     const [currentTime, setCurrentTime] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [selectedFilter, setSelectedFilter] = useState('Semua Data');
-    const [selectedDelivery, setSelectedDelivery] = useState<any>(null);
+    const [selectedDelivery, setSelectedDelivery] = useState(null);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
-    const [deliveries, setDeliveries] = useState([
-        {
-            id: 'STX0098',
-            company: 'PT Acong Makmuir jayaraya',
-            equipment: 'Excavator Caterpillar 320D',
-            location: 'Jln Bamboo htami, Jakarta Timur',
-            date: '29 Oct 2025 - 01 Nov 2025',
-            price: 'Rp 13.500.000',
-            status: 'Berlangsung',
-            statusColor: '#2563eb'
-        },
-        {
-            id: 'STX0081',
-            company: 'PT Acong Makmuir jayaraya',
-            equipment: 'Bulldozer Volvo',
-            location: 'Jln Bamboo htami, Jakarta Timur',
-            date: '27 Oct 2025 - 28 Oct 2025',
-            price: 'Rp 13.500.000',
-            status: 'Selesai',
-            statusColor: '#22c55e'
-        },
-        {
-            id: 'STX0921',
-            company: 'PT Acong Makmuir jayaraya',
-            equipment: 'Tower Crane Leihuner',
-            location: 'Jln Bamboo htami, Jakarta Timur',
-            date: '30 Nov 2025 - 05 Dec 2025',
-            price: 'Rp 13.500.000',
-            status: 'Akan Datang',
-            statusColor: '#f59e0b'
+    const [deliveries, setDeliveries] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+
+    // Fetch data dari API
+    const fetchDeliveries = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            const token = localStorage.getItem('auth_token');
+            
+            const response = await fetch(`${API_BASE_URL}/penyewaan`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.success) {
+                // Filter out data dengan status "Menunggu Persetujuan"
+                const filteredData = result.data.filter(penyewaan => 
+                    penyewaan.status_sewa !== 'Menunggu Persetujuan' && 
+                    penyewaan.status_persetujuan !== 'Menunggu'
+                );
+
+                // Transform data dari API ke format yang diinginkan component
+                const transformedData = filteredData.map(penyewaan => ({
+                    id: `STX${String(penyewaan.id_sewa).padStart(4, '0')}`,
+                    id_sewa: penyewaan.id_sewa,
+                    company: penyewaan.pelanggan?.company_name || penyewaan.pelanggan?.nama_pelanggan || 'Tidak ada nama perusahaan',
+                    equipment: penyewaan.alat?.nama_alat || 'Alat tidak ditemukan',
+                    location: penyewaan.lokasi_proyek || 'Lokasi tidak tersedia',
+                    date: `${new Date(penyewaan.tanggal_sewa).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric'
+                    })} - ${penyewaan.tanggal_kembali ? new Date(penyewaan.tanggal_kembali).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric'
+                    }) : 'Belum ditentukan'}`,
+                    price: new Intl.NumberFormat('id-ID', {
+                        style: 'currency',
+                        currency: 'IDR',
+                        minimumFractionDigits: 0
+                    }).format(penyewaan.total_harga || 0),
+                    status: getStatusText(penyewaan.status_sewa),
+                    statusColor: getStatusColor(penyewaan.status_sewa),
+                    originalData: penyewaan
+                }));
+                
+                setDeliveries(transformedData);
+            } else {
+                throw new Error(result.message || 'Gagal mengambil data');
+            }
+        } catch (err) {
+            console.error('Error fetching deliveries:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
         }
-    ]);
+    };
+
+    // Helper function untuk mapping status
+    const getStatusText = (status) => {
+        const statusMap = {
+            'Berjalan': 'Berlangsung',
+            'Selesai': 'Selesai',
+            'Dibatalkan': 'Dibatalkan',
+            'Menunggu Persetujuan': 'Menunggu Persetujuan',
+            'Dalam Pengantaran': 'Dalam Pengantaran'
+        };
+        return statusMap[status] || status;
+    };
+
+    const getStatusColor = (status) => {
+        const colorMap = {
+            'Berjalan': '#2563eb',
+            'Selesai': '#22c55e',
+            'Dibatalkan': '#ef4444',
+            'Menunggu Persetujuan': '#f59e0b',
+            'Dalam Pengantaran': '#8b5cf6'
+        };
+        return colorMap[status] || '#666';
+    };
+
+    // Update status pengantaran
+    const updateDeliveryStatus = async (idSewa, newStatus) => {
+        try {
+            const token = localStorage.getItem('auth_token');
+            
+            const response = await fetch(`${API_BASE_URL}/penyewaan/${idSewa}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    status_sewa: newStatus
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.success) {
+                return true;
+            } else {
+                throw new Error(result.message || 'Gagal update status');
+            }
+        } catch (err) {
+            console.error('Error updating status:', err);
+            throw err;
+        }
+    };
+
+    // Handle sampai lokasi
+    const handleSampaiLokasi = async () => {
+        if (selectedDelivery) {
+            try {
+                await updateDeliveryStatus(selectedDelivery.originalData.id_sewa, 'Selesai');
+                
+                // Update local state
+                setDeliveries(prevDeliveries =>
+                    prevDeliveries.map(delivery =>
+                        delivery.id_sewa === selectedDelivery.originalData.id_sewa
+                            ? { 
+                                ...delivery, 
+                                status: 'Selesai', 
+                                statusColor: '#22c55e',
+                                originalData: {
+                                    ...delivery.originalData,
+                                    status_sewa: 'Selesai'
+                                }
+                            }
+                            : delivery
+                    )
+                );
+                
+                setSelectedDelivery(null);
+                setShowSuccessModal(true);
+            } catch (err) {
+                alert('Gagal update status: ' + err.message);
+            }
+        }
+    };
+
+    // Filter data berdasarkan selectedFilter
+    const filteredDeliveries = deliveries.filter(delivery => {
+        const matchesSearch = delivery.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            delivery.equipment.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            delivery.location.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        if (!matchesSearch) return false;
+        
+        switch (selectedFilter) {
+            case 'Selesai Hari ini':
+                return delivery.status === 'Selesai';
+            case 'Beroperasi hari ini':
+                return delivery.status === 'Berlangsung';
+            case 'Dalam Pengantaran':
+                return delivery.status === 'Dalam Pengantaran';
+            default:
+                return true;
+        }
+    });
 
     useEffect(() => {
+        fetchDeliveries();
+        
         const updateDateTime = () => {
             const now = new Date();
             const dateStr = now.toLocaleDateString('id-ID', {
@@ -65,19 +214,46 @@ export default function JadwalPengantaran() {
         return () => clearInterval(timer);
     }, []);
 
-    const handleSampaiLokasi = () => {
-        if (selectedDelivery) {
-            setDeliveries(prevDeliveries =>
-                prevDeliveries.map(delivery =>
-                    delivery.id === selectedDelivery.id
-                        ? { ...delivery, status: 'Selesai', statusColor: '#22c55e' }
-                        : delivery
-                )
-            );
-            setSelectedDelivery(null);
-            setShowSuccessModal(true);
-        }
-    };
+    // Refresh data setiap 30 detik
+    useEffect(() => {
+        const interval = setInterval(fetchDeliveries, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    if (loading) {
+        return (
+            <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f0f0f0' }}>
+                <Sidebar />
+                <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div>Loading data pengantaran...</div>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f0f0f0' }}>
+                <Sidebar />
+                <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
+                    <div style={{ color: '#ef4444', marginBottom: '16px' }}>Error: {error}</div>
+                    <button 
+                        onClick={fetchDeliveries}
+                        style={{
+                            padding: '8px 16px',
+                            backgroundColor: '#f59e0b',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Coba Lagi
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f0f0f0', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
@@ -156,7 +332,7 @@ export default function JadwalPengantaran() {
                                 overflow: 'hidden',
                                 fontStyle: 'normal'
                             }}>
-                                {['Semua Data', 'Selesai Hari ini', 'Beroperasi hari ini', 'Mendatang'].map((option, idx) => (
+                                {['Semua Data', 'Selesai Hari ini', 'Beroperasi hari ini', 'Dalam Pengantaran'].map((option, idx) => (
                                     <div
                                         key={idx}
                                         onClick={() => {
@@ -185,56 +361,67 @@ export default function JadwalPengantaran() {
 
                 {/* Cards Container */}
                 <div style={{ flex: 1, overflow: 'auto', padding: '16px 32px' }}>
-                    {deliveries.map((delivery, index) => (
-                        <div
-                            key={index}
-                            onClick={() => setSelectedDelivery(delivery)}
-                            style={{
-                                backgroundColor: 'white',
-                                borderRadius: '4px',
-                                padding: '16px',
-                                marginBottom: '12px',
-                                border: '1px solid #e0e0e0',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'flex-start',
-                                cursor: 'pointer',
-                                transition: 'box-shadow 0.2s'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
-                            onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
-                        >
-                            <div style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                                    <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#f59e0b', margin: 0, fontStyle: 'normal' }}>{delivery.id}</h3>
-                                </div>
-
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#333', fontSize: '12px', fontStyle: 'normal' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ fontSize: '13px' }}>🏢</span>
-                                        <span style={{ fontStyle: 'normal' }}>{delivery.company}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ fontSize: '13px' }}>⚙️</span>
-                                        <span style={{ fontStyle: 'normal' }}>{delivery.equipment}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ fontSize: '13px' }}>📍</span>
-                                        <span style={{ fontStyle: 'normal' }}>{delivery.location}</span>
-                                    </div>
-                                </div>
-
-                                <p style={{ color: '#999', fontSize: '10px', margin: '6px 0 0 0', fontStyle: 'normal' }}>{delivery.date}</p>
-                            </div>
-
-                            <div style={{ marginLeft: '20px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                                <span style={{ backgroundColor: delivery.statusColor, color: 'white', fontSize: '10px', padding: '3px 9px', borderRadius: '2px', fontWeight: '600', fontStyle: 'normal' }}>
-                                    {delivery.status}
-                                </span>
-                                <p style={{ fontSize: '17px', fontWeight: '600', color: '#1a1a1a', margin: 0, fontStyle: 'normal' }}>{delivery.price}</p>
-                            </div>
+                    {filteredDeliveries.length === 0 ? (
+                        <div style={{ 
+                            textAlign: 'center', 
+                            padding: '40px', 
+                            color: '#666',
+                            fontStyle: 'italic'
+                        }}>
+                            {searchTerm ? 'Tidak ada data yang sesuai dengan pencarian' : 'Tidak ada data pengantaran'}
                         </div>
-                    ))}
+                    ) : (
+                        filteredDeliveries.map((delivery, index) => (
+                            <div
+                                key={delivery.id_sewa}
+                                onClick={() => setSelectedDelivery(delivery)}
+                                style={{
+                                    backgroundColor: 'white',
+                                    borderRadius: '4px',
+                                    padding: '16px',
+                                    marginBottom: '12px',
+                                    border: '1px solid #e0e0e0',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'flex-start',
+                                    cursor: 'pointer',
+                                    transition: 'box-shadow 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
+                                onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                            >
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                                        <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#f59e0b', margin: 0, fontStyle: 'normal' }}>{delivery.id}</h3>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#333', fontSize: '12px', fontStyle: 'normal' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '13px' }}>🏢</span>
+                                            <span style={{ fontStyle: 'normal' }}>{delivery.company}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '13px' }}>⚙️</span>
+                                            <span style={{ fontStyle: 'normal' }}>{delivery.equipment}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '13px' }}>📍</span>
+                                            <span style={{ fontStyle: 'normal' }}>{delivery.location}</span>
+                                        </div>
+                                    </div>
+
+                                    <p style={{ color: '#999', fontSize: '10px', margin: '6px 0 0 0', fontStyle: 'normal' }}>{delivery.date}</p>
+                                </div>
+
+                                <div style={{ marginLeft: '20px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                                    <span style={{ backgroundColor: delivery.statusColor, color: 'white', fontSize: '10px', padding: '3px 9px', borderRadius: '2px', fontWeight: '600', fontStyle: 'normal' }}>
+                                        {delivery.status}
+                                    </span>
+                                    <p style={{ fontSize: '17px', fontWeight: '600', color: '#1a1a1a', margin: 0, fontStyle: 'normal' }}>{delivery.price}</p>
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
 
@@ -332,7 +519,9 @@ export default function JadwalPengantaran() {
                                                 borderRadius: '8px',
                                                 padding: '12px'
                                             }}>
-                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>17/10/2025</span>
+                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>
+                                                    {new Date(selectedDelivery.originalData.tanggal_sewa).toLocaleDateString('id-ID')}
+                                                </span>
                                             </div>
                                         </div>
                                         <div style={{ flex: 1 }}>
@@ -349,7 +538,9 @@ export default function JadwalPengantaran() {
                                                 borderRadius: '8px',
                                                 padding: '12px'
                                             }}>
-                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>Santoso Merogo</span>
+                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>
+                                                    {selectedDelivery.originalData.pelanggan?.nama_pelanggan || 'Tidak tersedia'}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -370,7 +561,12 @@ export default function JadwalPengantaran() {
                                                 borderRadius: '8px',
                                                 padding: '12px'
                                             }}>
-                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>30/10/2025</span>
+                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>
+                                                    {selectedDelivery.originalData.tanggal_kembali 
+                                                        ? new Date(selectedDelivery.originalData.tanggal_kembali).toLocaleDateString('id-ID')
+                                                        : 'Belum ditentukan'
+                                                    }
+                                                </span>
                                             </div>
                                         </div>
                                         <div style={{ flex: 1 }}>
@@ -387,7 +583,9 @@ export default function JadwalPengantaran() {
                                                 borderRadius: '8px',
                                                 padding: '12px'
                                             }}>
-                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>PT. Sumber Makmur</span>
+                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>
+                                                    {selectedDelivery.company}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -408,7 +606,9 @@ export default function JadwalPengantaran() {
                                                 borderRadius: '8px',
                                                 padding: '12px'
                                             }}>
-                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>Jln Bambu hitam, Jakarta Timur</span>
+                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>
+                                                    {selectedDelivery.location}
+                                                </span>
                                             </div>
                                         </div>
                                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -429,7 +629,7 @@ export default function JadwalPengantaran() {
                                                 <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>{selectedDelivery.status}</span>
                                             </div>
                                             {/* Tombol Sampai Lokasi */}
-                                            {selectedDelivery.status !== 'Selesai' && (
+                                            {selectedDelivery.originalData.status_sewa !== 'Selesai' && selectedDelivery.originalData.status_sewa !== 'Dibatalkan' && (
                                                 <button
                                                     onClick={handleSampaiLokasi}
                                                     style={{
@@ -479,7 +679,9 @@ export default function JadwalPengantaran() {
                                                 borderRadius: '8px',
                                                 padding: '12px'
                                             }}>
-                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>Excavator</span>
+                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>
+                                                    {selectedDelivery.originalData.alat?.kategori || 'Tidak tersedia'}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -499,7 +701,9 @@ export default function JadwalPengantaran() {
                                                 borderRadius: '8px',
                                                 padding: '12px'
                                             }}>
-                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>Caterpillar CAT 3200D</span>
+                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>
+                                                    {selectedDelivery.equipment}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -519,7 +723,9 @@ export default function JadwalPengantaran() {
                                                 borderRadius: '8px',
                                                 padding: '12px'
                                             }}>
-                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>Baik</span>
+                                                <span style={{ fontSize: '14px', color: '#000', fontStyle: 'normal' }}>
+                                                    {selectedDelivery.originalData.alat?.kondisi || 'Tidak tersedia'}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>

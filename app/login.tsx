@@ -13,8 +13,9 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { User, Lock } from 'lucide-react-native';
+import { User, Lock, Building, Users } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const COLORS = {
   white: '#FFFFFF',
@@ -30,8 +31,9 @@ const COLORS = {
 };
 
 interface LoginData {
-  username: string;
+  identifier: string; // Bisa username atau email
   password: string;
+  role: 'admin' | 'petugas';
 }
 
 interface ApiResponse {
@@ -39,84 +41,138 @@ interface ApiResponse {
   message?: string;
   token?: string;
   user?: any;
+  data?: any;
 }
 
 const FormComponent = () => {
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [selectedRole, setSelectedRole] = useState<'admin' | 'petugas'>('admin');
   const [isLoading, setIsLoading] = useState(false);
-  const [isUsernameFocused, setIsUsernameFocused] = useState(false);
+  const [isIdentifierFocused, setIsIdentifierFocused] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const router = useRouter();
 
   const showAlert = (title: string, message: string) => {
     if (Platform.OS === 'web') {
-      // Untuk web, gunakan window.alert atau custom modal
       window.alert(`${title}\n\n${message}`);
     } else {
-      // Untuk mobile, gunakan Alert dari react-native
       Alert.alert(title, message, [{ text: 'OK' }]);
     }
   };
 
-  const handleLogin = async () => {
-    console.log('Login button clicked'); // Debug log
+const handleLogin = async () => {
+  console.log('Login button clicked', { identifier, password, role: selectedRole });
 
-    // Basic validation
-    if (!username.trim() || !password.trim()) {
-      showAlert('Form Tidak Lengkap', 'Harap masukkan username dan password');
-      return;
+  // Basic validation
+  if (!identifier.trim() || !password.trim()) {
+    showAlert('Form Tidak Lengkap', 'Harap masukkan username/email dan password');
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    console.log('Sending login request for:', selectedRole);
+
+    // Tentukan endpoint dan format data berdasarkan role
+    let endpoint: string;
+    let requestData: any;
+
+    if (selectedRole === 'admin') {
+      endpoint = 'http://127.0.0.1:8000/api/admin/login';
+      requestData = {
+        username: identifier.trim(), // Admin pakai identifier
+        password: password.trim(),
+        role: selectedRole
+      };
+    } else {
+      endpoint = 'http://127.0.0.1:8000/api/petugas/login';
+      requestData = {
+        email: identifier.trim(), // Petugas pakai email (bukan identifier)
+        password: password.trim(),
+        role: selectedRole
+      };
     }
 
-    setIsLoading(true);
+    console.log('Sending data:', requestData);
 
-    try {
-      const loginData: LoginData = {
-        username: username.trim(),
-        password: password.trim(),
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(requestData),
+    });
+
+    console.log('Response status:', response.status);
+
+    const data: ApiResponse = await response.json();
+    console.log('Response data:', data);
+
+    if (response.ok && data.success) {
+      // Login successful
+      showAlert('Berhasil', data.message || 'Login berhasil!');
+
+      // Store user data in AsyncStorage
+      const userData = {
+        token: data.token,
+        user: data.user || data.data,
+        role: selectedRole,
+        loginTime: new Date().toISOString(),
       };
 
-      console.log('Sending login request...'); // Debug log
+      // Simpan ke AsyncStorage
+      try {
+        await AsyncStorage.setItem('userData', JSON.stringify(userData));
+        console.log('User data saved to storage');
+      } catch (storageError) {
+        console.error('Error saving to storage:', storageError);
+      }
 
-      const response = await fetch('http://127.0.0.1:8000/api/admin/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(loginData),
-      });
-
-      console.log('Response status:', response.status); // Debug log
-
-      const data: ApiResponse = await response.json();
-      console.log('Response data:', data); // Debug log
-
-      if (response.ok && data.success) {
-        // Login successful
-        showAlert('Berhasil', data.message || 'Login berhasil!');
-
-        // Store token if available
-        if (data.token) {
-          console.log('Token received:', data.token);
-        }
-
-        // Navigate to dashboard
+      // Navigate based on role
+      if (selectedRole === 'admin') {
         router.push('/admin/dashboard');
       } else {
-        // Login failed
-        showAlert('Login Gagal', data.message || 'Username atau password tidak sesuai');
+        router.push('/petugas/dashboard');
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      showAlert(
-        'Error Jaringan',
-        'Tidak dapat terhubung ke server. Periksa koneksi Anda dan coba lagi.'
-      );
-    } finally {
-      setIsLoading(false);
+    } else {
+      // Login failed
+      const errorMessage = data.message || 
+        (data.errors ? Object.values(data.errors).flat().join(', ') : 'Username/Email atau password tidak sesuai');
+      showAlert('Login Gagal', errorMessage);
     }
-  };
+  } catch (error) {
+    console.error('Login error:', error);
+    showAlert(
+      'Error Jaringan',
+      'Tidak dapat terhubung ke server. Periksa koneksi Anda dan coba lagi.'
+    );
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+  // Placeholder text berdasarkan role
+const getIdentifierPlaceholder = () => {
+  return selectedRole === 'admin' ? 'Masukkan username Anda' : 'Masukkan email Anda';
+};
+
+// Label text berdasarkan role
+const getIdentifierLabel = () => {
+  return selectedRole === 'admin' ? 'Username' : 'Email';
+};
+
+// Auto complete type
+const getAutoCompleteType = () => {
+  return selectedRole === 'admin' ? 'username' : 'email';
+};
+
+// Keyboard type
+const getKeyboardType = () => {
+  return selectedRole === 'admin' ? 'default' : 'email-address';
+};
 
   return (
     <View style={styles.formContainer}>
@@ -132,25 +188,72 @@ const FormComponent = () => {
 
         <Text style={styles.formTitle}>Masukkan Identitas Akun Anda</Text>
 
+        {/* Role Selection */}
+        <View style={styles.roleSelectionContainer}>
+          <Text style={styles.label}>Login Sebagai</Text>
+          <View style={styles.roleButtons}>
+            <TouchableOpacity
+              style={[
+                styles.roleButton,
+                selectedRole === 'admin' && styles.roleButtonActive
+              ]}
+              onPress={() => setSelectedRole('admin')}
+              disabled={isLoading}
+            >
+              <Building 
+                size={16} 
+                color={selectedRole === 'admin' ? COLORS.white : COLORS.primary} 
+              />
+              <Text style={[
+                styles.roleButtonText,
+                selectedRole === 'admin' && styles.roleButtonTextActive
+              ]}>
+                Admin
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.roleButton,
+                selectedRole === 'petugas' && styles.roleButtonActive
+              ]}
+              onPress={() => setSelectedRole('petugas')}
+              disabled={isLoading}
+            >
+              <Users 
+                size={16} 
+                color={selectedRole === 'petugas' ? COLORS.white : COLORS.primary} 
+              />
+              <Text style={[
+                styles.roleButtonText,
+                selectedRole === 'petugas' && styles.roleButtonTextActive
+              ]}>
+                Petugas
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Username</Text>
+          <Text style={styles.label}>{getIdentifierLabel()}</Text>
           <View style={[
             styles.inputContainer,
-            isUsernameFocused && styles.inputContainerFocused
+            isIdentifierFocused && styles.inputContainerFocused
           ]}>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your username"
-              placeholderTextColor="#777"
-              autoCapitalize="none"
-              autoComplete="username"
-              value={username}
-              onChangeText={setUsername}
-              editable={!isLoading}
-              onFocus={() => setIsUsernameFocused(true)}
-              onBlur={() => setIsUsernameFocused(false)}
-              returnKeyType="next"
-            />
+              <TextInput
+                style={styles.input}
+                placeholder={getIdentifierPlaceholder()}
+                placeholderTextColor="#777"
+                autoCapitalize="none"
+                autoComplete={getAutoCompleteType()}
+                keyboardType={getKeyboardType()}
+                value={identifier}
+                onChangeText={setIdentifier}
+                editable={!isLoading}
+                onFocus={() => setIsIdentifierFocused(true)}
+                onBlur={() => setIsIdentifierFocused(false)}
+                returnKeyType="next"
+              />
             <User color={COLORS.primary} size={20} />
           </View>
         </View>
@@ -167,7 +270,7 @@ const FormComponent = () => {
               placeholderTextColor="#777"
               secureTextEntry
               autoComplete="password"
-              value={username}
+              value={password}
               onChangeText={setPassword}
               editable={!isLoading}
               onFocus={() => setIsPasswordFocused(true)}
@@ -189,9 +292,18 @@ const FormComponent = () => {
           activeOpacity={0.8}
         >
           <Text style={styles.loginButtonText}>
-            {isLoading ? 'Sedang Login...' : 'Login'}
+            {isLoading ? 'Sedang Login...' : `Login sebagai ${selectedRole === 'admin' ? 'Admin' : 'Petugas'}`}
           </Text>
         </TouchableOpacity>
+
+        {/* Info untuk testing */}
+        <View style={styles.testInfo}>
+          <Text style={styles.testInfoTitle}>Info Login:</Text>
+          <Text style={styles.testInfoText}>
+            • <Text style={styles.boldText}>Admin:</Text> gunakan username & password admin{'\n'}
+            • <Text style={styles.boldText}>Petugas:</Text> gunakan email & password dari data petugas
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -326,6 +438,39 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
   },
+  // Role Selection Styles
+  roleSelectionContainer: {
+    marginBottom: 25,
+  },
+  roleButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.white,
+  },
+  roleButtonActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  roleButtonText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+    color: COLORS.primary,
+  },
+  roleButtonTextActive: {
+    color: COLORS.white,
+  },
   inputGroup: {
     marginBottom: 20,
   },
@@ -379,7 +524,7 @@ const styles = StyleSheet.create({
       },
     }),
     alignSelf: 'center',
-    width: 144,
+    width: '100%',
   },
   loginButtonDisabled: {
     opacity: 0.6,
@@ -388,6 +533,30 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 13,
     color: COLORS.white,
+  },
+  // Test Info Styles
+  testInfo: {
+    marginTop: 20,
+    padding: 15,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
+  },
+  testInfoTitle: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: COLORS.darkGray,
+    marginBottom: 5,
+  },
+  testInfoText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 10,
+    color: COLORS.darkGray,
+    lineHeight: 14,
+  },
+  boldText: {
+    fontFamily: 'Poppins_600SemiBold',
   },
   brandingContainer: {
     flex: 1,

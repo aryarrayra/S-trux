@@ -91,7 +91,8 @@ export default function PersetujuanPinjaman() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          status_persetujuan: 'Disetujui'
+          status_persetujuan: 'Disetujui',
+          status_sewa: 'Dalam Pengantaran'
         })
       });
 
@@ -152,7 +153,8 @@ export default function PersetujuanPinjaman() {
         },
         body: JSON.stringify({
           status_persetujuan: 'Ditolak',
-          alasan_penolakan: alasanPenolakan
+          alasan_penolakan: alasanPenolakan,
+          status_sewa: 'Dalam Pengantaran'
         })
       });
 
