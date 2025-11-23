@@ -1,8 +1,19 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Image, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Box, Timer, Check, ChevronRight, XCircle, LucideIcon } from 'lucide-react-native';
-import { SimpleLineIcons } from '@expo/vector-icons';
+import React, { useState, useEffect } from 'react';
+import { 
+    View, 
+    Text, 
+    StyleSheet, 
+    SafeAreaView, 
+    ScrollView, 
+    Image, 
+    TouchableOpacity, 
+    Alert, 
+    ActivityIndicator,
+    RefreshControl,
+    Dimensions,
+    StatusBar 
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -15,11 +26,13 @@ interface StatCardProps {
 }
 
 interface ActiveRentalCardProps {
+    id_sewa: number;
     image: string;
     title: string;
     project: string;
     date: string;
     progress: string;
+    status_sewa: string;
 }
 
 interface RecentActivityItemProps {
@@ -27,7 +40,7 @@ interface RecentActivityItemProps {
     title: string;
     subtitle: string;
     time: string;
-    status: 'approved' | 'rejected';
+    status: 'approved' | 'rejected' | 'pending';
 }
 
 interface UserProfile {
@@ -42,8 +55,46 @@ interface RentalStats {
     completed: number;
 }
 
+interface Penyewaan {
+    id_sewa: number;
+    id_pelanggan: number;
+    id_alat: number;
+    tanggal_sewa: string;
+    tanggal_kembali: string | null;
+    total_harga: number;
+    status_sewa: string;
+    status_persetujuan: string;
+    alasan_penolakan: string | null;
+    nama_proyek: string | null;
+    lokasi_proyek: string | null;
+    deskripsi_proyek: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    dokumen_data: string | null;
+    created_at: string;
+    updated_at: string;
+    alat?: {
+        id_alat: number;
+        nama_alat: string;
+        gambar: string;
+    };
+    pelanggan?: {
+        id_pelanggan: number;
+        nama_pelanggan: string;
+        foto_profil?: string;
+    };
+}
+
+interface Pelanggan {
+    id_pelanggan: number;
+    id_user: number;
+    nama_pelanggan: string;
+    foto_profil?: string;
+    // tambahan field lainnya
+}
+
 // ============================================================================
-// CONSTANTS
+// CONSTANTS & API CONFIG
 // ============================================================================
 
 const COLORS = {
@@ -57,90 +108,352 @@ const COLORS = {
     yellow: '#FDCB41',
     green: '#03CF00',
     red: '#CF0000',
+    lightOrange: 'rgba(243, 159, 41, 0.1)',
+    lightGreen: 'rgba(3, 207, 0, 0.1)',
+    lightRed: 'rgba(207, 0, 0, 0.1)',
 };
 
-const MOCK_USER: UserProfile = {
-    name: 'Acong Jayaraya',
-    avatarUrl: 'https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/be7e/389b/c8db882c474b7f5585b46df9d5a35c58?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=M8MJocKl7g96LpvLhk9FLDvA-Bx-rvNA~qqSAsKl5BgaNJw~XZcx4QCOKynIpqGW4f7W7khBssKh5IarPhhOAD-B1xOvM1TzAyGUVBx5JEb7Cc4KPs5el6Oe7pQ-ZjYug0iTASZ0od-zzOI3QZx8rUxhveD0nMCk8YArotnEo2~HZ0ZBFElajYjTPHPcNpPDRZ1BEwCCTp7dkJ4u5h4Z-W4OtfTxaFRf7RNCE2f6I7cWQEaQGbLEF6tMD7apOMlM4Z8HaNKt-28-X1ZamgTO7L9EhPf9USUSpQyg7JAMaqSoQlM05vbpDQF4FtRPDpzZbgljPiizIrVy49OI6CtSJg__',
-    activeRentals: 2,
-};
-
-const MOCK_STATS: RentalStats = {
-    total: 10,
-    ongoing: 2,
-    completed: 8,
-};
-
-const MOCK_ACTIVE_RENTALS: ActiveRentalCardProps[] = [
-    {
-        image: 'https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/bfea/564f/04fbd48ded688b16d060f50826d834a8?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=qoWqP35~z1Moit1wyhoaXC9dMb7wCHPojQy~l3uuG3Vv32CrSn-ckTaSlAQZIHz6DFi9a8L~L~I0EqqP~OcmUSPgLgqanCQEXIcMoGXW8~cWZpQ1VmtsoPUqHBcgKHLoqTbwYqvbvPyn0WWnMamIvkikbcsXixjIJaUfGIMb8V5-sBDCXMNnyT3eDgLODT5ESYcqcQ1JRIzQRklBtjZxA9oGjcmSshLfiEUkgCjJuZEBWWFPk3FK4jW~eZIub475KF2dM6zSCZ-gv7g~JDJRSmRHf2IPv8KoVZNPFtj18Ox1O30zITQnyGP2jlbdRP1d1NGWV9-25Udfr~miS6D9mQ__',
-        title: 'Excavator Caterpillar 3200D',
-        project: 'Proyek Penggalian Gorong Gorong Bambu Hitam',
-        date: '08 Nov 2025 - 23 Nov 2025',
-        progress: '10%',
-    },
-    {
-        image: 'https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/1e63/0454/f5783981978bf165967877321ad5d638?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=pwX8jTSTs-54SwNtdfcXL~oScysuz~z3SjaZ~3CaDsPlx-27Z1MheHbDocuSh2YlVJw98N-e6zPWfi~JTtOpr9yE~eyhcUJwXD-R~mpTKV8FGXa6kbu7U-PSaNRGXbtvagFqa94~RJRUT4eiKIZQFNeAz7PDqaQwRIjkWyWiqWG7Gr4aqN2WvhNAwmd5m8pdTa7TIN2wjzxgSlYE9Grrs~8xo-z1CNPe0ZAYvfV6hy4WxoJf9J9mkVBhoOBL5YfGMaHjsEsGHeV3KHArfvRV-2eXKDVNqG~dcGNzMVw0e~R0vbL4wiKg2np0y4L~7TgIA~8WD2aidd5~G~iOlEcA-w__',
-        title: 'Dump Truck Hino D7000',
-        project: 'Proyek Penggalian Gorong Gorong Bambu Hitam',
-        date: '08 Nov 2025 - 23 Nov 2025',
-        progress: '10%',
-    },
-];
-
-const MOCK_ACTIVITIES: RecentActivityItemProps[] = [
-    {
-        icon: <SimpleLineIcons name="check" size={24} color={COLORS.green} />,
-        title: 'Pengajuan Sewa Disetujui',
-        subtitle: 'Excavator Caterpillar 3200D',
-        time: '5 Jam lalu',
-        status: 'approved',
-    },
-    {
-        icon: <XCircle size={28} color={COLORS.red} strokeWidth={1.5} />,
-        title: 'Pengajuan Sewa Ditolak (Dokumen Tidak Sesuai)',
-        subtitle: 'Excavator Caterpillar 3200D',
-        time: '7 Jam lalu',
-        status: 'rejected',
-    },
-];
+const { width, height } = Dimensions.get('window');
+const API_BASE_URL = 'https://strux-api.loca.lt/api';
 
 // ============================================================================
-// SUBCOMPONENTS
+// API SERVICE FUNCTIONS - DIPERBAIKI UNTUK AMBIL PELANGGAN YANG BENAR
+// ============================================================================
+
+class ApiService {
+    private baseUrl: string;
+
+    constructor(baseUrl: string) {
+        this.baseUrl = baseUrl;
+    }
+
+    private async handleResponse(response: Response) {
+        console.log('📡 Response status:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ API Error Response:', errorText);
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return data;
+    }
+
+    // FUNGSI BARU: Ambil data pelanggan berdasarkan user ID
+    async getPelangganByUserId(): Promise<Pelanggan | null> {
+        try {
+            console.log('👤 [DASHBOARD] Getting pelanggan data by user ID...');
+            
+            // 1. Dapatkan user ID dari user yang login
+            const userData = await AsyncStorage.getItem('userData');
+            
+            if (!userData) {
+                console.log('❌ [DASHBOARD] No user data found in storage');
+                return null;
+            }
+
+            const user = JSON.parse(userData);
+            console.log('📋 [DASHBOARD] User data:', user);
+
+            // Cari user ID dari berbagai kemungkinan field
+            let userId: number | null = null;
+
+            if (user.id) {
+                userId = parseInt(user.id);
+            } else if (user.user_id) {
+                userId = parseInt(user.user_id);
+            } else if (user.user && user.user.id) {
+                userId = parseInt(user.user.id);
+            }
+
+            console.log('🔑 [DASHBOARD] Found user ID:', userId);
+
+            if (!userId) {
+                console.log('❌ [DASHBOARD] No user ID found');
+                return null;
+            }
+
+            // 2. Panggil API untuk mendapatkan data pelanggan berdasarkan user ID
+            console.log(`🌐 [DASHBOARD] Fetching pelanggan data for user ID: ${userId}`);
+            
+            // Coba endpoint yang berbeda
+            const endpoints = [
+                `${this.baseUrl}/pelanggan/by-user/${userId}`,
+                `${this.baseUrl}/pelanggan/user/${userId}`,
+                `${this.baseUrl}/pelanggan?user_id=${userId}`
+            ];
+
+            let pelangganData = null;
+
+            for (const endpoint of endpoints) {
+                try {
+                    console.log(`🔄 [DASHBOARD] Trying endpoint: ${endpoint}`);
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        console.log('✅ [DASHBOARD] Pelanggan API response:', result);
+
+                        // Handle different response structures
+                        if (result.data) {
+                            pelangganData = Array.isArray(result.data) ? result.data[0] : result.data;
+                        } else if (Array.isArray(result) && result.length > 0) {
+                            pelangganData = result[0];
+                        } else if (result.id_pelanggan) {
+                            pelangganData = result;
+                        }
+
+                        if (pelangganData) {
+                            console.log('🎯 [DASHBOARD] Found pelanggan data:', pelangganData);
+                            break;
+                        }
+                    }
+                } catch (error) {
+                    console.log(`❌ [DASHBOARD] Endpoint failed: ${endpoint}`, error);
+                    continue;
+                }
+            }
+
+            if (!pelangganData) {
+                console.log('❌ [DASHBOARD] No pelanggan data found for user ID:', userId);
+                return null;
+            }
+
+            return pelangganData;
+
+        } catch (error) {
+            console.error('❌ [DASHBOARD] Error getting pelanggan data:', error);
+            return null;
+        }
+    }
+
+    // Fungsi untuk mendapatkan ID pelanggan (menggunakan fungsi di atas)
+    async getPelangganId(): Promise<number | null> {
+        try {
+            const pelangganData = await this.getPelangganByUserId();
+            
+            if (pelangganData && pelangganData.id_pelanggan) {
+                console.log('🎯 [DASHBOARD] Final pelanggan ID:', pelangganData.id_pelanggan);
+                return pelangganData.id_pelanggan;
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('❌ [DASHBOARD] Error getting pelanggan ID:', error);
+            return null;
+        }
+    }
+
+    async getUserProfile(): Promise<{ name: string; avatarUrl: string }> {
+        try {
+            // Sekarang ambil dari data pelanggan, bukan user
+            const pelangganData = await this.getPelangganByUserId();
+            
+            if (pelangganData) {
+                return {
+                    name: pelangganData.nama_pelanggan || 'Pengguna',
+                    avatarUrl: pelangganData.foto_profil || 'https://via.placeholder.com/59x59?text=User'
+                };
+            }
+
+            // Fallback ke user data jika pelanggan data tidak ditemukan
+            const userData = await AsyncStorage.getItem('userData');
+            if (userData) {
+                const user = JSON.parse(userData);
+                return {
+                    name: user.nama || user.name || 'Pengguna',
+                    avatarUrl: user.foto_profil || user.avatar || 'https://via.placeholder.com/59x59?text=User'
+                };
+            }
+
+            return {
+                name: 'Pengguna',
+                avatarUrl: 'https://via.placeholder.com/59x59?text=User'
+            };
+
+        } catch (error) {
+            console.error('❌ Error getting user profile:', error);
+            return {
+                name: 'Pengguna',
+                avatarUrl: 'https://via.placeholder.com/59x59?text=User'
+            };
+        }
+    }
+
+    async getPenyewaanByPelanggan(pelangganId: number): Promise<Penyewaan[]> {
+        try {
+            console.log(`🔍 [DASHBOARD] Fetching penyewaan for pelanggan ID: ${pelangganId}`);
+            
+            const response = await fetch(`${this.baseUrl}/penyewaan/pelanggan/${pelangganId}`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            const result = await this.handleResponse(response);
+            console.log('📊 [DASHBOARD] Penyewaan API response:', result);
+            
+            if (result.data !== undefined) {
+                return result.data || [];
+            } else if (Array.isArray(result)) {
+                return result;
+            } else {
+                console.warn('⚠️ [DASHBOARD] Unexpected response structure:', result);
+                return [];
+            }
+            
+        } catch (error) {
+            console.error('❌ [DASHBOARD] Error fetching penyewaan:', error);
+            throw error;
+        }
+    }
+
+    async testConnection(): Promise<boolean> {
+        try {
+            const response = await fetch(`${this.baseUrl}/health`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
+            });
+            
+            return response.ok;
+        } catch (error) {
+            console.error('❌ API connection test failed:', error);
+            return false;
+        }
+    }
+}
+
+const apiService = new ApiService(API_BASE_URL);
+
+// ============================================================================
+// UTILITY FUNCTIONS (sama seperti sebelumnya)
+// ============================================================================
+
+const formatDate = (dateString: string): string => {
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+        });
+    } catch (error) {
+        return 'Tanggal tidak valid';
+    }
+};
+
+const getRentalProgress = (status: string, startDate: string, endDate: string): string => {
+    switch (status) {
+        case 'Menunggu Persetujuan':
+            return '0%';
+        case 'Dalam Pengantaran':
+            return '25%';
+        case 'Berjalan':
+            try {
+                const start = new Date(startDate).getTime();
+                const end = new Date(endDate).getTime();
+                const now = new Date().getTime();
+                
+                if (now < start) return '25%';
+                if (now > end) return '100%';
+                
+                const total = end - start;
+                const elapsed = now - start;
+                const progress = Math.min(100, Math.max(0, (elapsed / total) * 100));
+                return `${Math.round(progress)}%`;
+            } catch (error) {
+                return '50%';
+            }
+        case 'Selesai':
+            return '100%';
+        case 'Dibatalkan':
+            return '0%';
+        default:
+            return '0%';
+    }
+};
+
+const getStatusColor = (status: string): string => {
+    switch (status) {
+        case 'Menunggu Persetujuan':
+            return COLORS.orange;
+        case 'Dalam Pengantaran':
+            return COLORS.yellow;
+        case 'Berjalan':
+            return COLORS.green;
+        case 'Selesai':
+            return COLORS.green;
+        case 'Dibatalkan':
+            return COLORS.red;
+        default:
+            return COLORS.textGray;
+    }
+};
+
+const getStatusBackgroundColor = (status: string): string => {
+    switch (status) {
+        case 'Menunggu Persetujuan':
+            return COLORS.lightOrange;
+        case 'Dalam Pengantaran':
+            return 'rgba(253, 203, 65, 0.1)';
+        case 'Berjalan':
+            return COLORS.lightGreen;
+        case 'Selesai':
+            return COLORS.lightGreen;
+        case 'Dibatalkan':
+            return COLORS.lightRed;
+        default:
+            return '#F4F4F4';
+    }
+};
+
+// ============================================================================
+// SUBCOMPONENTS (sama seperti sebelumnya)
 // ============================================================================
 
 const StatCard: React.FC<StatCardProps> = ({ icon, count, label }) => (
     <View style={styles.statCard}>
-        {icon}
+        <View style={styles.statIcon}>{icon}</View>
         <Text style={styles.statCount}>{count}</Text>
         <Text style={styles.statLabel}>{label}</Text>
     </View>
 );
 
 const ActiveRentalCard: React.FC<ActiveRentalCardProps> = ({
+    id_sewa,
     image,
     title,
     project,
     date,
-    progress
+    progress,
+    status_sewa
 }) => (
-    <TouchableOpacity
-        style={styles.rentalCard}
-        accessibilityRole="button"
-        accessibilityLabel={`${title}, ${project}`}
-        accessibilityHint="Tap untuk melihat detail penyewaan"
-    >
-        <Image
-            source={{ uri: image }}
-            style={styles.rentalImage}
-            accessibilityLabel={title}
-        />
+    <TouchableOpacity style={styles.rentalCard} onPress={() => console.log('Navigate to rental detail:', id_sewa)}>
+        <Image source={{ uri: image }} style={styles.rentalImage} />
         <View style={styles.rentalInfo}>
-            <Text style={styles.rentalTitle} numberOfLines={2}>{title}</Text>
-            <Text style={styles.rentalProject} numberOfLines={2}>{project}</Text>
+            <Text style={styles.rentalTitle} numberOfLines={1}>{title}</Text>
+            <Text style={styles.rentalProject} numberOfLines={1}>{project}</Text>
             <Text style={styles.rentalDate}>{date}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusBackgroundColor(status_sewa) }]}>
+                <Text style={[styles.statusText, { color: getStatusColor(status_sewa) }]}>
+                    {status_sewa}
+                </Text>
+            </View>
         </View>
-        <Text style={styles.rentalProgress}>{progress}</Text>
+        <View style={styles.progressContainer}>
+            <Text style={styles.rentalProgress}>{progress}</Text>
+        </View>
     </TouchableOpacity>
 );
 
@@ -151,16 +464,10 @@ const RecentActivityItem: React.FC<RecentActivityItemProps> = ({
     time,
     status
 }) => (
-    <View
-        style={styles.activityItem}
-        accessibilityLabel={`${title}, ${subtitle}, ${time}`}
-    >
-        <View
-            style={[
-                styles.activityIconContainer,
-                status === 'approved' ? styles.approvedBg : styles.rejectedBg
-            ]}
-        >
+    <View style={styles.activityItem}>
+        <View style={[styles.activityIconContainer, 
+            status === 'approved' ? styles.approvedBg : 
+            status === 'rejected' ? styles.rejectedBg : styles.pendingBg]}>
             {icon}
         </View>
         <View style={styles.activityTextContainer}>
@@ -172,10 +479,7 @@ const RecentActivityItem: React.FC<RecentActivityItemProps> = ({
 );
 
 const WelcomeCard: React.FC<{ user: UserProfile }> = ({ user }) => (
-    <LinearGradient
-        colors={[COLORS.orange, COLORS.yellow]}
-        style={styles.welcomeCard}
-    >
+    <View style={styles.welcomeCard}>
         <View style={styles.welcomeTextContainer}>
             <Text style={styles.welcomeGreeting}>Selamat Datang,</Text>
             <Text style={styles.welcomeName}>{user.name}</Text>
@@ -183,31 +487,31 @@ const WelcomeCard: React.FC<{ user: UserProfile }> = ({ user }) => (
                 Anda memiliki {user.activeRentals} sewa aktif, mohon jaga alat berat dengan baik
             </Text>
         </View>
-        <Image
-            source={{ uri: user.avatarUrl }}
-            style={styles.profilePic}
-            accessibilityLabel={`Foto profil ${user.name}`}
-        />
-    </LinearGradient>
+        <Image source={{ uri: user.avatarUrl }} style={styles.profilePic} />
+    </View>
 );
 
-const StatsSection: React.FC<{ stats: RentalStats }> = ({ stats }) => (
+const StatsSection: React.FC<{ stats: RentalStats; loading?: boolean }> = ({ stats, loading = false }) => (
     <View style={styles.statsContainer}>
-        <StatCard
-            icon={<Box size={24} color={COLORS.orange} />}
-            count={stats.total}
-            label="Total Sewa"
-        />
-        <StatCard
-            icon={<Timer size={24} color={COLORS.orange} />}
-            count={stats.ongoing}
-            label="Berlangsung"
-        />
-        <StatCard
-            icon={<Check size={24} color={COLORS.orange} />}
-            count={stats.completed}
-            label="Selesai"
-        />
+        {loading ? (
+            <>
+                <View style={[styles.statCard, styles.loadingCard]}>
+                    <ActivityIndicator size="small" color={COLORS.orange} />
+                </View>
+                <View style={[styles.statCard, styles.loadingCard]}>
+                    <ActivityIndicator size="small" color={COLORS.orange} />
+                </View>
+                <View style={[styles.statCard, styles.loadingCard]}>
+                    <ActivityIndicator size="small" color={COLORS.orange} />
+                </View>
+            </>
+        ) : (
+            <>
+                <StatCard icon={<Text style={styles.iconText}>📦</Text>} count={stats.total} label="Total Sewa" />
+                <StatCard icon={<Text style={styles.iconText}>⏱️</Text>} count={stats.ongoing} label="Berlangsung" />
+                <StatCard icon={<Text style={styles.iconText}>✅</Text>} count={stats.completed} label="Selesai" />
+            </>
+        )}
     </View>
 );
 
@@ -219,82 +523,324 @@ const SectionHeader: React.FC<{
     <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>{title}</Text>
         {showSeeAll && (
-            <TouchableOpacity
-                style={styles.seeAllButton}
-                onPress={onSeeAll}
-                accessibilityRole="button"
-                accessibilityLabel="Lihat semua"
-            >
+            <TouchableOpacity style={styles.seeAllButton} onPress={onSeeAll}>
                 <Text style={styles.seeAllText}>Lihat Semua</Text>
-                <ChevronRight size={16} color={COLORS.orange} />
+                <Text style={styles.seeAllText}>›</Text>
             </TouchableOpacity>
         )}
     </View>
 );
 
 // ============================================================================
-// MAIN COMPONENT
+// MAIN COMPONENT - DIPERBAIKI
 // ============================================================================
 
 export default function DashboardScreen() {
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [userData, setUserData] = useState<UserProfile>({
+        name: 'Loading...',
+        avatarUrl: 'https://via.placeholder.com/59x59?text=User',
+        activeRentals: 0
+    });
+    const [rentalStats, setRentalStats] = useState<RentalStats>({
+        total: 0,
+        ongoing: 0,
+        completed: 0
+    });
+    const [activeRentals, setActiveRentals] = useState<ActiveRentalCardProps[]>([]);
+    const [recentActivities, setRecentActivities] = useState<RecentActivityItemProps[]>([]);
+    const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+    const [pelangganId, setPelangganId] = useState<number | null>(null);
+    const [userId, setUserId] = useState<number | null>(null);
+
+    const fetchDashboardData = async (useMockData = false) => {
+        try {
+            setLoading(true);
+            console.log('🔄 [DASHBOARD] Starting to fetch dashboard data...');
+            
+            // 1. Dapatkan data pelanggan berdasarkan user ID
+            const pelangganData = await apiService.getPelangganByUserId();
+            
+            if (!pelangganData && !useMockData) {
+                Alert.alert(
+                    'Error', 
+                    'Tidak dapat menemukan data pelanggan. Silakan login ulang.',
+                    [
+                        { text: 'Gunakan Data Demo', onPress: () => fetchDashboardData(true) }
+                    ]
+                );
+                return;
+            }
+
+            const currentPelangganId = pelangganData?.id_pelanggan || null;
+            setPelangganId(currentPelangganId);
+
+            // Simpan user ID untuk debug
+            const userData = await AsyncStorage.getItem('userData');
+            if (userData) {
+                const user = JSON.parse(userData);
+                setUserId(user.id || user.user_id || null);
+            }
+
+            console.log(`🎯 [DASHBOARD] Using pelanggan ID: ${currentPelangganId}`);
+
+            let penyewaanData: Penyewaan[] = [];
+
+            if (useMockData) {
+                console.log('📦 [DASHBOARD] Using MOCK DATA');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Filter mock data berdasarkan pelanggan ID yang benar
+                penyewaanData = [];
+                setApiStatus('offline');
+            } else {
+                console.log('🌐 [DASHBOARD] Using REAL API');
+                const isApiOnline = await apiService.testConnection();
+                setApiStatus(isApiOnline ? 'online' : 'offline');
+                
+                if (isApiOnline && currentPelangganId) {
+                    penyewaanData = await apiService.getPenyewaanByPelanggan(currentPelangganId);
+                } else {
+                    throw new Error('API tidak dapat diakses');
+                }
+            }
+
+            console.log('📊 [DASHBOARD] Processed data count:', penyewaanData.length);
+            
+            // Process stats
+            const total = penyewaanData.length;
+            const ongoing = penyewaanData.filter(sewa => 
+                ['Menunggu Persetujuan', 'Dalam Pengantaran', 'Berjalan'].includes(sewa.status_sewa)
+            ).length;
+            const completed = penyewaanData.filter(sewa => 
+                ['Selesai', 'Dibatalkan'].includes(sewa.status_sewa)
+            ).length;
+
+            setRentalStats({ total, ongoing, completed });
+
+            // Process active rentals
+            const ongoingRentals = penyewaanData
+                .filter(sewa => ['Menunggu Persetujuan', 'Dalam Pengantaran', 'Berjalan'].includes(sewa.status_sewa))
+                .slice(0, 2)
+                .map(sewa => ({
+                    id_sewa: sewa.id_sewa,
+                    image: sewa.alat?.gambar || 'https://via.placeholder.com/85x85?text=Alat+Berat',
+                    title: sewa.alat?.nama_alat || 'Alat Berat',
+                    project: sewa.nama_proyek || 'Proyek Tanpa Nama',
+                    date: `${formatDate(sewa.tanggal_sewa)} - ${sewa.tanggal_kembali ? formatDate(sewa.tanggal_kembali) : 'Belum ditentukan'}`,
+                    progress: getRentalProgress(sewa.status_sewa, sewa.tanggal_sewa, sewa.tanggal_kembali || sewa.tanggal_sewa),
+                    status_sewa: sewa.status_sewa
+                }));
+
+            setActiveRentals(ongoingRentals);
+
+            // Update user data
+            const userProfile = await apiService.getUserProfile();
+            setUserData({
+                ...userProfile,
+                activeRentals: ongoing
+            });
+
+            // Process recent activities
+            const activities = penyewaanData.slice(0, 2).map(sewa => {
+                const isApproved = sewa.status_persetujuan === 'Disetujui';
+                const isRejected = sewa.status_persetujuan === 'Ditolak';
+                
+                let icon, title, status: 'approved' | 'rejected' | 'pending';
+                
+                if (isApproved) {
+                    icon = <Text style={styles.iconText}>✅</Text>;
+                    title = 'Pengajuan Sewa Disetujui';
+                    status = 'approved';
+                } else if (isRejected) {
+                    icon = <Text style={styles.iconText}>❌</Text>;
+                    title = `Pengajuan Sewa Ditolak${sewa.alasan_penolakan ? ` (${sewa.alasan_penolakan})` : ''}`;
+                    status = 'rejected';
+                } else {
+                    icon = <Text style={styles.iconText}>⏱️</Text>;
+                    title = 'Pengajuan Sewa Menunggu Persetujuan';
+                    status = 'pending';
+                }
+                
+                return {
+                    icon,
+                    title,
+                    subtitle: sewa.alat?.nama_alat || 'Alat Berat',
+                    time: formatDate(sewa.updated_at),
+                    status
+                };
+            });
+
+            setRecentActivities(activities);
+            console.log('✅ [DASHBOARD] Dashboard data processed successfully');
+
+        } catch (error: any) {
+            console.error('❌ [DASHBOARD] Error in fetchDashboardData:', error);
+            
+            if (!useMockData) {
+                console.log('🔄 [DASHBOARD] Retrying with mock data...');
+                fetchDashboardData(true);
+            } else {
+                Alert.alert(
+                    'Error', 
+                    error.message || 'Gagal memuat data dashboard',
+                    [
+                        { text: 'Coba Lagi', onPress: () => fetchDashboardData(false) },
+                        { text: 'Gunakan Data Demo', onPress: () => fetchDashboardData(true) }
+                    ]
+                );
+            }
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchDashboardData(false);
+    }, []);
+
+    const handleRefresh = () => {
+        setRefreshing(true);
+        fetchDashboardData(false);
+    };
+
     const handleSeeAllRentals = () => {
-        // Navigate to rentals list
         console.log('Navigate to all rentals');
+    };
+
+    // Debug function untuk melihat data
+    const debugData = async () => {
+        console.log('👤 [DASHBOARD DEBUG] Checking all data...');
+        
+        const userData = await AsyncStorage.getItem('userData');
+        console.log('📋 Raw user data:', userData);
+        
+        const pelangganData = await apiService.getPelangganByUserId();
+        console.log('🎯 Pelanggan data:', pelangganData);
+        
+        Alert.alert(
+            'Debug Info',
+            `User ID: ${userId}\nPelanggan ID: ${pelangganId}\nTotal Data: ${rentalStats.total}`
+        );
     };
 
     return (
         <SafeAreaView style={styles.container}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Header */}
-                <View style={styles.header}>
+            <StatusBar 
+                backgroundColor={COLORS.white} 
+                barStyle="dark-content" 
+                translucent={false}
+            />
+            
+            {/* Header */}
+            <View style={styles.header}>
+                <View style={styles.headerLeft}>
                     <Image
-                        source={{
-                            uri: 'https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/33f0/c75a/47eabbba22aaa62621dea29c2361007f?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=C~CJj6a0StCy0Ead0mPL-37afjxjtLddDumGkAQbUiiHuyQnxzir20YVScZPsEq7Q2hjbmeCwnOf14o6Qw886~LeBgdAjlRb8Z~rvEZbGHBtaidb0Zu14IU0Q6adYpRLDpU~rnI55tQlku13uH6-fJ3qStNV9rkD5ZypQV~7qKZ7K3dOAGlGzyHWpy3VStskVffrkg5r8qX7BRJXGpEcls4KHnjhOToZd8I-azwef3TMuCyN9uij2xV2y3KlXmoix6wfAhOJHHYZKvqQ3RmBHPJiagXyen7VkHgEGFHHfzI~bYcJmMUp5dKiEg0RCDJ95VrPtDzJV9Jvt6RMn1kKag__'
-                        }}
+                        source={{ uri: 'https://img-wrapper.vercel.app/image?url=https://s3-alpha-sig.figma.com/img/33f0/c75a/47eabbba22aaa62621dea29c2361007f?Expires=1763942400&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=C~CJj6a0StCy0Ead0mPL-37afjxjtLddDumGkAQbUiiHuyQnxzir20YVScZPsEq7Q2hjbmeCwnOf14o6Qw886~LeBgdAjlRb8Z~rvEZbGHBtaidb0Zu14IU0Q6adYpRLDpU~rnI55tQlku13uH6-fJ3qStNV9rkD5ZypQV~7qKZ7K3dOAGlGzyHWpy3VStskVffrkg5r8qX7BRJXGpEcls4KHnjhOToZd8I-azwef3TMuCyN9uij2xV2y3KlXmoix6wfAhOJHHYZKvqQ3RmBHPJiagXyen7VkHgEGFHHfzI~bYcJmMUp5dKiEg0RCDJ95VrPtDzJV9Jvt6RMn1kKag__' }}
                         style={styles.logo}
-                        accessibilityLabel="Logo S'Trux"
                     />
-                    <Text style={styles.logoText}>S'Trux</Text>
+                    <Text style={styles.logoText}>S`Trux</Text>
                 </View>
+                <View style={styles.headerRight}>
+                    {apiStatus !== 'checking' && (
+                        <View style={[
+                            styles.apiStatus, 
+                            apiStatus === 'online' ? styles.apiOnline : styles.apiOffline
+                        ]}>
+                            <Text style={styles.apiStatusText}>
+                                {apiStatus === 'online' ? '🟢' : '🔴'}
+                            </Text>
+                        </View>
+                    )}
+                    <TouchableOpacity onPress={debugData} style={styles.debugButton}>
+                        <Text style={styles.debugButtonText}>🐛</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
 
+            <ScrollView 
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        colors={[COLORS.orange]}
+                        tintColor={COLORS.orange}
+                    />
+                }
+                contentContainerStyle={styles.scrollContent}
+            >
                 <View style={styles.content}>
                     {/* Welcome Card */}
-                    <WelcomeCard user={MOCK_USER} />
+                    <WelcomeCard user={userData} />
+
+                    {/* Debug Info */}
+                    {(userId || pelangganId) && (
+                        <View style={styles.debugInfo}>
+                            <Text style={styles.debugInfoText}>
+                                User ID: {userId} | Pelanggan ID: {pelangganId || 'Tidak ditemukan'}
+                            </Text>
+                        </View>
+                    )}
 
                     {/* Stats Section */}
-                    <StatsSection stats={MOCK_STATS} />
+                    <View style={styles.statsSection}>
+                        <Text style={styles.sectionTitle}>Statistik Sewa</Text>
+                        <StatsSection stats={rentalStats} loading={loading} />
+                    </View>
 
                     {/* Active Rentals Section */}
-                    <SectionHeader
-                        title="Penyewaan Aktif"
-                        showSeeAll={true}
-                        onSeeAll={handleSeeAllRentals}
-                    />
-
-                    {MOCK_ACTIVE_RENTALS.map((rental, index) => (
-                        <ActiveRentalCard
-                            key={index}
-                            image={rental.image}
-                            title={rental.title}
-                            project={rental.project}
-                            date={rental.date}
-                            progress={rental.progress}
+                    <View style={styles.section}>
+                        <SectionHeader
+                            title="Penyewaan Aktif"
+                            showSeeAll={activeRentals.length > 0}
+                            onSeeAll={handleSeeAllRentals}
                         />
-                    ))}
+
+                        {loading ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color={COLORS.orange} />
+                                <Text style={styles.loadingText}>Memuat data penyewaan...</Text>
+                            </View>
+                        ) : activeRentals.length > 0 ? (
+                            activeRentals.map((rental) => (
+                                <ActiveRentalCard key={rental.id_sewa} {...rental} />
+                            ))
+                        ) : (
+                            <View style={styles.emptyState}>
+                                <Text style={styles.emptyStateText}>Tidak ada penyewaan aktif</Text>
+                                <Text style={styles.emptyStateSubtext}>
+                                    {pelangganId 
+                                        ? `Belum ada transaksi untuk pelanggan ID: ${pelangganId}`
+                                        : 'Tidak dapat menemukan data pelanggan'
+                                    }
+                                </Text>
+                            </View>
+                        )}
+                    </View>
 
                     {/* Recent Activity Section */}
-                    <SectionHeader title="Aktivitas Terbaru" />
+                    <View style={styles.section}>
+                        <SectionHeader title="Aktivitas Terbaru" />
 
-                    {MOCK_ACTIVITIES.map((activity, index) => (
-                        <RecentActivityItem
-                            key={index}
-                            icon={activity.icon}
-                            title={activity.title}
-                            subtitle={activity.subtitle}
-                            time={activity.time}
-                            status={activity.status}
-                        />
-                    ))}
+                        {loading ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color={COLORS.orange} />
+                                <Text style={styles.loadingText}>Memuat aktivitas...</Text>
+                            </View>
+                        ) : recentActivities.length > 0 ? (
+                            recentActivities.map((activity, index) => (
+                                <RecentActivityItem key={index} {...activity} />
+                            ))
+                        ) : (
+                            <View style={styles.emptyState}>
+                                <Text style={styles.emptyStateText}>Tidak ada aktivitas terbaru</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    <View style={styles.bottomSpacer} />
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -302,7 +848,7 @@ export default function DashboardScreen() {
 }
 
 // ============================================================================
-// STYLES
+// STYLES (sama seperti sebelumnya dengan beberapa tambahan)
 // ============================================================================
 
 const styles = StyleSheet.create({
@@ -310,206 +856,336 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.background,
     },
+    scrollContent: {
+        flexGrow: 1,
+    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingTop: 20,
-        paddingBottom: 10,
+        paddingTop: 12,
+        paddingBottom: 12,
+        backgroundColor: COLORS.white,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E5E5',
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    headerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     logo: {
         width: 34,
         height: 35,
+        resizeMode: 'contain',
     },
     logoText: {
-        fontFamily: 'Poppins-SemiBold',
-        fontSize: 15,
+        fontWeight: '600',
+        fontSize: 18,
         color: COLORS.black,
-        marginLeft: 5,
+        marginLeft: 8,
+    },
+    apiStatus: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    apiOnline: {
+        backgroundColor: COLORS.lightGreen,
+    },
+    apiOffline: {
+        backgroundColor: COLORS.lightOrange,
+    },
+    apiStatusText: {
+        fontWeight: '500',
+        fontSize: 12,
+    },
+    debugButton: {
+        width: 32,
+        height: 32,
+        backgroundColor: COLORS.lightOrange,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    debugButtonText: {
+        fontSize: 14,
+        fontWeight: '500',
     },
     content: {
-        paddingHorizontal: 20,
-        paddingBottom: 20,
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 8,
+    },
+    debugInfo: {
+        backgroundColor: COLORS.lightOrange,
+        padding: 8,
+        borderRadius: 8,
+        marginBottom: 16,
+    },
+    debugInfoText: {
+        fontSize: 10,
+        color: COLORS.darkGray,
+        textAlign: 'center',
+        fontWeight: '500',
+    },
+    section: {
+        marginBottom: 24,
+    },
+    statsSection: {
+        marginBottom: 24,
+    },
+    sectionTitle: {
+        fontWeight: '600',
+        fontSize: 16,
+        color: COLORS.black,
+        marginBottom: 12,
     },
     welcomeCard: {
-        borderRadius: 10,
-        padding: 14,
+        borderRadius: 16,
+        padding: 20,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 16,
+        backgroundColor: COLORS.orange,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
     },
     welcomeTextContainer: {
         flex: 1,
-        marginRight: 10,
+        marginRight: 16,
     },
     welcomeGreeting: {
-        fontFamily: 'Poppins-SemiBold',
-        fontSize: 10,
+        fontWeight: '400',
+        fontSize: 14,
         color: COLORS.darkGray,
+        marginBottom: 4,
     },
     welcomeName: {
-        fontFamily: 'Poppins-SemiBold',
-        fontSize: 15,
+        fontWeight: '600',
+        fontSize: 18,
         color: COLORS.white,
-        marginVertical: 4,
+        marginBottom: 8,
     },
     welcomeMessage: {
-        fontFamily: 'Poppins-Regular',
-        fontSize: 10,
+        fontWeight: '400',
+        fontSize: 12,
         color: COLORS.darkGray,
-        lineHeight: 14,
+        lineHeight: 16,
     },
     profilePic: {
-        width: 59,
-        height: 59,
-        borderRadius: 29.5,
+        width: 64,
+        height: 64,
+        borderRadius: 32,
         borderWidth: 2,
         borderColor: COLORS.white,
     },
     statsContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 30,
+        gap: 12,
     },
     statCard: {
         backgroundColor: COLORS.white,
-        borderRadius: 10,
-        padding: 15,
+        borderRadius: 12,
+        padding: 16,
         alignItems: 'flex-start',
-        justifyContent: 'space-between',
-        width: '31%',
-        height: 128,
-        shadowColor: 'rgba(0, 0, 0, 0.1)',
+        flex: 1,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 1,
+        shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
     },
+    statIcon: {
+        marginBottom: 8,
+    },
+    iconText: {
+        fontSize: 20,
+    },
     statCount: {
-        fontFamily: 'Poppins-Medium',
-        fontSize: 32,
+        fontWeight: '700',
+        fontSize: 20,
         color: COLORS.mediumGray,
+        marginBottom: 4,
     },
     statLabel: {
-        fontFamily: 'Poppins-Regular',
-        fontSize: 10,
-        color: COLORS.mediumGray,
+        fontWeight: '400',
+        fontSize: 12,
+        color: COLORS.textGray,
     },
     sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 15,
-    },
-    sectionTitle: {
-        fontFamily: 'Poppins-Medium',
-        fontSize: 13,
-        color: COLORS.black,
+        marginBottom: 12,
     },
     seeAllButton: {
         flexDirection: 'row',
         alignItems: 'center',
     },
     seeAllText: {
-        fontFamily: 'Poppins-Regular',
-        fontSize: 11,
+        fontWeight: '400',
+        fontSize: 12,
         color: COLORS.orange,
-        marginRight: 2,
+        marginRight: 4,
     },
     rentalCard: {
         backgroundColor: COLORS.white,
-        borderRadius: 10,
-        padding: 11,
+        borderRadius: 12,
+        padding: 16,
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 18,
-        shadowColor: 'rgba(253, 203, 65, 0.3)',
+        marginBottom: 12,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 1,
+        shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
     },
     rentalImage: {
-        width: 85,
-        height: 85,
-        borderRadius: 5,
+        width: 70,
+        height: 70,
+        borderRadius: 8,
     },
     rentalInfo: {
         flex: 1,
-        marginLeft: 13,
-        marginRight: 10,
+        marginLeft: 12,
+        marginRight: 8,
     },
     rentalTitle: {
-        fontFamily: 'Poppins-SemiBold',
-        fontSize: 12,
+        fontWeight: '600',
+        fontSize: 14,
         color: COLORS.black,
-        marginBottom: 6,
+        marginBottom: 4,
     },
     rentalProject: {
-        fontFamily: 'Poppins-Regular',
-        fontSize: 10,
+        fontWeight: '400',
+        fontSize: 12,
         color: COLORS.black,
         marginBottom: 2,
     },
     rentalDate: {
-        fontFamily: 'Poppins-Regular',
-        fontSize: 10,
+        fontWeight: '400',
+        fontSize: 11,
         color: COLORS.textGray,
+        marginBottom: 4,
+    },
+    statusBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        alignSelf: 'flex-start',
+    },
+    statusText: {
+        fontWeight: '500',
+        fontSize: 10,
+    },
+    progressContainer: {
+        alignItems: 'center',
     },
     rentalProgress: {
-        fontFamily: 'Poppins-Medium',
-        fontSize: 10,
+        fontWeight: '600',
+        fontSize: 12,
         color: COLORS.orange,
-        position: 'absolute',
-        bottom: 10,
-        right: 15,
     },
     activityItem: {
         backgroundColor: COLORS.white,
-        borderRadius: 10,
-        padding: 15,
+        borderRadius: 12,
+        padding: 16,
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 15,
-        shadowColor: 'rgba(0, 0, 0, 0.05)',
+        marginBottom: 8,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 1,
+        shadowOpacity: 0.1,
         shadowRadius: 4,
-        elevation: 2,
+        elevation: 3,
     },
     activityIconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 15,
+        marginRight: 12,
     },
     approvedBg: {
-        backgroundColor: 'rgba(3, 207, 0, 0.1)',
+        backgroundColor: COLORS.lightGreen,
     },
     rejectedBg: {
-        backgroundColor: 'rgba(207, 0, 0, 0.1)',
+        backgroundColor: COLORS.lightRed,
+    },
+    pendingBg: {
+        backgroundColor: COLORS.lightOrange,
     },
     activityTextContainer: {
         flex: 1,
     },
     activityTitle: {
-        fontFamily: 'Poppins-SemiBold',
-        fontSize: 12,
+        fontWeight: '600',
+        fontSize: 13,
         color: COLORS.black,
+        marginBottom: 2,
     },
     activitySubtitle: {
-        fontFamily: 'Poppins-Regular',
-        fontSize: 10,
+        fontWeight: '400',
+        fontSize: 12,
         color: COLORS.black,
-        marginTop: 2,
+        marginBottom: 2,
     },
     activityTime: {
-        fontFamily: 'Poppins-Regular',
-        fontSize: 10,
+        fontWeight: '400',
+        fontSize: 11,
         color: COLORS.textGray,
-        marginTop: 2,
+    },
+    loadingContainer: {
+        alignItems: 'center',
+        padding: 40,
+    },
+    loadingText: {
+        fontWeight: '400',
+        fontSize: 14,
+        color: COLORS.textGray,
+        marginTop: 12,
+    },
+    loadingCard: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: 100,
+    },
+    emptyState: {
+        backgroundColor: COLORS.white,
+        borderRadius: 12,
+        padding: 24,
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    emptyStateText: {
+        fontWeight: '400',
+        fontSize: 14,
+        color: COLORS.textGray,
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    emptyStateSubtext: {
+        fontWeight: '400',
+        fontSize: 12,
+        color: COLORS.textGray,
+        textAlign: 'center',
+    },
+    bottomSpacer: {
+        height: 20,
     },
 });
