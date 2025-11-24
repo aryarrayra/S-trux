@@ -7,12 +7,18 @@ import {
     TouchableOpacity,
     Modal,
     ActivityIndicator,
-    Alert
+    Alert,
 } from 'react-native';
-import { TrendingUp, TrendingDown } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Download } from 'lucide-react-native';
 import Svg, { Path, G } from 'react-native-svg';
 import { COLORS } from '@/constants/Colors';
 import SideBar from '@/components/admin/SideBar';
+
+// === PAKET EXPO UNTUK PDF ===
+import * as Print from 'expo-print';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 const API_URL = 'http://127.0.0.1:8000/api/laporan-keuangan';
 
@@ -33,9 +39,19 @@ export default function LaporanKeuangan() {
     const [showDropdown, setShowDropdown] = useState(false);
     const [data, setData] = useState<Data>({
         totalPendapatan: 0,
-        categories: []
+        categories: [],
     });
     const [loading, setLoading] = useState(true);
+
+    // Request izin simpan file (hanya sekali)
+    useEffect(() => {
+        (async () => {
+            const { status } = await MediaLibrary.requestPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Izin Ditolak', 'Aplikasi butuh izin untuk menyimpan PDF');
+            }
+        })();
+    }, []);
 
     useEffect(() => {
         fetchData();
@@ -55,17 +71,17 @@ export default function LaporanKeuangan() {
             }
         } catch (e) {
             console.error('Fetch error:', e);
-            Alert.alert('Error', 'Gagal mengambil data dari server');
+            Alert.alert('Error', 'Gagal mengambil data, menggunakan data contoh');
 
-            // Mock data fallback
+            // Mock data kalau server mati
             setData({
                 totalPendapatan: 18250000,
                 categories: [
                     { name: 'Sewa Crane', percentage: 42, color: '#F59E0B', total_pendapatan: 7665000 },
                     { name: 'Sewa Alat Berat', percentage: 28, color: '#10B981', total_pendapatan: 5110000 },
                     { name: 'Sewa Truk', percentage: 18, color: '#3B82F6', total_pendapatan: 3285000 },
-                    { name: 'Lainnya', percentage: 12, color: '#EF4444', total_pendapatan: 2190000 }
-                ]
+                    { name: 'Lainnya', percentage: 12, color: '#EF4444', total_pendapatan: 2190000 },
+                ],
             });
         } finally {
             setLoading(false);
@@ -73,6 +89,110 @@ export default function LaporanKeuangan() {
     };
 
     const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
+
+    // ====================== EXPORT PDF ======================
+    const generateHtml = (data: Data, period: string) => {
+        const rows = data.categories
+            .map(
+                (cat) => `
+            <tr>
+                <td style="padding:12px 0; border-bottom:1px solid #eee;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:16px; height:16px; background:${cat.color}; border-radius:4px;"></div>
+                        <span style="font-weight:600;">${cat.name}</span>
+                    </div>
+                </td>
+                <td style="text-align:right; font-weight:600;">${formatRupiah(
+                    cat.total_pendapatan || 0
+                )}</td>
+                <td style="text-align:center;">${cat.percentage}%</td>
+            </tr>`
+            )
+            .join('');
+
+        return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Laporan Keuangan - ${period}</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding:40px; background:#f9f9f9; color:#333; }
+        .header { text-align:center; margin-bottom:40px; }
+        .header h1 { color:#F59E0B; margin:0; font-size:28px; }
+        .header p { margin:8px 0; color:#666; font-size:16px; }
+        .summary { background:white; padding:25px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1); margin-bottom:30px; }
+        .total { font-size:32px; font-weight:bold; color:#F59E0B; }
+        table { width:100%; border-collapse:collapse; background:white; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1); }
+        th { background:#F59E0B; color:white; padding:16px; text-align:left; }
+        th:nth-child(2), td:nth-child(2) { text-align:right; }
+        th:nth-child(3), td:nth-child(3) { text-align:center; }
+        .footer { margin-top:60px; text-align:center; color:#999; font-size:12px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Laporan Keuangan</h1>
+        <p>Periode: <strong>${period}</strong></p>
+        <p>${new Date().toLocaleDateString('id-ID', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+        })}</p>
+    </div>
+
+    <div class="summary">
+        <table>
+            <tr><td><strong>Total Pendapatan</strong></td><td class="total">${formatRupiah(
+            data.totalPendapatan
+        )}</td></tr>
+            <tr><td><strong>Jumlah Kategori</strong></td><td>${data.categories.length} kategori</td></tr>
+        </table>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Kategori</th>
+                <th>Jumlah</th>
+                <th>Persentase</th>
+            </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+    </table>
+
+    <div class="footer">
+        Dicetak melalui Aplikasi S-Trux • ${new Date().toLocaleString('id-ID')}
+    </div>
+</body>
+</html>`;
+    };
+
+    const exportToPDF = async () => {
+        try {
+            const html = generateHtml(data, period);
+
+            const { uri } = await Print.printToFileAsync({ html });
+
+            const fileName = `Laporan_Keuangan_${period.replace(/ /g, '_')}_${new Date()
+                .toISOString()
+                .slice(0, 10)}.pdf`;
+            const destination = `${FileSystem.documentDirectory}${fileName}`;
+
+            await FileSystem.moveAsync({ from: uri, to: destination });
+            await MediaLibrary.saveToLibraryAsync(destination);
+
+            Alert.alert('Berhasil!', `${fileName}\nTersimpan di folder Downloads`, [
+                { text: 'OK' },
+                { text: 'Buka PDF', onPress: () => Sharing.shareAsync(destination) },
+            ]);
+        } catch (err) {
+            console.error(err);
+            Alert.alert('Gagal', 'Tidak bisa membuat PDF. Pastikan izin penyimpanan diizinkan.');
+        }
+    };
+    // ======================================================
 
     return (
         <View style={styles.container}>
@@ -88,18 +208,22 @@ export default function LaporanKeuangan() {
                             weekday: 'long',
                             day: 'numeric',
                             month: 'long',
-                            year: 'numeric'
-                        })} WIB
+                            year: 'numeric',
+                        })}{' '}
+                        WIB
                     </Text>
                 </View>
 
                 <View style={styles.controls}>
-                    <TouchableOpacity
-                        style={styles.periodBtn}
-                        onPress={() => setShowDropdown(true)}
-                    >
+                    <TouchableOpacity style={styles.periodBtn} onPress={() => setShowDropdown(true)}>
                         <Text style={styles.periodText}>{period}</Text>
                         <Text style={{ marginLeft: 8 }}>▼</Text>
+                    </TouchableOpacity>
+
+                    {/* Tombol Export PDF */}
+                    <TouchableOpacity style={styles.exportBtn} onPress={exportToPDF}>
+                        <Download color="#fff" size={20} />
+                        <Text style={styles.exportBtnText}> Export PDF</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -136,12 +260,11 @@ export default function LaporanKeuangan() {
                                 </View>
                             </View>
 
-                            {/* Chart + Legend Berjejer */}
+                            {/* Chart + Legend */}
                             <View style={styles.chartCard}>
                                 <Text style={styles.chartTitle}>
                                     Pendapatan per Kategori - {period}
                                 </Text>
-
                                 <View style={styles.chartContainer}>
                                     <PieChart data={data} />
                                 </View>
@@ -158,18 +281,20 @@ export default function LaporanKeuangan() {
                         onPress={() => setShowDropdown(false)}
                     >
                         <View style={styles.dropdown}>
-                            {['1 bulan terakhir', '3 bulan terakhir', '6 bulan terakhir', '1 tahun terakhir'].map(p => (
-                                <TouchableOpacity
-                                    key={p}
-                                    style={styles.item}
-                                    onPress={() => {
-                                        setPeriod(p);
-                                        setShowDropdown(false);
-                                    }}
-                                >
-                                    <Text style={styles.itemText}>{p}</Text>
-                                </TouchableOpacity>
-                            ))}
+                            {['1 bulan terakhir', '3 bulan terakhir', '6 bulan terakhir', '1 tahun terakhir'].map(
+                                (p) => (
+                                    <TouchableOpacity
+                                        key={p}
+                                        style={styles.item}
+                                        onPress={() => {
+                                            setPeriod(p);
+                                            setShowDropdown(false);
+                                        }}
+                                    >
+                                        <Text style={styles.itemText}>{p}</Text>
+                                    </TouchableOpacity>
+                                )
+                            )}
                         </View>
                     </TouchableOpacity>
                 </Modal>
@@ -178,7 +303,7 @@ export default function LaporanKeuangan() {
     );
 }
 
-// ========================== PIE CHART + LEGEND BERJEJER ==========================
+// ========================== PIE CHART + LEGEND ==========================
 const PieChart = ({ data }: { data: Data }) => {
     const total = data.totalPendapatan || 0;
     const radius = 110;
@@ -205,25 +330,19 @@ const PieChart = ({ data }: { data: Data }) => {
         const x2 = center + radius * Math.cos(endRad);
         const y2 = center + radius * Math.sin(endRad);
 
-        const path = `
-            M ${center},${center}
-            L ${x1},${y1}
-            A ${radius},${radius} 0 ${largeArc},1 ${x2},${y2}
-            Z
-        `;
-
+        const path = `M ${center},${center} L ${x1},${y1} A ${radius},${radius} 0 ${largeArc},1 ${x2},${y2} Z`;
         segments.push(
             <Path key={cat.name} d={path} fill={cat.color} stroke="#fff" strokeWidth={3} />
         );
 
-        // Label persen di dalam pie
+        // Label persen di dalam
         const midAngle = startAngle + sliceAngle / 2;
         const midRad = (midAngle - 90) * Math.PI / 180;
         const labelRadius = radius * 0.7;
         const lx = center + labelRadius * Math.cos(midRad);
         const ly = center + labelRadius * Math.sin(midRad);
 
-        if (cat.percentage >= 5) { // hanya tampilkan jika >=5%
+        if (cat.percentage >= 5) {
             labelsInside.push({ x: lx, y: ly, percent: cat.percentage });
         }
 
@@ -232,13 +351,10 @@ const PieChart = ({ data }: { data: Data }) => {
 
     return (
         <View style={styles.pieRow}>
-            {/* PIE CHART */}
             <View style={{ position: 'relative' }}>
                 <Svg width={260} height={260} viewBox="0 0 260 260">
                     <G>{segments}</G>
                 </Svg>
-
-                {/* Label persen di dalam */}
                 {labelsInside.map((lbl, i) => (
                     <View
                         key={i}
@@ -253,7 +369,6 @@ const PieChart = ({ data }: { data: Data }) => {
                 ))}
             </View>
 
-            {/* TOTAL + LEGEND DI KANAN */}
             <View style={styles.rightSection}>
                 <Text style={styles.totalText}>{formatRupiah(total)}</Text>
                 <Text style={styles.totalLabel}>Total Pendapatan</Text>
@@ -286,7 +401,8 @@ const styles = StyleSheet.create({
     title: { fontSize: 32, fontWeight: 'bold', color: '#F59E0B' },
     subtitle: { fontSize: 14, color: '#666' },
     date: { fontSize: 16, color: '#333', textAlign: 'right' },
-    controls: { flexDirection: 'row', marginBottom: 30 },
+
+    controls: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
     periodBtn: {
         flexDirection: 'row',
         backgroundColor: '#fff',
@@ -295,9 +411,20 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         borderWidth: 1,
         borderColor: '#eee',
-        alignItems: 'center'
+        alignItems: 'center',
     },
     periodText: { fontSize: 14, color: '#333' },
+
+    exportBtn: {
+        flexDirection: 'row',
+        backgroundColor: '#F59E0B',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        gap: 8,
+    },
+    exportBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 
     cards: { flexDirection: 'row', gap: 20, marginBottom: 30 },
     cardIncome: { flex: 1, backgroundColor: '#FEF3C7', padding: 24, borderRadius: 16 },
@@ -311,13 +438,10 @@ const styles = StyleSheet.create({
     chartTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginBottom: 30, textAlign: 'center' },
     chartContainer: { alignItems: 'center' },
 
-    // Layout pie + legend berjejer
     pieRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 50 },
-
     rightSection: { minWidth: 260 },
     totalText: { fontSize: 32, fontWeight: 'bold', color: '#F59E0B' },
     totalLabel: { fontSize: 14, color: '#666', marginBottom: 20 },
-
     legendContainer: { gap: 12 },
     legendRow: { flexDirection: 'row', alignItems: 'center' },
     legendBox: { width: 16, height: 16, borderRadius: 4, marginRight: 12 },
