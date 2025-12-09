@@ -19,6 +19,7 @@ import {
     AlertTriangle,
     X,
     Check,
+    CheckCircle,
 } from 'lucide-react-native';
 import SideBar from '@/components/admin/SideBar';
 import { Stack } from 'expo-router';
@@ -28,15 +29,17 @@ const API_BASE = 'http://localhost:8000/api';
 interface AlatBerat {
     id_alat: number;
     nama_alat: string;
+    kode_alat?: string;
+    kategori?: string;
 }
 
 interface PerawatanAlat {
     id_perawatan: number;
     id_alat: number;
-    tanggal_perawatan: string;
+    tanggal_perawatan: string | null;
     keterangan: string | null;
     biaya_perawatan: number;
-    status: 'Dijadwalkan' | 'Selesai';
+    status: 'Menunggu' | 'Dijadwalkan' | 'Selesai';
     alat?: AlatBerat;
 }
 
@@ -45,249 +48,223 @@ export default function JadwalMaintenance() {
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-
-    // Modal
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedItem, setSelectedItem] = useState<PerawatanAlat | null>(null);
     const [tanggal, setTanggal] = useState<Date>(new Date());
-    const [tanggalText, setTanggalText] = useState<string>('');
+    const [tanggalInput, setTanggalInput] = useState<string>('');
     const [showPicker, setShowPicker] = useState(false);
     const [biaya, setBiaya] = useState<string>('');
-
-    // Format tanggal header otomatis hari ini
-    const formatTanggalHeader = () => {
-        return new Date().toLocaleDateString('id-ID', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-        });
-    };
 
     useEffect(() => {
         fetchSchedules();
     }, []);
 
-    // Refresh data saat modal ditutup
-    useEffect(() => {
-        if (!modalVisible) {
-            fetchSchedules();
-        }
-    }, [modalVisible]);
-
     const fetchSchedules = async () => {
         setIsLoading(true);
         try {
-            console.log('🔄 Fetching schedules...');
             const res = await fetch(`${API_BASE}/perawatan-alat`);
-            
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}`);
-            }
-            
             const json = await res.json();
-            console.log('📥 Schedules response:', json);
-            
-            if (json.success) {
+            if (json.success && Array.isArray(json.data)) {
                 setSchedules(json.data);
-            } else {
-                Alert.alert('Error', 'Format data tidak valid');
             }
-        } catch (error: any) {
-            console.error('❌ Fetch error:', error);
-            Alert.alert('Error', 'Gagal memuat data jadwal: ' + error.message);
+        } catch {
+            Alert.alert('Error', 'Gagal memuat data');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const isRekomendasi = (item: PerawatanAlat) =>
-        item.keterangan?.includes('[REKOMENDASI PETUGAS]') ?? false;
+    const [modalSelesai, setModalSelesai] = useState(false);
+    const [itemSelesai, setItemSelesai] = useState<PerawatanAlat | null>(null);
 
-    const resetFormState = () => {
-        setSelectedItem(null);
-        setTanggal(new Date());
-        setTanggalText('');
-        setBiaya('');
-        setSaving(false);
+    const bukaModalSelesai = (item: PerawatanAlat) => {
+        setItemSelesai(item);
+        setModalSelesai(true);
     };
 
-    const jadwalkanRekomendasi = (item: PerawatanAlat) => {
-        console.log('📅 Opening modal for:', item);
-        
-        // Reset dulu sebelum buka modal baru
-        resetFormState();
-        
+    const konfirmasiSelesai = async () => {
+        if (!itemSelesai) return;
+
+        setSaving(true);
+        try {
+            let res = await fetch(`${API_BASE}/perawatan-alat/${itemSelesai.id_perawatan}/selesai`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+            });
+            if (!res.ok) {
+                res = await fetch(`${API_BASE}/perawatan-alat/${itemSelesai.id_perawatan}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id_alat: itemSelesai.id_alat,
+                        tanggal_perawatan: itemSelesai.tanggal_perawatan,
+                        keterangan: itemSelesai.keterangan,
+                        biaya_perawatan: itemSelesai.biaya_perawatan,
+                        status: 'Selesai',
+                    }),
+                });
+            }
+
+            if (res.ok) {
+                setSchedules(prev => prev.map(item =>
+                    item.id_perawatan === itemSelesai.id_perawatan
+                        ? { ...item, status: 'Selesai' as const }
+                        : item
+                ));
+                setModalSelesai(false);
+                setItemSelesai(null);
+                setTimeout(() => {
+                    fetchSchedules();
+                }, 300);
+            } else {
+                const errorData = await res.json().catch(() => ({}));
+                Alert.alert('Gagal', errorData.message || 'Server menolak permintaan');
+            }
+        } catch (error) {
+            console.error('Error tandai selesai:', error);
+            Alert.alert('Error', 'Koneksi bermasalah: ' + error);
+        } finally {
+            setSaving(false);
+        }
+    };
+    const bukaModalAcc = (item: PerawatanAlat) => {
         setSelectedItem(item);
         setTanggal(new Date());
-        setTanggalText('');
-        
-        // Default biaya
-        const defaultBiaya = item.biaya_perawatan > 0
-            ? item.biaya_perawatan.toLocaleString('id-ID')
-            : '10.000.000';
-        setBiaya(defaultBiaya);
-        
+        setTanggalInput(formatTanggalInput(new Date()));
+        setBiaya('');
         setModalVisible(true);
     };
+    const formatTanggalInput = (date: Date) => {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+    };
+    const parseTanggalInput = (input: string): Date | null => {
+        const parts = input.split('/');
+        if (parts.length !== 3) return null;
 
-    const simpanJadwal = async () => {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+
+        if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+        if (day < 1 || day > 31 || month < 0 || month > 11 || year < 2000) return null;
+
+        const date = new Date(year, month, day);
+        if (date.getDate() !== day || date.getMonth() !== month) return null;
+
+        return date;
+    };
+
+    const handleTanggalChange = (text: string) => {
+        const cleaned = text.replace(/[^0-9/]/g, '');
+
+        let formatted = cleaned;
+        if (cleaned.length === 2 && !cleaned.includes('/')) {
+            formatted = cleaned + '/';
+        } else if (cleaned.length === 5 && cleaned.split('/').length === 2) {
+            formatted = cleaned + '/';
+        }
+
+        setTanggalInput(formatted);
+        if (formatted.length === 10) {
+            const parsedDate = parseTanggalInput(formatted);
+            if (parsedDate) {
+                setTanggal(parsedDate);
+            }
+        }
+    };
+
+    const handleDatePickerChange = (event: any, selectedDate?: Date) => {
+        setShowPicker(Platform.OS === 'ios');
+        if (selectedDate) {
+            setTanggal(selectedDate);
+            setTanggalInput(formatTanggalInput(selectedDate));
+        }
+    };
+
+    const simpanAcc = async () => {
         if (!selectedItem) return;
 
-        console.log('=== SIMPAN JADWAL START ===');
-        console.log('Selected item:', selectedItem);
+        const finalDate = parseTanggalInput(tanggalInput);
+        if (!finalDate) {
+            Alert.alert('Error', 'Format tanggal tidak valid! Gunakan format DD/MM/YYYY');
+            return;
+        }
 
-        const biayaClean = biaya.replace(/\./g, '').trim();
-        console.log('Biaya clean:', biayaClean);
-        
-        if (biayaClean && isNaN(Number(biayaClean))) {
-            Alert.alert('Error', 'Biaya harus berupa angka');
+        const biayaNum = parseInt(biaya.replace(/\./g, '').replace(/,/g, '')) || 0;
+
+        if (biayaNum === 0) {
+            Alert.alert('Error', 'Biaya harus diisi!');
             return;
         }
 
         setSaving(true);
-
-        const cleanKeterangan =
-            selectedItem.keterangan?.replace('[REKOMENDASI PETUGAS]\n', '').trim() || '';
-        console.log('Keterangan cleaned:', cleanKeterangan);
-
         try {
-            // Format tanggal ke YYYY-MM-DD
-            const formattedDate = tanggal.toISOString().split('T')[0];
-            console.log('Tanggal formatted:', formattedDate);
-            
             const payload = {
-                tanggal_perawatan: formattedDate,
-                biaya_perawatan: parseFloat(biayaClean) || 0,
-                keterangan: cleanKeterangan,
+                id_alat: selectedItem.id_alat,
+                tanggal_perawatan: finalDate.toISOString().split('T')[0],
+                keterangan: selectedItem.keterangan,
+                biaya_perawatan: biayaNum,
                 status: 'Dijadwalkan',
-                id_alat: selectedItem.id_alat
             };
-
-            console.log('📤 Sending PUT request:', {
-                url: `${API_BASE}/perawatan-alat/${selectedItem.id_perawatan}`,
-                payload: payload
-            });
 
             const res = await fetch(`${API_BASE}/perawatan-alat/${selectedItem.id_perawatan}`, {
                 method: 'PUT',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
 
-            console.log('📥 Response status:', res.status);
-            
-            const responseText = await res.text();
-            console.log('📥 Raw response:', responseText);
-            
-            let jsonResponse;
-            try {
-                jsonResponse = JSON.parse(responseText);
-                console.log('📥 Parsed JSON:', jsonResponse);
-            } catch (parseError) {
-                console.error('❌ JSON parse error:', parseError);
-            }
+            const result = await res.json();
 
-            if (res.ok && jsonResponse?.success) {
-                console.log('✅ Success! Data:', jsonResponse.data);
-                
-                // **AUTO CLOSE MODAL & UPDATE STATE LANGSUNG**
+            if (res.ok && result.success) {
+                setSchedules(prev => prev.map(item =>
+                    item.id_perawatan === selectedItem.id_perawatan
+                        ? {
+                            ...item,
+                            status: 'Dijadwalkan' as const,
+                            tanggal_perawatan: finalDate.toISOString().split('T')[0],
+                            biaya_perawatan: biayaNum
+                        }
+                        : item
+                ));
+
                 setModalVisible(false);
-                
-                // Update state lokal langsung (real-time update)
-                const updatedSchedules = schedules.map(schedule => {
-                    if (schedule.id_perawatan === selectedItem.id_perawatan) {
-                        return {
-                            ...schedule,
-                            tanggal_perawatan: formattedDate,
-                            biaya_perawatan: parseFloat(biayaClean) || 0,
-                            keterangan: cleanKeterangan,
-                            status: 'Dijadwalkan' as const
-                        };
-                    }
-                    return schedule;
-                });
-                
-                setSchedules(updatedSchedules);
-                
-                // Reset form
-                resetFormState();
-                
-                // Tampilkan alert sukses tanpa blocking
-                setTimeout(() => {
-                    Alert.alert(
-                        'Sukses! ✅',
-                        'Jadwal maintenance berhasil disimpan',
-                        [{ text: 'OK' }]
-                    );
-                }, 300);
-                
+                setBiaya('');
+                setTanggalInput('');
+                setSelectedItem(null);
+                fetchSchedules();
             } else {
-                console.error('❌ Server error:', res.status);
-                const errorMsg = jsonResponse?.message || 
-                               jsonResponse?.errors || 
-                               'Server menolak. Coba lagi.';
-                console.error('❌ Error details:', errorMsg);
-                Alert.alert('Gagal', `Error ${res.status}: ${JSON.stringify(errorMsg)}`);
+                Alert.alert('Gagal', result.message || 'Server menolak');
             }
-        } catch (err: any) {
-            console.error('❌ Network error:', err);
-            Alert.alert('Error', 'Koneksi bermasalah: ' + err.message);
+        } catch (error) {
+            Alert.alert('Error', 'Koneksi bermasalah: ' + error);
         } finally {
-            console.log('=== SIMPAN JADWAL END ===');
             setSaving(false);
         }
     };
 
-    const onChangeDate = (_event: any, selectedDate?: Date) => {
-        const currentDate = selectedDate || tanggal;
-        setShowPicker(Platform.OS === 'ios');
-        setTanggal(currentDate);
-        setTanggalText(currentDate.toLocaleDateString('id-ID'));
-    };
-
-    const handleManualTanggal = (text: string) => {
-        setTanggalText(text);
-        const match = text.match(/(\d{1,2})[\/\-\.\s](\d{1,2})[\/\-\.\s](\d{4})/);
-        if (match) {
-            const d = parseInt(match[1], 10);
-            const m = parseInt(match[2], 10);
-            const y = parseInt(match[3], 10);
-            const date = new Date(y, m - 1, d);
-            if (!isNaN(date.getTime())) setTanggal(date);
-        }
-    };
-
-    // Auto format biaya ribuan
     const handleBiayaChange = (text: string) => {
         const cleaned = text.replace(/\D/g, '');
         const formatted = cleaned ? Number(cleaned).toLocaleString('id-ID') : '';
         setBiaya(formatted);
     };
 
-    // Format tanggal untuk display
-    const formatTanggalDisplay = (dateStr: string) => {
-        if (dateStr.includes('2000-01-01') || !dateStr) return '-';
-        try {
-            return new Date(dateStr).toLocaleDateString('id-ID');
-        } catch {
-            return dateStr;
-        }
-    };
-
-    const filtered = schedules.filter((s) => {
-        const nama = s.alat?.nama_alat || '';
-        const ket = s.keterangan || '';
+    const filtered = schedules.filter(item => {
         const q = searchQuery.toLowerCase();
-        return nama.toLowerCase().includes(q) || ket.toLowerCase().includes(q);
+        const nama = item.alat?.nama_alat?.toLowerCase() || '';
+        const ket = item.keterangan?.toLowerCase() || '';
+        return nama.includes(q) || ket.includes(q);
     });
 
-    const rekomendasiBelum = filtered.filter(
-        (s) => isRekomendasi(s) && s.tanggal_perawatan.includes('2000-01-01')
-    );
+    const jumlahMenunggu = filtered.filter(i => i.status === 'Menunggu').length;
+
+    const formatTanggal = (tgl: string | null) => {
+        if (!tgl) return 'Belum Ditentukan';
+        const date = new Date(tgl);
+        return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    };
 
     return (
         <>
@@ -295,142 +272,150 @@ export default function JadwalMaintenance() {
             <View style={styles.container}>
                 <SideBar />
                 <View style={styles.main}>
-                    {/* Header */}
                     <View style={styles.header}>
                         <Text style={styles.title}>Jadwal Maintenance</Text>
-                        <Text style={styles.dateHeader}>{formatTanggalHeader()}</Text>
+                        <Text style={styles.dateHeader}>
+                            {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                        </Text>
                     </View>
 
-                    {/* Warning */}
-                    {rekomendasiBelum.length > 0 && (
+                    {jumlahMenunggu > 0 && (
                         <View style={styles.warningBox}>
                             <AlertTriangle size={20} color="#DC2626" />
                             <Text style={styles.warningText}>
-                                {rekomendasiBelum.length} rekomendasi petugas belum dijadwalkan
+                                {jumlahMenunggu} rekomendasi menunggu persetujuan
                             </Text>
                         </View>
                     )}
 
-                    {/* Search + Refresh */}
-                    <View style={styles.topBar}>
-                        <View style={styles.searchBar}>
+                    <View style={styles.searchContainer}>
+                        <View style={styles.searchBox}>
                             <Search size={20} color="#999" />
                             <TextInput
                                 style={styles.searchInput}
-                                placeholder="Cari alat atau keterangan..."
+                                placeholder="Cari nama alat atau keterangan..."
                                 value={searchQuery}
                                 onChangeText={setSearchQuery}
                             />
                         </View>
-                        <TouchableOpacity onPress={fetchSchedules} style={styles.refreshBtn}>
+                        <TouchableOpacity onPress={fetchSchedules} style={styles.refreshButton}>
                             <RefreshCw size={20} color="#FFF" />
                         </TouchableOpacity>
                     </View>
 
-                    {/* Table Header */}
-                    <View style={styles.tableHeader}>
-                        <Text style={styles.th}>Kode</Text>
-                        <Text style={styles.th}>Unit</Text>
-                        <Text style={styles.th}>Jenis</Text>
-                        <Text style={styles.th}>Serv./Terakhir</Text>
-                        <Text style={styles.th}>Berikutnya</Text>
-                        <Text style={styles.th}>Biaya</Text>
-                        <Text style={styles.th}>Status</Text>
-                        <Text style={styles.th}>Aksi</Text>
+                    <View style={styles.card}>
+                        <View style={styles.cardHeader}>
+                            <Text style={styles.cardTitle}>Daftar Rekomendasi Service</Text>
+                        </View>
+
+                        <View style={styles.tableHeader}>
+                            <Text style={[styles.th, { flex: 2 }]}>Unit</Text>
+                            <Text style={[styles.th, { flex: 2.5 }]}>Keterangan</Text>
+                            <Text style={[styles.th, { flex: 1.3 }]}>Tanggal</Text>
+                            <Text style={[styles.th, { flex: 1.2 }]}>Biaya</Text>
+                            <Text style={[styles.th, { flex: 1 }]}>Status</Text>
+                            <Text style={[styles.th, { flex: 1.2 }]}>Aksi</Text>
+                        </View>
+
+                        {isLoading ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color="#F59E0B" />
+                            </View>
+                        ) : filtered.length === 0 ? (
+                            <View style={styles.emptyContainer}>
+                                <Text style={styles.emptyText}>Tidak ada rekomendasi service</Text>
+                            </View>
+                        ) : (
+                            <ScrollView showsVerticalScrollIndicator={false}>
+                                {filtered.map(item => {
+                                    const menunggu = item.status === 'Menunggu';
+                                    const dijadwalkan = item.status === 'Dijadwalkan';
+
+                                    return (
+                                        <View key={item.id_perawatan} style={[styles.tableRow, menunggu && styles.rowPending]}>
+                                            <View style={[styles.td, { flex: 2 }]}>
+                                                <Text style={styles.unitName}>{item.alat?.nama_alat || '—'}</Text>
+                                            </View>
+                                            <View style={[styles.td, { flex: 2.5 }]}>
+                                                <Text style={styles.ketText} numberOfLines={2}>
+                                                    {item.keterangan?.replace('[REKOMENDASI PETUGAS]\n', '').trim() || '—'}
+                                                </Text>
+                                            </View>
+                                            <View style={[styles.td, { flex: 1.3 }]}>
+                                                <Text style={styles.tdText}>{formatTanggal(item.tanggal_perawatan)}</Text>
+                                            </View>
+                                            <View style={[styles.td, { flex: 1.2 }]}>
+                                                <Text style={styles.tdText}>
+                                                    Rp {item.biaya_perawatan.toLocaleString('id-ID')}
+                                                </Text>
+                                            </View>
+                                            <View style={[styles.td, { flex: 1 }]}>
+                                                <Text style={[styles.statusText, {
+                                                    color: menunggu ? '#DC2626' : dijadwalkan ? '#16A34A' : '#6B7280'
+                                                }]}>
+                                                    {menunggu ? 'Menunggu' : dijadwalkan ? 'Dijadwalkan' : 'Selesai'}
+                                                </Text>
+                                            </View>
+                                            <View style={[styles.tdAction, { flex: 1.2 }]}>
+                                                {menunggu && (
+                                                    <TouchableOpacity
+                                                        style={styles.btnSetujui}
+                                                        onPress={() => bukaModalAcc(item)}
+                                                    >
+                                                        <CheckCircle size={22} color="#16A34A" />
+                                                    </TouchableOpacity>
+                                                )}
+                                                {dijadwalkan && (
+                                                    <TouchableOpacity
+                                                        style={styles.btnSelesai}
+                                                        onPress={() => bukaModalSelesai(item)}
+                                                    >
+                                                        <Check size={22} color="#3B82F6" />
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        </View>
+                                    );
+                                })}
+                            </ScrollView>
+                        )}
                     </View>
-
-                    {isLoading ? (
-                        <ActivityIndicator size="large" color="#F59E0B" style={{ marginTop: 80 }} />
-                    ) : (
-                        <ScrollView showsVerticalScrollIndicator={false}>
-                            {filtered.map((item) => {
-                                const dariPetugas = isRekomendasi(item);
-                                const belumJadwal = dariPetugas && item.tanggal_perawatan.includes('2000-01-01');
-
-                                return (
-                                    <View key={item.id_perawatan} style={[styles.tableRow, belumJadwal && styles.rowRekom]}>
-                                        <View style={styles.td}><Text style={styles.tdText}>MT28733</Text></View>
-                                        <View style={styles.td}><Text style={[styles.tdText, styles.unitName]}>{item.alat?.nama_alat || '-'}</Text></View>
-                                        <View style={styles.td}><Text style={styles.tdText}>Excavator</Text></View>
-                                        <View style={styles.td}><Text style={styles.tdText}>29 Aug 2024</Text></View>
-                                        <View style={styles.td}>
-                                            <Text style={styles.tdText}>
-                                                {formatTanggalDisplay(item.tanggal_perawatan)}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.td}>
-                                            <Text style={styles.tdText}>
-                                                Rp {item.biaya_perawatan.toLocaleString('id-ID')}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.td}>
-                                            <Text style={[
-                                                styles.tdText, 
-                                                { 
-                                                    color: item.status === 'Dijadwalkan' ? '#F59E0B' : 
-                                                           item.status === 'Selesai' ? '#10B981' : '#DC2626',
-                                                    fontWeight: '600' 
-                                                }
-                                            ]}>
-                                                {item.status || 'Menunggu'}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.td}>
-                                            {belumJadwal && (
-                                                <TouchableOpacity 
-                                                    style={styles.btnJadwalkan} 
-                                                    onPress={() => jadwalkanRekomendasi(item)}
-                                                >
-                                                    <Calendar size={18} color="#FFF" />
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    </View>
-                                );
-                            })}
-                        </ScrollView>
-                    )}
                 </View>
 
-                {/* Modal */}
-                <Modal 
-                    visible={modalVisible} 
-                    transparent 
-                    animationType="fade"
-                    onRequestClose={() => {
-                        console.log('Modal closing via back button');
-                        setModalVisible(false);
-                        resetFormState();
-                    }}
-                >
-                    <View style={styles.overlay}>
-                        <View style={styles.modalSquare}>
+                {}
+                <Modal visible={modalVisible} transparent animationType="fade">
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
                             <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>Buat Jadwal Maintenance</Text>
-                                <TouchableOpacity onPress={() => {
-                                    setModalVisible(false);
-                                    resetFormState();
-                                }}>
+                                <Text style={styles.modalTitle}>Setujui Rekomendasi</Text>
+                                <TouchableOpacity onPress={() => setModalVisible(false)}>
                                     <X size={28} color="#666" />
                                 </TouchableOpacity>
                             </View>
 
-                            <Text style={styles.alatModal}>{selectedItem?.alat?.nama_alat}</Text>
-                            <Text style={styles.ketModal}>
+                            <Text style={styles.modalUnitName}>
+                                {selectedItem?.alat?.nama_alat}
+                            </Text>
+
+                            <Text style={styles.modalKeterangan}>
                                 {selectedItem?.keterangan?.replace('[REKOMENDASI PETUGAS]\n', '').trim() || 'Tidak ada keterangan'}
                             </Text>
 
-                            {/* Tanggal */}
-                            <Text style={styles.label}>Tanggal Perawatan</Text>
+                            <Text style={styles.modalLabel}>Tanggal Service *</Text>
                             <View style={styles.dateInputContainer}>
                                 <TextInput
                                     style={styles.dateInput}
-                                    placeholder="dd/mm/yyyy"
-                                    value={tanggalText || tanggal.toLocaleDateString('id-ID')}
-                                    onChangeText={handleManualTanggal}
-                                    keyboardType="number-pad"
+                                    placeholder="DD/MM/YYYY"
+                                    placeholderTextColor="#999"
+                                    value={tanggalInput}
+                                    onChangeText={handleTanggalChange}
+                                    maxLength={10}
+                                    keyboardType="numeric"
                                 />
-                                <TouchableOpacity style={styles.calendarIcon} onPress={() => setShowPicker(true)}>
+                                <TouchableOpacity
+                                    style={styles.calendarBtn}
+                                    onPress={() => setShowPicker(true)}
+                                >
                                     <Calendar size={22} color="#F59E0B" />
                                 </TouchableOpacity>
                             </View>
@@ -440,44 +425,98 @@ export default function JadwalMaintenance() {
                                     value={tanggal}
                                     mode="date"
                                     display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                    onChange={onChangeDate}
+                                    onChange={handleDatePickerChange}
                                 />
                             )}
 
-                            {/* Biaya dengan auto-format */}
-                            <Text style={styles.label}>Estimasi Biaya (Rp)</Text>
+                            <Text style={styles.modalLabel}>Estimasi Biaya (Rp) *</Text>
                             <TextInput
-                                style={styles.input}
+                                style={styles.biayaInput}
                                 keyboardType="numeric"
-                                placeholder="15.000.000"
+                                placeholder="Masukkan estimasi biaya"
+                                placeholderTextColor="#999"
                                 value={biaya}
                                 onChangeText={handleBiayaChange}
                             />
 
-                            <View style={styles.modalFooter}>
-                                <TouchableOpacity 
-                                    style={styles.btnBatal} 
-                                    onPress={() => {
-                                        setModalVisible(false);
-                                        resetFormState();
-                                    }}
+                            <View style={styles.modalActions}>
+                                <TouchableOpacity style={styles.btnBatal} onPress={() => setModalVisible(false)}>
+                                    <Text style={styles.btnBatalText}>Batal</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.btnSimpan, saving && { opacity: 0.7 }]}
+                                    onPress={simpanAcc}
+                                    disabled={saving}
+                                >
+                                    {saving ? <ActivityIndicator color="#FFF" /> : <Check size={18} color="#FFF" />}
+                                    <Text style={styles.btnSimpanText}>
+                                        {saving ? 'Menyimpan...' : 'Setujui & Jadwalkan'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
+
+                {}
+                <Modal visible={modalSelesai} transparent animationType="fade">
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { maxWidth: 420 }]}>
+                            <View style={styles.modalHeader}>
+                                <Text style={[styles.modalTitle, { color: '#3B82F6' }]}>Tandai Selesai</Text>
+                                <TouchableOpacity onPress={() => setModalSelesai(false)}>
+                                    <X size={28} color="#666" />
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={[styles.warningBox, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                                <Check size={24} color="#3B82F6" />
+                                <Text style={[styles.warningText, { flex: 1, marginLeft: 12, color: '#1E40AF' }]}>
+                                    Maintenance ini akan ditandai sebagai selesai dan dipindahkan ke riwayat.
+                                </Text>
+                            </View>
+
+                            <View style={styles.detailBox}>
+                                <Text style={styles.detailLabel}>Unit:</Text>
+                                <Text style={styles.detailValue}>
+                                    {itemSelesai?.alat?.nama_alat}
+                                </Text>
+                            </View>
+
+                            <View style={styles.detailBox}>
+                                <Text style={styles.detailLabel}>Tanggal Service:</Text>
+                                <Text style={styles.detailValue}>
+                                    {formatTanggal(itemSelesai?.tanggal_perawatan || null)}
+                                </Text>
+                            </View>
+
+                            <View style={styles.detailBox}>
+                                <Text style={styles.detailLabel}>Biaya:</Text>
+                                <Text style={styles.detailValue}>
+                                    Rp {itemSelesai?.biaya_perawatan.toLocaleString('id-ID') || 0}
+                                </Text>
+                            </View>
+
+                            <Text style={[styles.confirmText, { color: '#3B82F6' }]}>
+                                Yakin maintenance sudah selesai dikerjakan?
+                            </Text>
+
+                            <View style={styles.modalActions}>
+                                <TouchableOpacity
+                                    style={styles.btnBatal}
+                                    onPress={() => setModalSelesai(false)}
                                     disabled={saving}
                                 >
                                     <Text style={styles.btnBatalText}>Batal</Text>
                                 </TouchableOpacity>
-
                                 <TouchableOpacity
-                                    style={[styles.btnSimpanOrange, saving && styles.buttonDisabled]}
-                                    onPress={simpanJadwal}
+                                    style={[styles.btnSelesaiModal, saving && { opacity: 0.7 }]}
+                                    onPress={konfirmasiSelesai}
                                     disabled={saving}
                                 >
-                                    {saving ? (
-                                        <ActivityIndicator size="small" color="#FFF" />
-                                    ) : (
-                                        <Check size={18} color="#FFF" />
-                                    )}
-                                    <Text style={styles.btnSimpanText}>
-                                        {saving ? 'Menyimpan...' : 'Simpan Jadwal'}
+                                    {saving ? <ActivityIndicator color="#FFF" /> : <Check size={18} color="#FFF" />}
+                                    <Text style={styles.btnSelesaiText}>
+                                        {saving ? 'Memproses...' : 'Ya, Selesai'}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -490,215 +529,55 @@ export default function JadwalMaintenance() {
 }
 
 const styles = StyleSheet.create({
-    container: { 
-        flex: 1, 
-        flexDirection: 'row', 
-        backgroundColor: '#f3f4f6' 
-    },
-    main: { 
-        flex: 1, 
-        padding: 24 
-    },
-    header: { 
-        flexDirection: 'row', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: 16 
-    },
-    title: { 
-        fontSize: 28, 
-        fontWeight: '700', 
-        color: '#F59E0B' 
-    },
-    dateHeader: { 
-        color: '#666', 
-        fontSize: 15 
-    },
-    topBar: { 
-        flexDirection: 'row', 
-        gap: 12, 
-        marginBottom: 20, 
-        alignItems: 'center' 
-    },
-    searchBar: { 
-        flex: 1, 
-        flexDirection: 'row', 
-        backgroundColor: '#F5F5F5', 
-        borderRadius: 12, 
-        paddingHorizontal: 12, 
-        alignItems: 'center' 
-    },
-    searchInput: { 
-        flex: 1, 
-        marginLeft: 10, 
-        fontSize: 16 
-    },
-    refreshBtn: { 
-        backgroundColor: '#F59E0B', 
-        padding: 12, 
-        borderRadius: 12 
-    },
-    warningBox: { 
-        backgroundColor: '#FEF2F2', 
-        borderWidth: 1, 
-        borderColor: '#FECACA', 
-        padding: 14, 
-        borderRadius: 12, 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        gap: 10, 
-        marginBottom: 16 
-    },
-    warningText: { 
-        color: '#DC2626', 
-        fontWeight: '600' 
-    },
-    tableHeader: { 
-        flexDirection: 'row', 
-        backgroundColor: '#FFF', 
-        paddingVertical: 14, 
-        paddingHorizontal: 12, 
-        borderRadius: 12, 
-        marginBottom: 8, 
-        borderBottomWidth: 3, 
-        borderBottomColor: '#F59E0B' 
-    },
-    th: { 
-        flex: 1, 
-        fontWeight: '600', 
-        color: '#92400E', 
-        fontSize: 13, 
-        textAlign: 'center' 
-    },
-    tableRow: { 
-        flexDirection: 'row', 
-        backgroundColor: '#FFF', 
-        paddingVertical: 16, 
-        paddingHorizontal: 12, 
-        borderRadius: 12, 
-        marginBottom: 8, 
-        alignItems: 'center' 
-    },
-    rowRekom: { 
-        borderLeftWidth: 6, 
-        borderLeftColor: '#DC2626', 
-        backgroundColor: '#FFEBEB' 
-    },
-    td: { 
-        flex: 1, 
-        justifyContent: 'center', 
-        alignItems: 'center' 
-    },
-    tdText: { 
-        fontSize: 14, 
-        color: '#1F2937', 
-        textAlign: 'center' 
-    },
-    unitName: { 
-        fontWeight: '600' 
-    },
-    btnJadwalkan: { 
-        backgroundColor: '#F59E0B', 
-        padding: 10, 
-        borderRadius: 8 
-    },
-    overlay: { 
-        flex: 1, 
-        backgroundColor: 'rgba(0,0,0,0.5)', 
-        justifyContent: 'center', 
-        alignItems: 'center' 
-    },
-    modalSquare: { 
-        backgroundColor: '#FFF', 
-        width: '90%', 
-        maxWidth: 440, 
-        borderRadius: 16, 
-        padding: 24, 
-        elevation: 20 
-    },
-    modalHeader: { 
-        flexDirection: 'row', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: 20 
-    },
-    modalTitle: { 
-        fontSize: 22, 
-        fontWeight: '700', 
-        color: '#F59E0B' 
-    },
-    alatModal: { 
-        fontSize: 19, 
-        fontWeight: '600', 
-        marginBottom: 6 
-    },
-    ketModal: { 
-        color: '#555', 
-        fontStyle: 'italic', 
-        marginBottom: 24, 
-        lineHeight: 22 
-    },
-    label: { 
-        fontWeight: '600', 
-        marginBottom: 8, 
-        color: '#333' 
-    },
-    dateInputContainer: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        borderWidth: 1.5, 
-        borderColor: '#F59E0B', 
-        borderRadius: 10, 
-        marginBottom: 16 
-    },
-    dateInput: { 
-        flex: 1, 
-        padding: 14, 
-        fontSize: 16 
-    },
-    calendarIcon: { 
-        paddingHorizontal: 14 
-    },
-    input: { 
-        borderWidth: 1.5, 
-        borderColor: '#F59E0B', 
-        borderRadius: 10, 
-        padding: 14, 
-        fontSize: 16, 
-        marginBottom: 32 
-    },
-    modalFooter: { 
-        flexDirection: 'row', 
-        justifyContent: 'flex-end', 
-        gap: 16 
-    },
-    btnBatal: { 
-        paddingHorizontal: 32, 
-        paddingVertical: 14, 
-        backgroundColor: '#E5E7EB', 
-        borderRadius: 30 
-    },
-    btnBatalText: { 
-        fontWeight: '600', 
-        color: '#374151' 
-    },
-    btnSimpanOrange: {
-        flexDirection: 'row',
-        gap: 10,
-        backgroundColor: '#F59E0B',
-        paddingHorizontal: 36,
-        paddingVertical: 14,
-        borderRadius: 30,
-        alignItems: 'center',
-        minWidth: 180,
-        justifyContent: 'center',
-    },
-    btnSimpanText: { 
-        color: '#FFF', 
-        fontWeight: '600', 
-        fontSize: 15 
-    },
-    buttonDisabled: {
-        opacity: 0.7
-    }
+    container: { flex: 1, flexDirection: 'row', backgroundColor: '#f5f5f5' },
+    main: { flex: 1, padding: 20 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    title: { fontSize: 28, fontWeight: '700', color: '#F59E0B' },
+    dateHeader: { fontSize: 15, color: '#666' },
+    searchContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 12 },
+    searchBox: { flex: 1, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, alignItems: 'center', elevation: 2 },
+    searchInput: { flex: 1, marginLeft: 12, fontSize: 16, paddingVertical: 12 },
+    refreshButton: { backgroundColor: '#F59E0B', padding: 14, borderRadius: 12, elevation: 3 },
+    warningBox: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', borderRadius: 12, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 },
+    warningText: { color: '#DC2626', fontWeight: '600' },
+    card: { backgroundColor: '#fff', borderRadius: 16, elevation: 4, overflow: 'hidden' },
+    cardHeader: { backgroundColor: '#FFF7ED', padding: 16, borderBottomWidth: 1, borderBottomColor: '#FED7AA' },
+    cardTitle: { fontSize: 18, fontWeight: '600', color: '#C2410C' },
+    tableHeader: { flexDirection: 'row', backgroundColor: '#FFFBEB', paddingVertical: 16, paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: '#F59E0B' },
+    th: { fontWeight: '600', color: '#92400E', fontSize: 13, textAlign: 'center' },
+    tableRow: { flexDirection: 'row', paddingVertical: 16, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+    rowPending: { backgroundColor: '#FFFBEB', borderLeftWidth: 5, borderLeftColor: '#F59E0B' },
+    td: { justifyContent: 'center', alignItems: 'center' },
+    tdText: { fontSize: 14, color: '#1F2937', textAlign: 'center' },
+    unitName: { fontWeight: '600', fontSize: 14, textAlign: 'center' },
+    ketText: { fontSize: 13, color: '#555', textAlign: 'center' },
+    statusText: { fontSize: 13, fontWeight: '600' },
+    tdAction: { flexDirection: 'row', justifyContent: 'center', gap: 12 },
+    btnSetujui: { backgroundColor: '#DCFCE7', padding: 10, borderRadius: 8 },
+    btnSelesai: { backgroundColor: '#DBEAFE', padding: 10, borderRadius: 8 },
+    loadingContainer: { paddingVertical: 60, alignItems: 'center' },
+    emptyContainer: { paddingVertical: 60, alignItems: 'center' },
+    emptyText: { color: '#666', fontSize: 16 },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    modalContent: { backgroundColor: '#fff', width: '90%', maxWidth: 460, borderRadius: 20, padding: 24, elevation: 10 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    modalTitle: { fontSize: 22, fontWeight: '700', color: '#F59E0B' },
+    modalUnitName: { fontSize: 20, fontWeight: '600', marginBottom: 12, color: '#1F2937' },
+    modalKeterangan: { fontSize: 15, color: '#666', fontStyle: 'italic', marginBottom: 24, lineHeight: 22 },
+    modalLabel: { fontSize: 15, fontWeight: '600', marginBottom: 10, color: '#333' },
+    dateInputContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#F59E0B', borderRadius: 12, marginBottom: 20, backgroundColor: '#FFF' },
+    dateInput: { flex: 1, padding: 16, fontSize: 16, color: '#333' },
+    calendarBtn: { paddingHorizontal: 16, paddingVertical: 16 },
+    biayaInput: { borderWidth: 1.5, borderColor: '#F59E0B', borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 32 },
+    modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 16 },
+    btnBatal: { paddingHorizontal: 32, paddingVertical: 14, backgroundColor: '#E5E7EB', borderRadius: 30 },
+    btnBatalText: { fontWeight: '600', color: '#374151' },
+    btnSimpan: { flexDirection: 'row', gap: 10, backgroundColor: '#F59E0B', paddingHorizontal: 36, paddingVertical: 14, borderRadius: 30, alignItems: 'center' },
+    btnSimpanText: { color: '#FFF', fontWeight: '600', fontSize: 15 },
+    btnSelesaiModal: { flexDirection: 'row', gap: 10, backgroundColor: '#3B82F6', paddingHorizontal: 36, paddingVertical: 14, borderRadius: 30, alignItems: 'center' },
+    btnSelesaiText: { color: '#FFF', fontWeight: '600', fontSize: 15 },
+    detailBox: { backgroundColor: '#F9FAFB', padding: 16, borderRadius: 12, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: '#F59E0B' },
+    detailLabel: { fontSize: 13, fontWeight: '600', color: '#666', marginBottom: 6 },
+    detailValue: { fontSize: 15, color: '#1F2937', lineHeight: 22 },
+    confirmText: { fontSize: 16, fontWeight: '600', color: '#DC2626', textAlign: 'center', marginTop: 12, marginBottom: 24 },
 });
